@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useSyncedTTS, SyncedSpeakButton, HighlightedText, type SyncedTTS } from './components/SyncedSpeakButton';
 import { ReferencePopover } from './components/ReferencePopover';
 import { SANDBOX_PIECES } from './lib/grammarContent';
@@ -22,6 +22,7 @@ import {
 } from './lib/sentenceFormulas';
 import { GRAMMAR_WORD_CLASS_COLORS, GRAMMAR_WORD_CLASS_TEXT_COLORS } from './types';
 import type { GrammarPiece, TTSSettings } from './types';
+import { WelcomeModal, type WelcomeGroup } from './components/WelcomeModal';
 
 // Literacy Manipulatives — rebuilt per direct teacher redesign (2026-09-22),
 // replacing the previous mode-switching build entirely: "the design...
@@ -457,12 +458,60 @@ function SubcategoryRow({ id, label, open, onToggle, children }: {
   );
 }
 
+// Every left-sidebar category's name and header color, in one place, so
+// the sidebar and the welcome pop-up's "What's inside" chips can never
+// drift apart.
+const SIDEBAR_CATEGORIES = {
+  shapes: { id: 'shapes', label: '🔺 Grammar Symbols', color: '#e9d5ff' },
+  symbolSentences: { id: 'symbolSentences', label: '📜 Symbol Sentences', color: '#ddd6fe' },
+  morphemes: { id: 'morphemes', label: '🧩 Morphemes', color: '#bae6fd' },
+  letters: { id: 'letters', label: '🔡 Alphabet', color: '#fed7aa' },
+  graphemes: { id: 'graphemes', label: '🔠 Graphemes', color: '#fde68a' },
+  punctuation: { id: 'punctuation', label: '❓ Punctuation', color: '#cbd5e1' },
+  phono: { id: 'phono', label: '🔊 Phonological Awareness', color: '#fce7f3' },
+  frames: { id: 'frames', label: '🟦 Sound Boxes', color: '#bbf7d0' },
+  textbox: { id: 'textbox', label: '⌨️ Text Box', color: '#c7d2fe' },
+  formulas: { id: 'formulas', label: '📐 Sentence Formulas', color: '#fbcfe8' },
+  wordChains: { id: 'wordChains', label: '🔗 Word Chains', color: LM_WORD_CHAIN_COLOR },
+  heartWords: { id: 'heartWords', label: '❤️ Heart Words', color: '#fecdd3' },
+  spellingRules: { id: 'spellingRules', label: '📏 Spelling Rules', color: LM_SPELLING_RULE_COLOR },
+  dictation: { id: 'dictation', label: '🎧 Dictation', color: LM_DICTATION_COLOR },
+  writingScaffolds: { id: 'writingScaffolds', label: '📝 Writing Scaffolds', color: LM_WRITING_SCAFFOLD_COLOR },
+} as const;
+type SidebarCategoryKey = keyof typeof SIDEBAR_CATEGORIES;
+
+// The welcome pop-up's "What's inside" grouping — the same categories as
+// the sidebar, sorted into four plain-language groups.
+const WELCOME_GROUPS: WelcomeGroup[] = ([
+  { title: 'Sounds & Letters', keys: ['phono', 'letters', 'graphemes', 'frames'] },
+  { title: 'Words', keys: ['morphemes', 'wordChains', 'heartWords', 'spellingRules', 'dictation'] },
+  { title: 'Sentences & Grammar', keys: ['shapes', 'symbolSentences', 'punctuation', 'formulas'] },
+  { title: 'Writing', keys: ['textbox', 'writingScaffolds'] },
+] satisfies { title: string; keys: SidebarCategoryKey[] }[]).map((g) => ({
+  title: g.title,
+  categories: g.keys.map((k) => ({ key: k, label: SIDEBAR_CATEGORIES[k].label, color: SIDEBAR_CATEGORIES[k].color })),
+}));
+
+// "Show this when the board opens" is the one thing this no-save v1
+// remembers — a per-browser preference, not board content. A page that
+// embeds the board (the dashboard's iframe) can also pass ?welcome=0.
+const WELCOME_PREF_KEY = 'lm-show-welcome';
+function readShowWelcomePref(): boolean {
+  try { return window.localStorage.getItem(WELCOME_PREF_KEY) !== 'off'; } catch { return true; }
+}
+function writeShowWelcomePref(show: boolean) {
+  try { window.localStorage.setItem(WELCOME_PREF_KEY, show ? 'on' : 'off'); } catch { /* storage blocked */ }
+}
+function welcomeSuppressedByUrl(): boolean {
+  try { return new URLSearchParams(window.location.search).get('welcome') === '0'; } catch { return false; }
+}
+
 // A single collapsible top-level category in the left sidebar.
-function Category({ label, color, open, onToggle, children }: {
-  label: string; color: string; open: boolean; onToggle: () => void; children: React.ReactNode;
+function Category({ id, label, color, open, onToggle, children }: {
+  id: string; label: string; color: string; open: boolean; onToggle: () => void; children: React.ReactNode;
 }) {
   return (
-    <div className="lm-category">
+    <div className="lm-category" id={`lm-cat-${id}`}>
       <button
         type="button"
         className="lm-category-header"
@@ -924,6 +973,29 @@ export default function LiteracyManipulatives() {
     wordChains: false, heartWords: false, spellingRules: false, dictation: false, writingScaffolds: false,
   });
   const toggleCategory = (key: string) => setOpenCategories((s) => ({ ...s, [key]: !s[key] }));
+
+  // Welcome pop-up — opens with the board unless turned off, reopenable
+  // from the toolbar. Its material chips open that sidebar category and
+  // scroll it into view.
+  const [showWelcomeOnStart, setShowWelcomeOnStart] = useState(readShowWelcomePref);
+  const [welcomeOpen, setWelcomeOpen] = useState(() => showWelcomeOnStart && !welcomeSuppressedByUrl());
+  const closeWelcome = useCallback(() => setWelcomeOpen(false), []);
+  const changeShowWelcomeOnStart = (show: boolean) => {
+    setShowWelcomeOnStart(show);
+    writeShowWelcomePref(show);
+  };
+  const jumpToCategory = (key: string) => {
+    setWelcomeOpen(false);
+    setSidebarOpen(true);
+    setOpenCategories((s) => ({ ...s, [key]: true }));
+    // Wait a frame so the sidebar and the category have rendered open.
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`lm-cat-${key}`);
+      const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      el?.scrollIntoView({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' });
+      el?.querySelector<HTMLButtonElement>('.lm-category-header')?.focus({ preventScroll: true });
+    });
+  };
   const [openSubcategories, setOpenSubcategories] = useState<Record<string, boolean>>({
     page1: false, page2: false, page3: false, page4: false, page5: false, page6: false, page7: false, page8: false, page9: false, page10: false, page11: false,
     roots: true, affixes: true, phonics: true, morphemesList: true, spelling: true,
@@ -1587,6 +1659,7 @@ export default function LiteracyManipulatives() {
               🔈 {ttsSettings.rate}x
             </button>
             <span className="lm-toolbar-divider" />
+            <button className="btn btn-sm" onClick={() => setWelcomeOpen(true)}>👋 Welcome</button>
             <button className="btn btn-sm" onClick={() => window.print()}>🖨️ Print</button>
             <button className={`btn btn-sm ${projectorMode ? 'btn-primary' : ''}`} onClick={toggleProjectorMode}>🖥️ Projector Mode</button>
             <span style={{ flex: 1 }} />
@@ -1617,7 +1690,7 @@ export default function LiteracyManipulatives() {
       <div className="lm-shell" style={{ flex: 1, minHeight: 0 }}>
       {sidebarOpen ? (
         <aside className="lm-sidebar">
-          <Category label="🔺 Grammar Symbols" color="#e9d5ff" open={openCategories.shapes} onToggle={() => toggleCategory('shapes')}>
+          <Category {...SIDEBAR_CATEGORIES.shapes} open={openCategories.shapes} onToggle={() => toggleCategory('shapes')}>
             <div className="row-wrap" style={{ gap: 8 }}>
               {(Object.keys(MONTESSORI_WORD_CLASS_INFO) as MontessoriWordClass[]).map((cls) => {
                 const info = MONTESSORI_WORD_CLASS_INFO[cls];
@@ -1630,7 +1703,7 @@ export default function LiteracyManipulatives() {
             </div>
           </Category>
 
-          <Category label="📜 Symbol Sentences" color="#ddd6fe" open={openCategories.symbolSentences} onToggle={() => toggleCategory('symbolSentences')}>
+          <Category {...SIDEBAR_CATEGORIES.symbolSentences} open={openCategories.symbolSentences} onToggle={() => toggleCategory('symbolSentences')}>
             <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Drag a whole sentence onto the board, symbols only!</p>
             {SYMBOL_SENTENCE_PAGES.map((page) => (
               <SubcategoryRow key={page.id} id={page.id} label={`${page.icon} ${page.label}`} open={openSubcategories[page.id]} onToggle={() => toggleSubcategory(page.id)}>
@@ -1643,7 +1716,7 @@ export default function LiteracyManipulatives() {
             ))}
           </Category>
 
-          <Category label="🧩 Morphemes" color="#bae6fd" open={openCategories.morphemes} onToggle={() => toggleCategory('morphemes')}>
+          <Category {...SIDEBAR_CATEGORIES.morphemes} open={openCategories.morphemes} onToggle={() => toggleCategory('morphemes')}>
             <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Pieces only link if they make a real word!</p>
             <SubcategoryRow id="roots" label="Roots" open={openSubcategories.roots} onToggle={() => toggleSubcategory('roots')}>
               <div className="row-wrap" style={{ gap: 8 }}>
@@ -1692,7 +1765,7 @@ export default function LiteracyManipulatives() {
             </SubcategoryRow>
           </Category>
 
-          <Category label="🔡 Alphabet" color="#fed7aa" open={openCategories.letters} onToggle={() => toggleCategory('letters')}>
+          <Category {...SIDEBAR_CATEGORIES.letters} open={openCategories.letters} onToggle={() => toggleCategory('letters')}>
             <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Double-tap a letter to flip its case!</p>
             {/* A23-ROADMAP Phase 2: vowel/consonant coloring toggle,
                 shared with Graphemes below (both are letter tiles). */}
@@ -1711,7 +1784,7 @@ export default function LiteracyManipulatives() {
             </div>
           </Category>
 
-          <Category label="🔠 Graphemes" color="#fde68a" open={openCategories.graphemes} onToggle={() => toggleCategory('graphemes')}>
+          <Category {...SIDEBAR_CATEGORIES.graphemes} open={openCategories.graphemes} onToggle={() => toggleCategory('graphemes')}>
             <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Multi-letter spellings only (single letters are in Alphabet). Not UFLI-verified, see code comment.</p>
             {GRAPHEME_GROUPS.map((group) => (
               <SubcategoryRow key={group.key} id={`graph-${group.key}`} label={group.label} open={openSubcategories[`graph-${group.key}`]} onToggle={() => toggleSubcategory(`graph-${group.key}`)}>
@@ -1730,7 +1803,7 @@ export default function LiteracyManipulatives() {
               teacher toggle (StudentManager.tsx). No accounts here, so
               it's always on — every tool unlocked for anyone. */}
           {(
-            <Category label="❓ Punctuation" color="#cbd5e1" open={openCategories.punctuation} onToggle={() => toggleCategory('punctuation')}>
+            <Category {...SIDEBAR_CATEGORIES.punctuation} open={openCategories.punctuation} onToggle={() => toggleCategory('punctuation')}>
               <div className="row-wrap" style={{ gap: 8 }}>
                 {PUNCTUATION_MARKS.map((m) => (
                   <Draggable key={m.id} label={m.name} onPointerDown={startDragNewItem(() => ({ kind: 'punctuation', punctId: m.id }))}>
@@ -1746,7 +1819,7 @@ export default function LiteracyManipulatives() {
               categories" — free-play manipulatives, no target word, no
               auto-counting/auto-splitting, matching this sandbox's
               standing "entirely unscripted" rule. */}
-          <Category label="🔊 Phonological Awareness" color="#fce7f3" open={openCategories.phono} onToggle={() => toggleCategory('phono')}>
+          <Category {...SIDEBAR_CATEGORIES.phono} open={openCategories.phono} onToggle={() => toggleCategory('phono')}>
             <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Drag out chips, dividers, or a tapper to work with sounds yourself.</p>
             <div className="row-wrap" style={{ gap: 10, alignItems: 'flex-start' }}>
               <Draggable label="Sound chip" onPointerDown={startDragNewItem(() => ({ kind: 'soundChip' }))}>
@@ -1766,7 +1839,7 @@ export default function LiteracyManipulatives() {
             </div>
           </Category>
 
-          <Category label="🟦 Sound Boxes" color="#bbf7d0" open={openCategories.frames} onToggle={() => toggleCategory('frames')}>
+          <Category {...SIDEBAR_CATEGORIES.frames} open={openCategories.frames} onToggle={() => toggleCategory('frames')}>
             <div className="stack" style={{ gap: 10 }}>
               {FRAME_SIZES.map((n) => (
                 <Draggable key={n} label={`${n}-box frame`} onPointerDown={startDragNewItem(() => ({ kind: 'frame', boxCount: n }))}>
@@ -1776,7 +1849,7 @@ export default function LiteracyManipulatives() {
             </div>
           </Category>
 
-          <Category label="⌨️ Text Box" color="#c7d2fe" open={openCategories.textbox} onToggle={() => toggleCategory('textbox')}>
+          <Category {...SIDEBAR_CATEGORIES.textbox} open={openCategories.textbox} onToggle={() => toggleCategory('textbox')}>
             <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Double-tap a text box to type, speak, or resize the text.</p>
             <Draggable label="Add a text box" onPointerDown={startDragNewItem(() => ({ kind: 'textbox', textValue: '', fontSize: 20 }))} style={{ width: '100%' }}>
               <div style={{
@@ -1788,7 +1861,7 @@ export default function LiteracyManipulatives() {
             </Draggable>
           </Category>
 
-          <Category label="📐 Sentence Formulas" color="#fbcfe8" open={openCategories.formulas} onToggle={() => toggleCategory('formulas')}>
+          <Category {...SIDEBAR_CATEGORIES.formulas} open={openCategories.formulas} onToggle={() => toggleCategory('formulas')}>
             <div className="row-wrap" style={{ gap: 4 }}>
               {FORMULA_CATEGORIES.map((c) => (
                 <button key={c.id} className={`btn btn-sm ${sfCategoryId === c.id ? 'btn-primary' : ''}`} style={{ padding: '3px 8px', fontSize: '0.75rem', minHeight: 30, minWidth: 30 }} onClick={() => setSfCategoryId(c.id)} title={c.label}>{c.icon}</button>
@@ -1815,7 +1888,7 @@ export default function LiteracyManipulatives() {
               ladder (see wordChainContent.ts); reuses WordListRow, the
               same plain-reference-row-that's-also-draggable pattern Word
               Lists already established. */}
-          <Category label="🔗 Word Chains" color={LM_WORD_CHAIN_COLOR} open={openCategories.wordChains} onToggle={() => toggleCategory('wordChains')}>
+          <Category {...SIDEBAR_CATEGORIES.wordChains} open={openCategories.wordChains} onToggle={() => toggleCategory('wordChains')}>
             {WORD_CHAINS.map((chain) => (
               <SubcategoryRow key={chain.id} id={`chain-${chain.id}`} label={chain.label} open={openSubcategories[`chain-${chain.id}`]} onToggle={() => toggleSubcategory(`chain-${chain.id}`)}>
                 <div className="stack" style={{ gap: 2 }}>
@@ -1832,7 +1905,7 @@ export default function LiteracyManipulatives() {
               letter themselves, rather than the app asserting a
               possibly-wrong "correct" irregular part (see
               heartWordContent.ts's own comment for why). */}
-          <Category label="❤️ Heart Words" color="#fecdd3" open={openCategories.heartWords} onToggle={() => toggleCategory('heartWords')}>
+          <Category {...SIDEBAR_CATEGORIES.heartWords} open={openCategories.heartWords} onToggle={() => toggleCategory('heartWords')}>
             <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Drag a word onto the board, then tap its tricky letters to mark them with a heart.</p>
             <div className="stack" style={{ gap: 2 }}>
               {HEART_WORDS.map((hw) => (
@@ -1848,7 +1921,7 @@ export default function LiteracyManipulatives() {
           </Category>
 
           {/* A23-ROADMAP Phase 3: spelling rule reference cards. */}
-          <Category label="📏 Spelling Rules" color={LM_SPELLING_RULE_COLOR} open={openCategories.spellingRules} onToggle={() => toggleCategory('spellingRules')}>
+          <Category {...SIDEBAR_CATEGORIES.spellingRules} open={openCategories.spellingRules} onToggle={() => toggleCategory('spellingRules')}>
             <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Hover or focus a card to read the rule and an example.</p>
             <div className="row-wrap" style={{ gap: 8 }}>
               {SPELLING_RULES.map((r) => (
@@ -1865,7 +1938,7 @@ export default function LiteracyManipulatives() {
               student or teacher picks the dictation word manually from
               a dropdown/typed field on the card itself, never an
               auto-picked one. */}
-          <Category label="🎧 Dictation" color={LM_DICTATION_COLOR} open={openCategories.dictation} onToggle={() => toggleCategory('dictation')}>
+          <Category {...SIDEBAR_CATEGORIES.dictation} open={openCategories.dictation} onToggle={() => toggleCategory('dictation')}>
             <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Pick a word, hear it, write what you heard, then reveal to check yourself.</p>
             <Draggable label="Add a Dictation Card" onPointerDown={startDragNewItem(() => ({ kind: 'dictation', dictationPrompt: '', textValue: '' }))} style={{ width: '100%' }}>
               <div style={{
@@ -1880,7 +1953,7 @@ export default function LiteracyManipulatives() {
           {/* A23-ROADMAP Phase 3: writing scaffolds. See
               writingScaffoldContent.ts for the fade-level judgment call
               logged there. */}
-          <Category label="📝 Writing Scaffolds" color={LM_WRITING_SCAFFOLD_COLOR} open={openCategories.writingScaffolds} onToggle={() => toggleCategory('writingScaffolds')}>
+          <Category {...SIDEBAR_CATEGORIES.writingScaffolds} open={openCategories.writingScaffolds} onToggle={() => toggleCategory('writingScaffolds')}>
             <SubcategoryRow id="writingFrames" label="Writing Frames" open={openSubcategories.writingFrames} onToggle={() => toggleSubcategory('writingFrames')}>
               <div className="stack" style={{ gap: 4 }}>
                 {WRITING_FRAMES.map((f) => (
@@ -2581,6 +2654,17 @@ export default function LiteracyManipulatives() {
         </div>
       </div>
       </div>
+      {welcomeOpen && (
+        <WelcomeModal
+          groups={WELCOME_GROUPS}
+          showOnStart={showWelcomeOnStart}
+          onShowOnStartChange={changeShowWelcomeOnStart}
+          onClose={closeWelcome}
+          onJumpToCategory={jumpToCategory}
+          tts={tts}
+          settings={ttsSettings}
+        />
+      )}
     </div>
   );
 }
