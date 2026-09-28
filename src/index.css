@@ -1,0 +1,415 @@
+/* Base tokens + shared UI primitives (btn/tag-pill/layout helpers), ported
+   verbatim from the Homeplot dashboard's index.css — this standalone tool
+   reuses the same visual language on purpose. */
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@400;600;700;800&family=Lexend:wght@400;600;700&display=swap');
+
+/* Full-screen 3D world views (Town Square, Home Room, Creative Island) set
+   an inline 100vh as a fallback for browsers with no dvh support, then this
+   overrides it with the dynamic viewport height — iOS Safari resizes 100vh
+   every time its address bar shows/hides mid-session, which visibly
+   jumped/resized the world and threw off fixed-position controls (a direct
+   teacher report from a student on iPad). @supports guards it so nothing
+   changes on a browser that doesn't understand dvh. */
+@supports (height: 100dvh) {
+  .world-viewport-fix { height: 100dvh; }
+}
+
+:root {
+  --purple: #7c3aed;
+  --purple-dark: #5b21b6;
+  --pink: #ec4899;
+  --teal: #14b8a6;
+  --yellow: #fbbf24;
+  --orange: #fb923c;
+  --blue: #3b82f6;
+  --ink: #1f1147;
+  --paper: #fffdf7;
+  --content-bg: #ffffff;
+  --content-border: #d8d3ea;
+  --success: #22c55e;
+  --danger: #dc2626;
+
+  --math-a: var(--blue);
+  --math-b: #60a5fa;
+  --lit-a: var(--pink);
+  --lit-b: #f472b6;
+
+  --radius: 18px;
+  --chunk: 4px;
+
+  font-family: 'Nunito', system-ui, sans-serif;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+/* Mobile browsers flash a big semi-transparent highlight over a tapped
+   element by default — on a full-width/full-screen button (like the
+   platformer's touch controls) that reads as "the whole screen flashes."
+   Turn that off everywhere and use a visible-but-contained focus ring
+   instead, only for keyboard/switch-device focus (not every tap). */
+* { -webkit-tap-highlight-color: transparent; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button:focus, a:focus { outline: none; }
+button:focus-visible, a:focus-visible {
+  outline: 3px solid var(--purple);
+  outline-offset: 2px;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f4effe;
+  color: var(--ink);
+}
+
+h1, h2, h3, .display {
+  font-family: 'Baloo 2', 'Nunito', sans-serif;
+}
+
+button {
+  font-family: inherit;
+}
+
+.app-shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- Zoned intensity: "chrome" is loud, content wells are clean ---------- */
+
+/* Direct teacher instruction: drop the thick painted-border cartoon skin
+   (was border-image, 12-16px) — reads as too bulky. Replaced with a
+   classic early-2000s "Web 1.0" beveled button: a thin 2px outset border,
+   whose light/dark bevel shading the browser derives automatically from
+   border-color, flipping to `inset` on :active to look physically
+   pressed. No image assets needed, so any background color shows through
+   correctly with no separate "flat" opt-out required. */
+
+.chrome-frame {
+  border: 2px outset var(--content-border);
+  border-radius: 6px;
+  background: var(--paper);
+}
+
+.content-well {
+  background: var(--content-bg);
+  border: 2px solid var(--content-border);
+  border-radius: 12px;
+  padding: 26px;
+  color: #14101f;
+}
+
+.btn {
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 700;
+  font-size: 1.08rem;
+  border: 2px outset var(--yellow);
+  border-radius: 4px;
+  padding: 9px 20px;
+  background: var(--yellow);
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 0.06s ease;
+}
+.btn:active { border-style: inset; transform: translateY(1px); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.btn-primary { background: var(--purple); border-color: var(--purple); color: white; }
+.btn-teal { background: var(--teal); border-color: var(--teal); color: white; }
+.btn-flat { background: var(--paper); }
+.btn-pink { background: var(--pink); border-color: var(--pink); color: white; }
+.btn-blue { background: var(--blue); border-color: var(--blue); color: white; }
+.btn-success { background: var(--success); border-color: var(--success); color: white; }
+.btn-danger { background: var(--danger); border-color: var(--danger); color: white; }
+.btn-ghost { background: var(--paper); border-color: var(--content-border); color: var(--ink); }
+
+.btn-lg { padding: 16px 32px; font-size: 1.35rem; }
+/* min-height/min-width baked into the class itself (Claudia's audit) —
+   before this, screens got a 44px touch target only by remembering to
+   add an inline override on every single button; most didn't. */
+.btn-sm { padding: 5px 12px; font-size: 0.85rem; border-width: 2px; min-height: 44px; min-width: 44px; }
+.btn-icon { padding: 8px 12px; font-size: 1.4rem; line-height: 1; }
+
+.tag-pill {
+  display: inline-block;
+  font-weight: 800;
+  font-size: 0.8rem;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  background: white;
+}
+/* Compact variant for dense chip rows (question-set card tags, filter
+   rows on the teacher-only Question Sets library) — that screen is a
+   management list, not K-8 in-world UI, so these skip the 44px touch
+   floor .btn-sm bakes in for student-facing controls. */
+.tag-pill-sm { font-size: 0.62rem; padding: 2px 7px; border-width: 1.5px; }
+.chip-filter-sm { padding: 3px 10px; font-size: 0.74rem; min-height: 30px; min-width: unset; border-width: 2px; }
+
+/* ---------- Layout helpers ---------- */
+.container { max-width: 1040px; margin: 0 auto; padding: 32px 28px; width: 100%; }
+.stack { display: flex; flex-direction: column; gap: 22px; }
+.row { display: flex; align-items: center; gap: 14px; }
+.row-wrap { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.space-between { display: flex; align-items: center; justify-content: space-between; }
+.grow { flex: 1; }
+/* Direct teacher report: student dashboard screens needed a scroll to see
+   everything on iPad. This app's own vertical padding/gaps were sized for
+   a laptop-height screen; an iPad in landscape (or even portrait, once a
+
+/* Literacy Manipulatives board CSS, ported verbatim from the dashboard. */
+/* ---------- Literacy Manipulatives: Polypad-modeled layout ----------
+   Direct teacher instruction, after seeing the first build: "i need it
+   to model as closely to polypad as possible." Persistent left sidebar
+   holds every tile category (Polypad's own "Tiles" panel), the canvas
+   is one open workspace instead of a boxed card, and tools live in a
+   slim always-visible toolbar rather than full-screen mode switches.
+   The chunky-border/drop-shadow visual language this app uses
+   elsewhere (chrome-frame, tag-pill) moves to the sidebar/toolbar
+   chrome — the canvas itself stays plain and open, matching Polypad,
+   since that's specifically what read as "boxed in" before. Every
+   control keeps an icon+text label (this platform's standing rule) even
+   though Polypad's own toolbar is icon-only — that part is deliberately
+   not copied. */
+.lm-shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  background: var(--paper);
+}
+.lm-sidebar {
+  width: 280px;
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  background: #fffaf0;
+  border-right: var(--chunk, 4px) solid var(--ink);
+  overflow-y: auto;
+}
+.lm-sidebar-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--content-border);
+}
+.lm-sidebar-title {
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: var(--ink);
+}
+.lm-category {
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  overflow: hidden;
+  background: white;
+  /* A flex item with overflow other than visible gets an automatic
+     min-height of 0 in a column flex container, so without this the
+     browser can shrink collapsed categories down to a sliver instead of
+     letting .lm-sidebar's own overflow-y:auto scroll — the bug behind
+     collapsed category titles going invisible when the list runs long. */
+  flex-shrink: 0;
+}
+.lm-category-header {
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: 0.95rem;
+  padding: 8px 12px;
+  color: var(--ink);
+}
+.lm-category-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+.lm-category-sub {
+  font-size: 0.68rem;
+  font-weight: 800;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.lm-tile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* Polypad's own two-level pattern, direct teacher request ("as closely
+   modeled to amplify polypad as possible"): a colored top-level category
+   (Sentence Grammar/Word Lists, .lm-category above) opens onto a flat list
+   of plain, independently-collapsible subcategory ROWS (Naming words,
+   Action words, ...) — each one expands its own tile grid inline directly
+   beneath itself, exactly Polypad's "Number Tiles and Cubes / Number Bars
+   / Number Frames" list, rather than every sub-group always being visible
+   at once. */
+.lm-subcategory {
+  border-top: 1px solid var(--content-border);
+  padding-top: 8px;
+}
+.lm-subcategory:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.lm-subcategory-header {
+  width: 100%;
+  min-height: 36px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 2px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+}
+.lm-subcategory-header:hover {
+  opacity: 1;
+}
+.lm-subcategory-body {
+  padding-top: 6px;
+}
+.lm-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.lm-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 2px solid var(--content-border);
+  background: white;
+}
+.lm-toolbar-divider {
+  width: 2px;
+  align-self: stretch;
+  background: var(--content-border);
+  margin: 4px 2px;
+}
+.lm-canvas {
+  flex: 1;
+  min-height: 420px;
+  background-color: #fdfdfb;
+  overflow: hidden;
+}
+/* Grammar Symbols hover/focus tooltip — name + simple definition. */
+.lm-symbol-tip-wrap {
+  position: relative;
+}
+.lm-symbol-tip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translate(-50%, -6px);
+  width: 170px;
+  padding: 6px 10px;
+  background: var(--ink);
+  color: white;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  text-align: center;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  z-index: 30;
+}
+.lm-symbol-tip strong {
+  display: block;
+  font-size: 0.82rem;
+  margin-bottom: 2px;
+}
+.lm-symbol-tip-wrap:hover .lm-symbol-tip,
+.lm-symbol-tip-wrap:focus-within .lm-symbol-tip {
+  opacity: 1;
+  visibility: visible;
+}
+/* Sentence Formula join — direct teacher instruction: "joined together
+   (a connection animation) to stack them into a paragraph form." */
+@keyframes lmFormulaJoinPulse {
+  0% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.5); }
+  70% { box-shadow: 0 0 0 12px rgba(124, 58, 237, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
+}
+.lm-formula-glow {
+  animation: lmFormulaJoinPulse 0.9s ease-out;
+}
+/* Morpheme join-rule badge (A23-ROADMAP Phase 2, "morpheme join-rule
+   animation: e-drop, consonant-doubling, visible at the seam") — a
+   small circular pop-in badge right where two connected puzzle pieces
+   meet, naming the spelling change that just happened (see
+   JOIN_RULE_NOTES in morphemeContent.ts for the full sentence, shown
+   in this badge's title/tooltip and read aloud in the definition
+   card). */
+@keyframes lmMorphemeJoinPop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.lm-morpheme-join-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fbbf24;
+  border: 2px solid var(--ink);
+  color: var(--ink);
+  font-size: 0.7rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: lmMorphemeJoinPop 0.4s ease-out;
+  cursor: help;
+}
+@media (max-width: 760px) {
+  .lm-shell { flex-direction: column; min-height: unset; }
+  .lm-sidebar { width: auto; flex: 0 0 auto; max-height: 40vh; border-right: none; border-bottom: var(--chunk, 4px) solid var(--ink); }
+}
+
+/* Projector/presentation mode (A23-ROADMAP Phase 2) — a teacher showing
+   the board to the whole class from across the room: bigger, higher-
+   contrast toolbar text and a visible canvas border, layered on top of
+   the existing zoom control (toggling it on also bumps zoom to 150% and
+   hides the sidebar, GrammarSandbox.tsx's toggleProjectorMode). */
+.lm-projector .lm-toolbar {
+  font-size: 1.1rem;
+  padding: 14px 20px;
+}
+.lm-projector .lm-toolbar button {
+  font-size: 1rem;
+  min-height: 44px;
+}
+.lm-projector .lm-canvas {
+  border: var(--chunk, 4px) solid var(--ink);
+}
+
+/* Print mode (A23-ROADMAP Phase 2) — the "🖨️ Print" toolbar button
+   calls window.print(); this is what makes the printed page just the
+   board itself, not the sidebar/toolbar/interactive controls around it. */
+@media print {
+  .lm-toolbar, .lm-sidebar, .lm-item-controls { display: none !important; }
+  .lm-page { height: auto !important; }
+  .lm-shell { display: block !important; min-height: unset !important; }
+  .lm-main { display: block !important; }
+  .lm-canvas { overflow: visible !important; min-height: unset !important; background: white !important; }
+  .lm-symbol-tip { display: none !important; }
+}
+
