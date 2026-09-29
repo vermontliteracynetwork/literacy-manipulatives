@@ -1701,6 +1701,12 @@ export default function LiteracyManipulatives() {
                 );
               })}
             </div>
+            {/* The teacher's recreated reference chart: every symbol with
+                its name and plain-language job, one image. */}
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, minHeight: 32, display: 'flex', alignItems: 'center' }}>🔑 Symbol key</summary>
+              <img src="/literacy/grammar-symbols/key.png" alt="Grammar symbol key: noun, adjective, verb, adverb, article, pronoun, conjunction, preposition, and interjection, each with its shape and meaning." style={{ width: '100%', height: 'auto', marginTop: 6, borderRadius: 6 }} />
+            </details>
           </Category>
 
           <Category {...SIDEBAR_CATEGORIES.symbolSentences} open={openCategories.symbolSentences} onToggle={() => toggleCategory('symbolSentences')}>

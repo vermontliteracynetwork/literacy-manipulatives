@@ -34,10 +34,11 @@ export interface WordClassInfo {
   name: string; // proper part-of-speech name, e.g. "Noun" — shown on hover
   label: string; // plain-language definition, e.g. "person, place, or thing"
   // Real symbol artwork the teacher designed and uploaded
-  // (public/literacy/grammar-symbols/) — each shape has its own small
-  // icon baked in (a tapping hand for noun, a running figure for verb,
-  // a magnet for article, ...). Colors below were re-measured directly
-  // from these PNGs (Canva's default "Bold" palette).
+  // (public/literacy/grammar-symbols/, the "Recreated Grammar Symbols"
+  // set; key.png there is her full reference chart) — each shape has its
+  // own small icon baked in (a tapping hand for noun, a running figure
+  // for verb, a magnet for article, ...). Colors below were measured
+  // directly from these PNGs and match them exactly.
   imageUrl: string;
 }
 
@@ -49,7 +50,7 @@ export const MONTESSORI_WORD_CLASS_INFO: Record<MontessoriWordClass, WordClassIn
   adjective: { shape: 'triangle-md', color: '#4BB8E6', name: 'Adjective', label: 'Describes nouns (details for things you can touch)', imageUrl: '/literacy/grammar-symbols/adjective.png' },
   verb: { shape: 'circle-lg', color: '#42AC74', name: 'Verb', label: 'Action word', imageUrl: '/literacy/grammar-symbols/verb.png' },
   preposition: { shape: 'crescent', color: '#723C19', name: 'Preposition', label: 'Identifies time, place, or direction', imageUrl: '/literacy/grammar-symbols/preposition.png' },
-  adverb: { shape: 'circle-sm', color: '#1968AB', name: 'Adverb', label: 'Describes verbs (details for things you can do)', imageUrl: '/literacy/grammar-symbols/adverb.png' },
+  adverb: { shape: 'circle-sm', color: '#1968AB', name: 'Adverb', label: 'Describes verbs and adjectives (details for things you can do)', imageUrl: '/literacy/grammar-symbols/adverb.png' },
   pronoun: { shape: 'triangle-inverted', color: '#FAF003', name: 'Pronoun', label: 'Replaces a noun', imageUrl: '/literacy/grammar-symbols/pronoun.png' },
   conjunction: { shape: 'double-arrow', color: '#9877B9', name: 'Conjunction', label: 'Connecting words', imageUrl: '/literacy/grammar-symbols/conjunction.png' },
   interjection: { shape: 'droplet', color: '#F87220', name: 'Interjection', label: 'Something you shout; interrupting words or phrases', imageUrl: '/literacy/grammar-symbols/interjection.png' },
