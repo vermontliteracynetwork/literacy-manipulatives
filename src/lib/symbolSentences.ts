@@ -117,6 +117,23 @@ export const SYMBOL_SENTENCE_PAGES: SymbolSentencePage[] = [
       s('p11-3', 'Yuck! The popsicle melted.', [['Yuck', 'interjection'], ['The', 'article'], ['popsicle', 'noun'], ['melted', 'verb']]),
     ],
   },
+  // Her updated deck (2026-10-14, "Grammar_Symbol_Cards.zip", 43 cards): cards 1 to 33 are the same patterns as
+  // pages 1 to 11 above; cards 34 to 43 add the new proper noun crown. The deck shows symbols only, so these
+  // example sentences are ordinary ones written to fit each card's pattern, using the class's own names.
+  {
+    id: 'page12', label: 'Proper Nouns', icon: '👑', sentences: [
+      s('p12-1', 'Mom laughs.', [['Mom', 'propernoun'], ['laughs', 'verb']]),
+      s('p12-2', 'Dad sings loudly.', [['Dad', 'propernoun'], ['sings', 'verb'], ['loudly', 'adverb']]),
+      s('p12-3', 'The happy dog licked Xander.', [['The', 'article'], ['happy', 'adjective'], ['dog', 'noun'], ['licked', 'verb'], ['Xander', 'propernoun']]),
+      s('p12-4', 'Azalea purrs softly.', [['Azalea', 'propernoun'], ['purrs', 'verb'], ['softly', 'adverb']]),
+      s('p12-5', 'Geoff hid under the big bed.', [['Geoff', 'propernoun'], ['hid', 'verb'], ['under', 'preposition'], ['the', 'article'], ['big', 'adjective'], ['bed', 'noun']]),
+      s('p12-6', 'Quietly, Moxie crept into the kitchen.', [['Quietly', 'adverb'], ['Moxie', 'propernoun'], ['crept', 'verb'], ['into', 'preposition'], ['the', 'article'], ['kitchen', 'noun']]),
+      s('p12-7', 'She waved at Yoga.', [['She', 'pronoun'], ['waved', 'verb'], ['at', 'preposition'], ['Yoga', 'propernoun']]),
+      s('p12-8', 'Xander ran to Mom.', [['Xander', 'propernoun'], ['ran', 'verb'], ['to', 'preposition'], ['Mom', 'propernoun']]),
+      s('p12-9', 'The little bird gave the seed to Dad.', [['The', 'article'], ['little', 'adjective'], ['bird', 'noun'], ['gave', 'verb'], ['the', 'article'], ['seed', 'noun'], ['to', 'preposition'], ['Dad', 'propernoun']]),
+      s('p12-10', 'Wow! Geoff found the treasure.', [['Wow', 'interjection'], ['Geoff', 'propernoun'], ['found', 'verb'], ['the', 'article'], ['treasure', 'noun']]),
+    ],
+  },
 ];
 
 // Flat lookup by id — used when a card dropped on the board needs to

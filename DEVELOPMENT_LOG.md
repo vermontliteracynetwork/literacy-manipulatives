@@ -279,3 +279,25 @@ framing of this project:
 7. **The UFLI blending board and any other gap in Part 3** — blocked on
    the teacher supplying real source material, not a build-effort
    problem.
+
+---
+
+## 2026-10-14: Her new grammar symbols and the 43-card symbol deck
+
+Teacher request (verbatim): "lets update the literacy manipulatives whiteboard with these", with
+`Recreated_Grammar_Symbols_4.zip` and `Grammar_Symbol_Cards.zip`.
+
+- **New symbol art, all ten parts of speech** (`public/literacy/grammar-symbols/`): noun = red pointing
+  hand, adjective = light blue circle with a pencil, verb = green four-way arrows, adverb = dark blue gear
+  with a pencil, article = pink magnet, pronoun = yellow circling arrows, conjunction = purple two-way arrow,
+  preposition = brown box, interjection = orange exclamation mark (cut from her grid sheet), and a **new
+  tenth symbol: proper noun = red crown**. Each PNG had its white background removed, was trimmed and
+  centered at 256 px. Definitions on hover are her own words from the key sheet; colors were measured
+  from the new art (`src/lib/montessoriGrammar.ts`).
+- **Fix found on the way:** this standalone repo never had a `public/literacy/grammar-symbols/` folder
+  (the art only existed in the dashboard repo), so the symbol pictures were missing on the live site.
+  They ship with this repo now.
+- **The 43-card deck** (`src/lib/symbolSentences.ts`): cards 1 to 33 are the same patterns as the 11
+  existing Symbol Sentences pages, so those stay. Cards 34 to 43 are new and use the proper noun crown;
+  they are a new 👑 Proper Nouns page, with ordinary example sentences written to fit each card's symbol
+  pattern (the deck itself shows symbols only).
