@@ -678,7 +678,7 @@ function TextBoxWidget({ item, onPointerDown, onPointerMove, onPointerUp, onText
 // for anyone who opens the page. TTS settings are just local component
 // state (rate/voice), not tied to any account.
 export default function LiteracyManipulatives() {
-  const [ttsSettings, setTtsSettings] = useState<TTSSettings>({ rate: 1, voiceURI: null });
+  const [ttsSettings] = useState<TTSSettings>({ rate: 1, voiceURI: null });
 
   const [placed, setPlaced] = useState<PlacedItem[]>([]);
   const [glowIds, setGlowIds] = useState<Set<string>>(new Set());
@@ -1782,15 +1782,6 @@ export default function LiteracyManipulatives() {
             <button className="btn btn-sm" onClick={zoomOut} disabled={zoom <= 0.5} aria-label="Zoom out">−</button>
             <button className="btn btn-sm" onClick={zoomReset} aria-label="Reset zoom">{Math.round(zoom * 100)}%</button>
             <button className="btn btn-sm" onClick={zoomIn} disabled={zoom >= 2} aria-label="Zoom in">+</button>
-            <span className="lm-toolbar-divider" />
-            <button
-              className="btn btn-sm"
-              aria-label="Change read-aloud speed"
-              title="Read-aloud speed"
-              onClick={() => setTtsSettings((s) => ({ ...s, rate: s.rate >= 1.25 ? 0.75 : Math.round((s.rate + 0.25) * 100) / 100 }))}
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="speaker" /> {ttsSettings.rate}x</span>
-            </button>
             <span className="lm-toolbar-divider" />
             {/* Share replaces Print and Projector Mode (her request 2026-10-15). */}
             {joinMode ? (
