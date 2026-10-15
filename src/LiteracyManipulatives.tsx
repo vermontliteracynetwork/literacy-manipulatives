@@ -459,6 +459,14 @@ function Category({ label, color, open, onToggle, children }: {
 // outlined or solid, that a student taps and types into. Typing never starts a drag, and punctuation is kept
 // out (it gets its own icon).
 // A word that doesn't fit its symbol (her request 2026-10-15) shows faded, with bold red text.
+// Word bubbles are lowercase (her request 2026-10-15) except a proper noun, the word I, and the first word of
+// a sentence, which keeps the capital the student gave it.
+function caseWord(word: string, cls: MontessoriWordClass | undefined, first: boolean): string {
+  if (!word) return word;
+  if (cls === 'propernoun') return word.charAt(0).toUpperCase() + word.slice(1);
+  if (/^i(['’].*)?$/i.test(word)) return 'I' + word.slice(1);
+  return first ? word : word.toLowerCase();
+}
 const fade = (hex: string) => (/^#[0-9a-f]{6}$/i.test(hex) ? `${hex}66` : hex);
 // The dictionary's names for parts of speech, as the board's symbols.
 const DICT_PART: Record<string, MontessoriWordClass> = {
@@ -1355,24 +1363,6 @@ export default function LiteracyManipulatives() {
     return { x: (clientX - rect.left) / zoom, y: (clientY - rect.top) / zoom };
   };
 
-  // While sharing, the teacher's pointer is sent along so watching students see where the teacher points.
-  const canvasRelativeRef = useRef(canvasRelative);
-  useEffect(() => { canvasRelativeRef.current = canvasRelative; });
-  const sendPointer = host.sendPointer;
-  useEffect(() => {
-    if (host.status !== 'live') return;
-    const board = boardRef.current;
-    if (!board) return;
-    const move = (e: PointerEvent) => {
-      const { x, y } = canvasRelativeRef.current(e.clientX, e.clientY);
-      sendPointer({ x, y, kind: e.pointerType === 'mouse' ? 'mouse' : 'touch' });
-    };
-    const leave = () => sendPointer(null);
-    board.addEventListener('pointermove', move);
-    board.addEventListener('pointerdown', move);
-    board.addEventListener('pointerleave', leave);
-    return () => { board.removeEventListener('pointermove', move); board.removeEventListener('pointerdown', move); board.removeEventListener('pointerleave', leave); leave(); };
-  }, [host.status, sendPointer]);
 
   // Snap check, the one structural rule left: a dropped/moved grammar
   // tile looks for the nearest OTHER grammar tile of the opposite word
@@ -1476,7 +1466,7 @@ export default function LiteracyManipulatives() {
     const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const size = sizeFor('shape');
     const items: PlacedItem[] = pattern.map((w, i) => ({
-      instanceId: `row-${stamp}-${i}`, kind: 'shape', wordClass: w.wordClass, bubbleWord: w.word || undefined,
+      instanceId: `row-${stamp}-${i}`, kind: 'shape', wordClass: w.wordClass, bubbleWord: caseWord(w.word, w.wordClass, i === 0) || undefined,
       snapLeftId: i ? `row-${stamp}-${i - 1}` : undefined, x: x - size.w / 2 + i * 120, y: y - size.h / 2,
     }));
     setPlaced((p) => [...p, ...items]);
@@ -2112,7 +2102,7 @@ export default function LiteracyManipulatives() {
                     const info = MONTESSORI_WORD_CLASS_INFO[w.wordClass];
                     return (
                       <div key={`${w.word}-${i}`} className="lm-word-symbol">
-                        <Draggable label={`${w.word}: ${info.name}`} onPointerDown={startDragNewItem(() => ({ kind: 'shape', wordClass: w.wordClass, bubbleWord: w.word }))}>
+                        <Draggable label={`${w.word}: ${info.name}`} onPointerDown={startDragNewItem(() => ({ kind: 'shape', wordClass: w.wordClass, bubbleWord: caseWord(w.word, w.wordClass, false) }))}>
                           <ItemVisual kind="shape" wordClass={w.wordClass} compact />
                         </Draggable>
                         <span><strong>{w.word}</strong> {info.name.toLowerCase()}</span>
@@ -2400,7 +2390,11 @@ export default function LiteracyManipulatives() {
                       bubbleStyle={p.bubbleStyle ?? bubbleDefault}
                       label={`${MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].name} word`}
                       onChange={(v) => { setPlacedField(p.instanceId, { bubbleWord: v }); clearWordAlert(p.instanceId, 0); }}
-                      onBlur={(v) => { void checkWord(p.instanceId, 0, v, p.wordClass ?? 'noun'); }}
+                      onBlur={(v) => {
+                        const cased = caseWord(v, p.wordClass, startsSentence(placed, p));
+                        if (cased !== v) setPlacedField(p.instanceId, { bubbleWord: cased });
+                        void checkWord(p.instanceId, 0, cased, p.wordClass ?? 'noun');
+                      }}
                       owner={p.instanceId}
                       wrong={!!wordProblem(p.bubbleWord, p.wordClass ?? 'noun')}
                     />
@@ -2506,12 +2500,6 @@ export default function LiteracyManipulatives() {
                 );
               });
             })}
-            {/* A watching student sees where the teacher is pointing: an arrow for a mouse, a finger for touch. */}
-            {studentViewOnly && student.teacherPointer && (
-              <div className={`lm-teacher-pointer ${student.teacherPointer.kind}`} style={{ left: student.teacherPointer.x, top: student.teacherPointer.y }} aria-hidden="true">
-                <Icon name={student.teacherPointer.kind === 'touch' ? 'finger' : 'arrow'} size={student.teacherPointer.kind === 'touch' ? 56 : 44} />
-              </div>
-            )}
             {/* A Sound Box's + buttons, drawn above the tiles in it so they can always be tapped. */}
             {(() => {
               const f = placed.find((pp) => pp.instanceId === boxInsertFor && pp.kind === 'frame');
@@ -2778,7 +2766,11 @@ export default function LiteracyManipulatives() {
                             </ReferencePopover>
                             <WordBubble value={fills[t.index] ?? w.word} placeholder={info.name.toLowerCase()} color={info.color} bubbleStyle={item.bubbleStyle ?? bubbleDefault}
                               label={`${info.name} word ${t.index + 1}`} onChange={(v) => { setSymbolSentenceWordFill(item.instanceId, t.index, v); clearWordAlert(item.instanceId, t.index); }}
-                              onBlur={(v) => { void checkWord(item.instanceId, t.index, v, w.wordClass); }}
+                              onBlur={(v) => {
+                                const cased = caseWord(v, w.wordClass, t.index === 0 && startsSentence(placed, item));
+                                if (cased !== v) setSymbolSentenceWordFill(item.instanceId, t.index, cased);
+                                void checkWord(item.instanceId, t.index, cased, w.wordClass);
+                              }}
                               owner={item.instanceId} idx={t.index} wrong={!!wordProblem(fills[t.index] ?? w.word, w.wordClass)} />
                             {/* A random-word die for each word, shown once the card's settings are open. */}
                             {toolsOpenFor(item.instanceId) && (
