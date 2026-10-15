@@ -5,6 +5,9 @@ import { SANDBOX_PIECES } from './lib/grammarContent';
 import { MORPHEME_GROUPS, KIND_LABEL, buildWord, hasNotch, hasTab, kindExplanation, morphemeById, pieceLabel, type Morpheme } from './lib/morphemes';
 import { MorphemePiece, pieceBodyWidth, pieceOuterSize } from './components/MorphemePiece';
 import { FloatingCard } from './components/FloatingCard';
+import { SharePanel } from './components/SharePanel';
+import { JoinScreen } from './components/JoinScreen';
+import { diffItems, isJoinRoute, shareConfigured, useHostSession, useStudentSession, type Ops, type Snapshot } from './lib/share';
 import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from './lib/montessoriGrammar';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
 import { PUNCTUATION_MARKS } from './lib/punctuationContent';
@@ -710,6 +713,50 @@ export default function LiteracyManipulatives() {
   // request 2026-10-15). Points are in the draw canvas's own 1400x900 space.
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const liveStroke = useRef<Stroke | null>(null);
+
+  // ---- Share (live board for students) ----
+  // The teacher's board is the one true copy: it applies edits from students who have edit access and sends
+  // the whole board back out. A student's board mirrors the teacher's; an editing student sends only what
+  // they changed.
+  const joinMode = useRef(isJoinRoute()).current;
+  const applyOps = (ops: Ops<PlacedItem, Stroke>) => {
+    setPlaced((p) => {
+      const removes = new Set(ops.removes);
+      const byId = new Map(ops.upserts.map((u) => [u.instanceId, u]));
+      const next = p.filter((pp) => !removes.has(pp.instanceId)).map((pp) => byId.get(pp.instanceId) ?? pp);
+      for (const u of ops.upserts) if (!p.some((pp) => pp.instanceId === u.instanceId)) next.push(u);
+      return next;
+    });
+    if (ops.strokeAdds.length || ops.strokeRemoves.length) {
+      setStrokes((list) => [...list.filter((st) => !ops.strokeRemoves.includes(st.id)), ...ops.strokeAdds.filter((a) => !list.some((st) => st.id === a.id))]);
+    }
+  };
+  const host = useHostSession<PlacedItem, Stroke>(placed, strokes, applyOps);
+  const [shareOpen, setShareOpen] = useState(false);
+  const fromTeacher = useRef(false);
+  const lastSynced = useRef<{ placed: PlacedItem[]; strokes: Stroke[] }>({ placed: [], strokes: [] });
+  const student = useStudentSession<PlacedItem, Stroke>((snap: Snapshot<PlacedItem, Stroke>) => {
+    fromTeacher.current = true;
+    lastSynced.current = { placed: snap.placed, strokes: snap.strokes };
+    setPlaced(snap.placed);
+    setStrokes(snap.strokes);
+  });
+  const studentCanEdit = joinMode && student.status === 'joined' && student.access === 'edit';
+  const studentViewOnly = joinMode && !studentCanEdit;
+  useEffect(() => {
+    if (!studentCanEdit) return;
+    if (fromTeacher.current) { fromTeacher.current = false; return; }
+    const t = window.setTimeout(() => {
+      const { upserts, removes } = diffItems(lastSynced.current.placed, placed);
+      const strokeAdds = strokes.filter((st) => !lastSynced.current.strokes.some((o) => o.id === st.id));
+      const strokeRemoves = lastSynced.current.strokes.filter((o) => !strokes.some((st) => st.id === o.id)).map((o) => o.id);
+      if (upserts.length || removes.length || strokeAdds.length || strokeRemoves.length) {
+        student.sendOps({ upserts, removes, strokeAdds, strokeRemoves });
+        lastSynced.current = { placed, strokes };
+      }
+    }, 60);
+    return () => window.clearTimeout(t);
+  }, [placed, strokes, studentCanEdit]);
   const [drawColor, setDrawColor] = useState(BASE_PEN_COLORS[0]);
   const drawCanvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
@@ -1377,13 +1424,37 @@ export default function LiteracyManipulatives() {
     if (mode !== 'eraser') setDrawColor(mode === 'pen' ? BASE_PEN_COLORS[0] : BASE_HIGHLIGHT_COLORS[0]);
   };
 
+  if (joinMode && student.status === 'ended') {
+    return <div className="lm-join"><div className="lm-join-bar">Join a Board</div><div className="lm-join-center"><p className="lm-join-msg">Your teacher stopped sharing this board. Thanks for joining!</p></div></div>;
+  }
+  if (joinMode && student.status !== 'joined') {
+    return <JoinScreen status={student.status} onCheckCode={student.checkCode} onJoin={(n) => { void student.join(n); }} />;
+  }
+
   return (
-    <div className="lm-page" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div className={`lm-page${studentViewOnly ? ' lm-readonly' : ''}`} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      {shareOpen && !joinMode && (
+        <SharePanel
+          code={host.code}
+          status={host.status}
+          students={host.students}
+          access={host.access}
+          onSetAccess={host.setStudentAccess}
+          onStop={() => { void host.stop(); setShareOpen(false); }}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
       {/* Top toolbar — same collapsible bar as the dashboard's native
           tool, minus Help (tied to a student account) and Exit (there's
           no "home" to leave to in a standalone page). */}
       <div className="lm-toolbar" style={{ flex: '0 0 auto' }}>
-        {topBarOpen ? (
+        {studentViewOnly ? (
+          // A view-only student just watches: no tools, only who they are and what they can do.
+          <>
+            <span className="lm-sidebar-title" style={{ marginRight: 8 }}>🧩 Literacy Manipulatives</span>
+            <span className="lm-share-badge">👁️ Watching your teacher's board{student.name ? `, ${student.name}` : ''}</span>
+          </>
+        ) : topBarOpen ? (
           <>
             <span className="lm-sidebar-title" style={{ marginRight: 8 }}>🧩 Literacy Manipulatives</span>
             <button className="btn btn-sm" onClick={() => setSidebarOpen((v) => !v)} aria-label={sidebarOpen ? 'Hide materials' : 'Show materials'}>{sidebarOpen ? '⟨⟨' : '⟩⟩'}</button>
@@ -1407,7 +1478,17 @@ export default function LiteracyManipulatives() {
               🔈 {ttsSettings.rate}x
             </button>
             <span className="lm-toolbar-divider" />
-            {/* SHARE_BUTTON */}
+            {/* Share replaces Print and Projector Mode (her request 2026-10-15). */}
+            {joinMode ? (
+              <span className="lm-share-badge">✏️ You can move pieces{student.name ? `, ${student.name}` : ''}</span>
+            ) : (
+              <button
+                className={`btn btn-sm ${host.status === 'live' ? 'btn-primary' : ''}`}
+                onClick={() => { setShareOpen(true); if (shareConfigured && host.status === 'off') void host.start(); }}
+              >
+                🔗 {host.status === 'live' && host.code ? `Sharing ${host.code} (${host.students.length})` : 'Share'}
+              </button>
+            )}
             <span style={{ flex: 1 }} />
             <button className="btn btn-sm" onClick={() => setTopBarOpen(false)} aria-label="Hide toolbar">▲ Hide bar</button>
           </>
@@ -1435,7 +1516,7 @@ export default function LiteracyManipulatives() {
       )}
 
       <div className="lm-shell" style={{ flex: 1, minHeight: 0 }}>
-      {sidebarOpen ? (
+      {sidebarOpen && !studentViewOnly ? (
         <aside className="lm-sidebar">
           <Category label="🔺 Grammar Symbols" color="#e9d5ff" open={openCategories.shapes} onToggle={() => toggleCategory('shapes')}>
             <BubbleToggle value={bubbleDefault} onChange={setAllBubbles} />
