@@ -16,11 +16,19 @@ export const stripPunctuation = (t: string) => t.replace(/[.,!?;:"]/g, '');
 export const PUNCT_CYCLE = ['.', '?', '!', ','];
 export const nextPunct = (m: string) => PUNCT_CYCLE[(PUNCT_CYCLE.indexOf(m) + 1) % PUNCT_CYCLE.length];
 
-// Dark text on light symbol colors (yellow, pink, light blue), white text on the dark ones.
-export function textOn(hex: string): string {
+// Bubble text is always solid black or pure white, whichever contrasts more with the bubble's color
+// (her request 2026-10-15: "solid dark black or pure white depending on the background color").
+// Picked by WCAG contrast ratio, so light colors (yellow, pink, light blue) get black and dark ones get white.
+const luminance = (hex: string) => {
   const n = parseInt(hex.replace('#', ''), 16);
-  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-  return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? '#1f1147' : '#ffffff';
+  const lin = (c: number) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+};
+export const BUBBLE_BLACK = '#000000';
+export const BUBBLE_WHITE = '#ffffff';
+export function textOn(hex: string): string {
+  const L = luminance(hex);
+  return (L + 0.05) / 0.05 >= 1.05 / (L + 0.05) ? BUBBLE_BLACK : BUBBLE_WHITE;
 }
 
 const pick = <T,>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)];

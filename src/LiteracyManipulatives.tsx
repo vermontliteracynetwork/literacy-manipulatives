@@ -6,7 +6,7 @@ import { MORPHEME_ROOTS, MORPHEME_PREFIXES, MORPHEME_SUFFIXES, MORPHEME_AFFIXES,
 import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass, PROPER_NOUNS } from './lib/montessoriGrammar';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
 import { PUNCTUATION_MARKS } from './lib/punctuationContent';
-import { nextPunct, randomWordFor, sentenceTokens, stripPunctuation, textOn, type BubbleStyle } from './lib/wordBubbles';
+import { BUBBLE_BLACK, BUBBLE_WHITE, nextPunct, randomWordFor, sentenceTokens, stripPunctuation, textOn, type BubbleStyle } from './lib/wordBubbles';
 import { WORD_CHAINS } from './lib/wordChainContent';
 import { HEART_WORDS } from './lib/heartWordContent';
 import { SPELLING_RULES } from './lib/spellingRuleContent';
@@ -534,7 +534,7 @@ function WordBubble({ value, placeholder, color, bubbleStyle, onChange, label }:
       size={Math.max(4, shown.length + 1)}
       onPointerDown={(e) => e.stopPropagation()}
       onChange={(e) => onChange(stripPunctuation(e.target.value))}
-      style={{ borderColor: color, background: solid ? color : '#ffffff', color: solid ? textOn(color) : '#1f1147' }}
+      style={{ borderColor: color, background: solid ? color : BUBBLE_WHITE, color: solid ? textOn(color) : BUBBLE_BLACK }}
     />
   );
 }
@@ -1958,7 +1958,9 @@ export default function LiteracyManipulatives() {
               // background a student drops letters onto, direct teacher
               // report: letter/grapheme tiles were rendering behind the
               // box outlines) — every other kind gets the higher z-index.
-              <div key={p.instanceId} style={{ position: 'absolute', left: p.x, top: p.y, zIndex: p.kind === 'frame' ? 1 : 2 }}>
+              // A Grammar Symbol and its word bubble stack as one centered column (her report 2026-10-15: bubbles
+              // must sit centered under the symbol, even when the word is wider than the icon).
+              <div key={p.instanceId} style={{ position: 'absolute', left: p.x, top: p.y, zIndex: p.kind === 'frame' ? 1 : 2, ...(p.kind === 'shape' ? { display: 'flex', flexDirection: 'column', alignItems: 'center' } : {}) }}>
                 <Draggable
                   label="Placed item"
                   glowing={glowIds.has(p.instanceId)}
