@@ -1722,7 +1722,7 @@ export default function LiteracyManipulatives() {
   };
 
   if (joinMode && student.status === 'ended') {
-    return <div className="lm-join"><div className="lm-join-bar">Join a Board</div><div className="lm-join-center"><p className="lm-join-msg">Your teacher stopped sharing this board. Thanks for joining!</p></div></div>;
+    return <div className="lm-join"><div className="lm-join-center"><h1 className="lm-join-title">Join a Board</h1><p className="lm-join-msg">Your teacher stopped sharing this board. Thanks for joining!</p></div></div>;
   }
   if (joinMode && student.status !== 'joined') {
     return <JoinScreen status={student.status} error={student.error} onCheckCode={student.checkCode} onJoin={(n) => { void student.join(n); }} />;

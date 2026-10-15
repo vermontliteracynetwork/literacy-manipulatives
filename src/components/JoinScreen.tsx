@@ -15,9 +15,8 @@ export function JoinScreen({ status, error, onCheckCode, onJoin }: {
   };
   return (
     <div className="lm-join">
-      <div className="lm-join-bar">Join a Board</div>
       <div className="lm-join-center">
-        <h1 className="lm-join-title">Literacy Manipulatives</h1>
+        <h1 className="lm-join-title">Join a Board</h1>
         {!shareConfigured ? (
           <p className="lm-join-msg">Joining isn't set up yet. Ask your teacher.</p>
         ) : !codeOk ? (
@@ -27,8 +26,8 @@ export function JoinScreen({ status, error, onCheckCode, onJoin }: {
               inputMode="numeric"
               autoComplete="off"
               maxLength={4}
-              placeholder="Board code"
-              aria-label="Board code"
+              placeholder="Code"
+              aria-label="Code"
               value={code}
               autoFocus
               onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
