@@ -1,11 +1,11 @@
 /* Base tokens + shared UI primitives (btn/tag-pill/layout helpers), ported
-   verbatim from the Homeplot dashboard's index.css — this standalone tool
+   verbatim from the Homeplot dashboard's index.css, this standalone tool
    reuses the same visual language on purpose. */
 @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@400;600;700;800&family=Lexend:wght@400;600;700&display=swap');
 
 /* Full-screen 3D world views (Town Square, Home Room, Creative Island) set
    an inline 100vh as a fallback for browsers with no dvh support, then this
-   overrides it with the dynamic viewport height — iOS Safari resizes 100vh
+   overrides it with the dynamic viewport height, iOS Safari resizes 100vh
    every time its address bar shows/hides mid-session, which visibly
    jumped/resized the world and threw off fixed-position controls (a direct
    teacher report from a student on iPad). @supports guards it so nothing
@@ -44,7 +44,7 @@
 * { box-sizing: border-box; }
 
 /* Mobile browsers flash a big semi-transparent highlight over a tapped
-   element by default — on a full-width/full-screen button (like the
+   element by default, on a full-width/full-screen button (like the
    platformer's touch controls) that reads as "the whole screen flashes."
    Turn that off everywhere and use a visible-but-contained focus ring
    instead, only for keyboard/switch-device focus (not every tap). */
@@ -83,7 +83,7 @@ button {
 /* ---------- Zoned intensity: "chrome" is loud, content wells are clean ---------- */
 
 /* Direct teacher instruction: drop the thick painted-border cartoon skin
-   (was border-image, 12-16px) — reads as too bulky. Replaced with a
+   (was border-image, 12-16px), reads as too bulky. Replaced with a
    classic early-2000s "Web 1.0" beveled button: a thin 2px outset border,
    whose light/dark bevel shading the browser derives automatically from
    border-color, flipping to `inset` on :active to look physically
@@ -129,7 +129,7 @@ button {
 .btn-ghost { background: var(--paper); border-color: var(--content-border); color: var(--ink); }
 
 .btn-lg { padding: 16px 32px; font-size: 1.35rem; }
-/* min-height/min-width baked into the class itself (Claudia's audit) —
+/* min-height/min-width baked into the class itself (Claudia's audit) -
    before this, screens got a 44px touch target only by remembering to
    add an inline override on every single button; most didn't. */
 .btn-sm { padding: 5px 12px; font-size: 0.85rem; border-width: 2px; min-height: 44px; min-width: 44px; }
@@ -145,7 +145,7 @@ button {
   background: white;
 }
 /* Compact variant for dense chip rows (question-set card tags, filter
-   rows on the teacher-only Question Sets library) — that screen is a
+   rows on the teacher-only Question Sets library), that screen is a
    management list, not K-8 in-world UI, so these skip the 44px touch
    floor .btn-sm bakes in for student-facing controls. */
 .tag-pill-sm { font-size: 0.62rem; padding: 2px 7px; border-width: 1.5px; }
@@ -171,10 +171,10 @@ button {
    slim always-visible toolbar rather than full-screen mode switches.
    The chunky-border/drop-shadow visual language this app uses
    elsewhere (chrome-frame, tag-pill) moves to the sidebar/toolbar
-   chrome — the canvas itself stays plain and open, matching Polypad,
+   chrome, the canvas itself stays plain and open, matching Polypad,
    since that's specifically what read as "boxed in" before. Every
    control keeps an icon+text label (this platform's standing rule) even
-   though Polypad's own toolbar is icon-only — that part is deliberately
+   though Polypad's own toolbar is icon-only, that part is deliberately
    not copied. */
 .lm-shell {
   display: flex;
@@ -214,7 +214,7 @@ button {
   /* A flex item with overflow other than visible gets an automatic
      min-height of 0 in a column flex container, so without this the
      browser can shrink collapsed categories down to a sliver instead of
-     letting .lm-sidebar's own overflow-y:auto scroll — the bug behind
+     letting .lm-sidebar's own overflow-y:auto scroll, the bug behind
      collapsed category titles going invisible when the list runs long. */
   flex-shrink: 0;
 }
@@ -247,7 +247,7 @@ button {
    modeled to amplify polypad as possible"): a colored top-level category
    (Sentence Grammar/Word Lists, .lm-category above) opens onto a flat list
    of plain, independently-collapsible subcategory ROWS (Naming words,
-   Action words, ...) — each one expands its own tile grid inline directly
+   Action words, ...), each one expands its own tile grid inline directly
    beneath itself, exactly Polypad's "Number Tiles and Cubes / Number Bars
    / Number Frames" list, rather than every sub-group always being visible
    at once. */
@@ -309,7 +309,7 @@ button {
   background-color: #fdfdfb;
   overflow: hidden;
 }
-/* Grammar Symbols hover/focus tooltip — name + simple definition. */
+/* Grammar Symbols hover/focus tooltip, name + simple definition. */
 .lm-symbol-tip-wrap {
   position: relative;
 }
@@ -342,7 +342,7 @@ button {
   opacity: 1;
   visibility: visible;
 }
-/* Sentence Formula join — direct teacher instruction: "joined together
+/* Sentence Formula join, direct teacher instruction: "joined together
    (a connection animation) to stack them into a paragraph form." */
 @keyframes lmFormulaJoinPulse {
   0% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.5); }
@@ -353,7 +353,7 @@ button {
   animation: lmFormulaJoinPulse 0.9s ease-out;
 }
 /* Morpheme join-rule badge (A23-ROADMAP Phase 2, "morpheme join-rule
-   animation: e-drop, consonant-doubling, visible at the seam") — a
+   animation: e-drop, consonant-doubling, visible at the seam"), a
    small circular pop-in badge right where two connected puzzle pieces
    meet, naming the spelling change that just happened (see
    JOIN_RULE_NOTES in morphemeContent.ts for the full sentence, shown
@@ -384,7 +384,7 @@ button {
   .lm-sidebar { width: auto; flex: 0 0 auto; max-height: 40vh; border-right: none; border-bottom: var(--chunk, 4px) solid var(--ink); }
 }
 
-/* Projector/presentation mode (A23-ROADMAP Phase 2) — a teacher showing
+/* Projector/presentation mode (A23-ROADMAP Phase 2), a teacher showing
    the board to the whole class from across the room: bigger, higher-
    contrast toolbar text and a visible canvas border, layered on top of
    the existing zoom control (toggling it on also bumps zoom to 150% and
@@ -401,7 +401,7 @@ button {
   border: var(--chunk, 4px) solid var(--ink);
 }
 
-/* Print mode (A23-ROADMAP Phase 2) — the "🖨️ Print" toolbar button
+/* Print mode (A23-ROADMAP Phase 2), the "🖨️ Print" toolbar button
    calls window.print(); this is what makes the printed page just the
    board itself, not the sidebar/toolbar/interactive controls around it. */
 @media print {
@@ -485,3 +485,20 @@ button {
 .lm-pattern-text { font-weight: 800; font-size: 0.78rem; }
 .lm-tray-search { margin-bottom: 4px; }
 .lm-select-bar { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; background: #fff; border: 3px solid var(--ink); border-radius: 12px; box-shadow: 0 4px 10px rgba(31, 17, 71, 0.15); max-width: calc(100% - 24px); }
+/* Word bubble choices: just the two shapes, side by side with their label. */
+.lm-bubble-toggle { flex-wrap: nowrap; }
+.lm-bubble-toggle button { padding: 2px 8px; min-width: 44px; justify-content: center; }
+.lm-bubble-swatch.outline { background: transparent; }
+/* First-visit welcome (WelcomeChoice.tsx) */
+.lm-welcome-backdrop { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(31, 17, 71, 0.45); }
+.lm-welcome { width: 100%; max-width: 560px; background: var(--paper, #fffdf7); border: 4px solid var(--ink); border-radius: 18px; box-shadow: 0 10px 0 var(--ink); padding: 24px; text-align: center; }
+.lm-welcome h2 { margin: 0 0 6px; font-size: 1.8rem; }
+.lm-welcome p { margin: 0 0 18px; font-weight: 600; }
+.lm-welcome-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.lm-welcome-choice { display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center; min-height: 120px; padding: 16px; border: 3px solid var(--ink); border-radius: 14px; font: inherit; color: var(--ink); text-decoration: none; cursor: pointer; }
+.lm-welcome-choice strong { font-family: 'Baloo 2', sans-serif; font-size: 1.35rem; }
+.lm-welcome-choice span { font-size: 0.9rem; font-weight: 600; opacity: 0.8; }
+.lm-welcome-choice.start { background: #fbbf24; }
+.lm-welcome-choice.join { background: #19b4c8; color: #fff; }
+.lm-welcome-choice:hover { transform: translateY(-2px); box-shadow: 0 4px 0 var(--ink); }
+@media (max-width: 520px) { .lm-welcome-choices { grid-template-columns: 1fr; } }

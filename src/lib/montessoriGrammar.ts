@@ -1,10 +1,10 @@
-// Montessori Sentence Builder — direct teacher request, with real
+// Montessori Sentence Builder, direct teacher request, with real
 // reference images: a decision-tree sentence builder using the real
 // Montessori grammar-symbol shapes/colors (already read from her own
 // reference sheets and logged in docs/DEVELOPMENT_PLAN.md's Literacy
 // Workspace section). This is a real, separate word-class system from
 // GrammarWordClass in types.ts (which only ever covers the original
-// 2-class noun/verb snap-together tiles) — reusing that type here would
+// 2-class noun/verb snap-together tiles), reusing that type here would
 // either narrow this builder to 2 classes or widen the existing shipped
 // mechanic's type by accident. Kept independent on purpose.
 //
@@ -19,7 +19,7 @@
 // Content only, ordinary uncontroversial grammar (articles, common verbs,
 // prepositions...), ordinary vocabulary drawn from Kayden's own Sentence
 // Formulas Template 7 word lists plus her real Montessori adverb list
-// (image upload) — ordinary, not a specialized curriculum standard
+// (image upload), ordinary, not a specialized curriculum standard
 // needing outside verification.
 
 export type MontessoriWordClass =
@@ -31,17 +31,17 @@ export type PuzzleShape = 'triangle-lg' | 'triangle-sm' | 'triangle-md' | 'trian
 export interface WordClassInfo {
   shape: PuzzleShape;
   color: string;
-  name: string; // proper part-of-speech name, e.g. "Noun" — shown on hover
+  name: string; // proper part-of-speech name, e.g. "Noun", shown on hover
   label: string; // plain-language definition, e.g. "person, place, or thing"
   // Real symbol artwork the teacher designed and uploaded
-  // (public/literacy/grammar-symbols/) — each shape has its own small
+  // (public/literacy/grammar-symbols/), each shape has its own small
   // icon baked in (a tapping hand for noun, a running figure for verb,
   // a magnet for article, ...). Colors below were re-measured directly
   // from these PNGs (Canva's default "Bold" palette).
   imageUrl: string;
 }
 
-// Real Montessori shape/color convention — colors/artwork sourced
+// Real Montessori shape/color convention, colors/artwork sourced
 // directly from the teacher's own designed symbol files.
 // Symbol set updated again (2026-10-14, teacher uploads "Recreated_Grammar_Symbols_4.zip" and
 // "Grammar_Symbol_Cards.zip", a full replacement of the prior artwork): noun = red pointing hand,
@@ -71,7 +71,7 @@ export interface WordOption {
 // (or a pronoun) doesn't. Kept as two separate, small, real lists rather
 // than reusing grammarContent.ts's SANDBOX_NOUNS, whose pieces are
 // already full noun phrases with any article baked into the text (e.g.
-// "the dog") — reusing those here would double up articles.
+// "the dog"), reusing those here would double up articles.
 export const COMMON_NOUNS: WordOption[] = [
   { text: 'dog' }, { text: 'cat' }, { text: 'teacher' }, { text: 'wizard' },
   { text: 'dragon' }, { text: 'robot' }, { text: 'book' }, { text: 'ball' },
@@ -96,7 +96,7 @@ export const SUBJECT_PRONOUNS: WordOption[] = [
   { text: 'They', verbForm: 'plural' }, { text: 'We', verbForm: 'plural' }, { text: 'I', verbForm: 'plural' }, { text: 'You', verbForm: 'plural' },
 ];
 
-// Object-position pronouns (after a verb or preposition) — real English
+// Object-position pronouns (after a verb or preposition), real English
 // uses a different form here ("her," not "she").
 export const OBJECT_PRONOUNS: WordOption[] = [
   { text: 'him' }, { text: 'her' }, { text: 'it' }, { text: 'them' }, { text: 'us' }, { text: 'me' }, { text: 'you' },
@@ -110,13 +110,13 @@ export const ADJECTIVES: WordOption[] = [
 ].map((text) => ({ text }));
 
 // Real verb pool, singular/plural (3rd-person-singular vs. base form)
-// pairs — reused directly from grammarContent.ts's SANDBOX_VERBS rather
+// pairs, reused directly from grammarContent.ts's SANDBOX_VERBS rather
 // than duplicated, so both sentence-building tools stay in sync on the
 // same hand-verified verb set. Imported below, not redefined here.
 
 export const ADVERBS: WordOption[] = [
   // A representative slice of Kayden's own real Montessori adverb
-  // reference list (image upload) — not the full ~50, but the same real
+  // reference list (image upload), not the full ~50, but the same real
   // words, not invented ones.
   'quickly', 'slowly', 'happily', 'sadly', 'carefully', 'quietly', 'loudly', 'bravely',
   'silently', 'suddenly', 'always', 'never', 'often', 'sometimes', 'soon', 'very',
@@ -135,7 +135,7 @@ export const INTERJECTIONS: WordOption[] = ['Wow!', 'Fantastic!', 'Oh boy!', 'Yi
 // grammatically valid to add next (never a class that would produce a
 // broken sentence) and whether the sentence is already a complete, real
 // sentence at this point ("a word can always be added, but it will
-// always make a real, correct sentence" — canEnd never appears unless
+// always make a real, correct sentence", canEnd never appears unless
 // the built words so far already form a valid sentence on their own).
 export interface GrammarState {
   id: string;

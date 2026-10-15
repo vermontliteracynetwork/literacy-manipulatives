@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TTSSettings } from '../types';
+import { Icon } from './Icon';
 import { buildUtterance } from '../lib/tts';
 
 // TTS with synced word-highlighting, ported as-is from the dashboard's
-// components/SyncedSpeakButton.tsx — one shared hook so every 🔈 button
+// components/SyncedSpeakButton.tsx, one shared hook so every 🔈 button
 // on this board reads through the same engine, and starting a new one
 // cleanly stops whatever was already reading. The only change from the
-// dashboard version: no `voiceSkinId` param — this standalone v1 has no
+// dashboard version: no `voiceSkinId` param, this standalone v1 has no
 // accounts/marketplace, so there's no purchased voice skin to resolve.
 
 export interface SyncedTTS {
@@ -107,7 +108,7 @@ export function SyncedSpeakButton({ id, text, tts, settings, label, ariaLabel, c
       aria-label={ariaLabel ?? (label ? `Hear ${label}` : 'Hear this read aloud')}
       style={style}
     >
-      {speaking ? '🔊' : '🔈'}
+      <Icon name={speaking ? 'speaking' : 'speaker'} />
     </button>
   );
 }

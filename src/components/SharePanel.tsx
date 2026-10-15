@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { FloatingCard } from './FloatingCard';
+import { Icon } from './Icon';
 import { shareConfigured, type Access, type SharedStudent } from '../lib/share';
 
 // The teacher's Share pop-up: the 4-digit code and join link to give students, then each student who joins
 // (by the name they typed) with a view 👁 / edit ✏️ switch on the right. Movable, always has an ✕ (closing it
 // keeps sharing on; "Stop sharing" ends it).
-export function SharePanel({ code, status, students, access, onSetAccess, onStop, onClose }: {
-  code: string | null; status: string; students: SharedStudent[]; access: Record<string, Access>;
+export function SharePanel({ code, status, error, students, access, onSetAccess, onStop, onClose, onRetry }: {
+  code: string | null; status: string; error: string | null; students: SharedStudent[]; access: Record<string, Access>; onRetry: () => void;
   onSetAccess: (id: string, a: Access) => void; onStop: () => void; onClose: () => void;
 }) {
   const [pos, setPos] = useState({ x: Math.max(16, window.innerWidth - 400), y: 80 });
@@ -14,7 +15,7 @@ export function SharePanel({ code, status, students, access, onSetAccess, onStop
   const link = `${window.location.origin}/join`;
   return (
     <div className="lm-fixed-layer">
-      <FloatingCard x={pos.x} y={pos.y} width={360} zoom={1} title="🔗 Share this board" onMove={(x, y) => setPos({ x, y })} onClose={onClose}>
+      <FloatingCard x={pos.x} y={pos.y} width={360} zoom={1} title="Share this board" onMove={(x, y) => setPos({ x, y })} onClose={onClose}>
         {!shareConfigured ? (
           <p style={{ margin: 0 }}>
             Sharing isn't set up yet. It needs a Supabase project: add its URL and public anon key to this site's Vercel
@@ -23,7 +24,10 @@ export function SharePanel({ code, status, students, access, onSetAccess, onStop
         ) : status === 'starting' ? (
           <p style={{ margin: 0 }}>Making a code…</p>
         ) : status === 'error' || !code ? (
-          <p style={{ margin: 0 }}>Couldn't start sharing. Check the internet connection and try Share again.</p>
+          <div className="stack" style={{ gap: 8 }}>
+            <p style={{ margin: 0 }}>{error ?? "Couldn't start sharing."}</p>
+            <button type="button" className="btn btn-sm" onClick={onRetry}>Try again</button>
+          </div>
         ) : (
           <div className="stack" style={{ gap: 10 }}>
             <div style={{ textAlign: 'center' }}>
@@ -36,7 +40,7 @@ export function SharePanel({ code, status, students, access, onSetAccess, onStop
                 className="btn btn-sm"
                 onClick={() => { void navigator.clipboard?.writeText(`${link}  Code: ${code}`).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); }); }}
               >
-                {copied ? '✅ Copied' : '📋 Copy link and code'}
+                {copied ? 'Copied' : 'Copy link and code'}
               </button>
             </div>
             <div>
@@ -51,8 +55,8 @@ export function SharePanel({ code, status, students, access, onSetAccess, onStop
                       <li key={st.id}>
                         <span className="lm-share-name">{st.name}</span>
                         <span className="lm-share-toggle" role="radiogroup" aria-label={`${st.name}'s access`}>
-                          <button type="button" role="radio" aria-checked={a === 'view'} className={a === 'view' ? 'on' : ''} onClick={() => onSetAccess(st.id, 'view')} title="Can only watch">👁️</button>
-                          <button type="button" role="radio" aria-checked={a === 'edit'} className={a === 'edit' ? 'on' : ''} onClick={() => onSetAccess(st.id, 'edit')} title="Can move pieces">✏️</button>
+                          <button type="button" role="radio" aria-checked={a === 'view'} className={a === 'view' ? 'on' : ''} onClick={() => onSetAccess(st.id, 'view')} title="Can only watch" aria-label="View only"><Icon name="eye" /></button>
+                          <button type="button" role="radio" aria-checked={a === 'edit'} className={a === 'edit' ? 'on' : ''} onClick={() => onSetAccess(st.id, 'edit')} title="Can move pieces" aria-label="Can edit"><Icon name="pencil" /></button>
                         </span>
                       </li>
                     );
@@ -60,7 +64,7 @@ export function SharePanel({ code, status, students, access, onSetAccess, onStop
                 </ul>
               )}
             </div>
-            <button type="button" className="btn btn-sm" onClick={onStop}>⏹️ Stop sharing</button>
+            <button type="button" className="btn btn-sm" onClick={onStop}>Stop sharing</button>
           </div>
         )}
       </FloatingCard>

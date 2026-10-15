@@ -1,4 +1,4 @@
-// Writing Scaffolds — A23-ROADMAP Phase 3 ("writing scaffolds:
+// Writing Scaffolds, A23-ROADMAP Phase 3 ("writing scaffolds:
 // paragraph frames, writing frames, sentence starters... as new Explore
 // mats, fade-level exposed only as a teacher accommodation toggle, never
 // an auto-advancing system"). Ordinary, widely-used classroom writing
@@ -6,7 +6,7 @@
 //
 // Judgment call, logged rather than silently skipped: the spec's
 // "fade-level" accommodation toggle (a teacher setting that shows more
-// or less of the starter text) was not built in this pass — it needs a
+// or less of the starter text) was not built in this pass, it needs a
 // teacher-side control this task's scope (the student-facing sandbox
 // route and its own lib files) doesn't naturally extend to without
 // adding a whole new per-student setting purely for this one feature.

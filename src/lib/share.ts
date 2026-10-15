@@ -3,7 +3,7 @@ import { createClient, type RealtimeChannel, type SupabaseClient } from '@supaba
 
 // Live sharing (her request 2026-10-15): the teacher presses Share and gets a 4-digit code; students open the
 // join link, type the code and their name, and land on the teacher's board. The teacher sees each student by
-// name with a view (👁) or edit (✏️) switch. Edit students can move pieces; view students only watch. The
+// name with a view (eye) or edit (pencil) switch. Edit students can move pieces; view students only watch. The
 // teacher always has edit access, and the teacher's board is the one true copy.
 //
 // Built on Supabase Realtime channels only (broadcast + presence), so it needs no database tables: just a
@@ -32,6 +32,28 @@ export interface Snapshot<P, S> { placed: P[]; strokes: S[]; access: Record<stri
 export interface Ops<P, S> { from: string; upserts: P[]; removes: string[]; strokeAdds: S[]; strokeRemoves: string[] }
 
 const channelName = (code: string) => `lm-board-${code}`;
+
+// Joins a channel and waits until Supabase confirms it (or says why not), instead of waiting forever.
+// Resolves to null when joined, or a short reason a teacher can act on.
+function joinChannel(ch: RealtimeChannel, waitMs = 10000): Promise<string | null> {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (r: string | null) => { if (!done) { done = true; resolve(r); } };
+    const timer = window.setTimeout(() => finish('Supabase did not answer. Check the internet connection, or that Realtime is turned on for the Supabase project.'), waitMs);
+    ch.subscribe((status, err) => {
+      if (status === 'SUBSCRIBED') { window.clearTimeout(timer); finish(null); }
+      else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        window.clearTimeout(timer);
+        const why = err?.message ?? status;
+        finish(/unauthori|private|denied|not allowed/i.test(why)
+          ? 'Supabase blocked the connection. In Supabase, open Realtime > Settings and turn on public access for channels.'
+          : `Supabase could not connect (${why}).`);
+      }
+    });
+  });
+}
+
+const pause = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
 const newCode = () => String(1000 + Math.floor(Math.random() * 9000));
 const BROADCAST_EVERY_MS = 80;
 
@@ -56,25 +78,20 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
     void ch.send({ type: 'broadcast', event: 'state', payload: snap });
   }, []);
 
+  const [error, setError] = useState<string | null>(null);
+
   const start = useCallback(async () => {
-    const supa = getClient();
-    if (!supa || channelRef.current) return;
+    if (channelRef.current) return;
+    setError(null);
     setStatus('starting');
+    let supa: SupabaseClient | null = null;
+    try { supa = getClient(); } catch (e) { setError(`The Supabase settings look wrong (${(e as Error).message}).`); setStatus('error'); return; }
+    if (!supa) { setStatus('error'); return; }
     // Pick a code no other teacher is using right now.
-    for (let attempt = 0; attempt < 6; attempt++) {
+    for (let attempt = 0; attempt < 5; attempt++) {
       const c = newCode();
       const ch = supa.channel(channelName(c), { config: { presence: { key: `teacher-${c}` }, broadcast: { self: false } } });
-      const taken = await new Promise<boolean>((resolve) => {
-        let settled = false;
-        ch.on('presence', { event: 'sync' }, () => {
-          if (settled) return;
-          settled = true;
-          resolve(Object.keys(ch.presenceState()).some((k) => k.startsWith('teacher-')));
-        });
-        ch.subscribe((s) => { if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') { settled = true; resolve(true); } });
-        window.setTimeout(() => { if (!settled) { settled = true; resolve(false); } }, 2500);
-      });
-      if (taken) { await supa.removeChannel(ch); continue; }
+      // Every listener goes on before joining.
       ch.on('presence', { event: 'sync' }, () => {
         const list: SharedStudent[] = [];
         for (const [key, metas] of Object.entries(ch.presenceState())) {
@@ -88,12 +105,17 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
         const ops = payload as Ops<P, S>;
         if (accessRef.current[ops.from] === 'edit') applyRef.current(ops);
       });
-      await ch.track({ role: 'teacher' });
+      const problem = await joinChannel(ch);
+      if (problem) { await supa.removeChannel(ch); setError(problem); setStatus('error'); return; }
+      await pause(700); // let the current presence list arrive
+      if (Object.keys(ch.presenceState()).some((k) => k.startsWith('teacher-'))) { await supa.removeChannel(ch); continue; }
       channelRef.current = ch;
       setCode(c);
       setStatus('live');
+      void ch.track({ role: 'teacher' });
       return;
     }
+    setError('Every code tried was busy. Press Share again.');
     setStatus('error');
   }, [sendSnapshot]);
 
@@ -120,7 +142,7 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
   useEffect(() => () => { const ch = channelRef.current; if (ch) void getClient()?.removeChannel(ch); }, []);
 
   const setStudentAccess = (id: string, a: Access) => setAccess((m) => ({ ...m, [id]: a }));
-  return { code, students, access, status, start, stop, setStudentAccess };
+  return { code, students, access, status, error, start, stop, setStudentAccess };
 }
 
 // ---------- Student ----------
@@ -147,27 +169,28 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
   useEffect(() => { snapRef.current = onSnapshot; });
 
   // Step 1: is a teacher sharing with this code right now?
+  const [error, setError] = useState<string | null>(null);
   const checkCode = useCallback(async (code: string): Promise<boolean> => {
-    const supa = getClient();
+    setError(null);
+    let supa: SupabaseClient | null = null;
+    try { supa = getClient(); } catch { supa = null; }
     if (!supa) { setStatus('error'); return false; }
     setStatus('checking');
     const ch = supa.channel(channelName(code), { config: { presence: { key: studentId }, broadcast: { self: false } } });
-    const found = await new Promise<boolean>((resolve) => {
-      let settled = false;
-      ch.on('presence', { event: 'sync' }, () => {
-        if (settled) return;
-        if (Object.keys(ch.presenceState()).some((k) => k.startsWith('teacher-'))) { settled = true; resolve(true); }
-      });
-      ch.subscribe((s) => { if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') { settled = true; resolve(false); } });
-      window.setTimeout(() => { if (!settled) { settled = true; resolve(false); } }, 4000);
+    let teacherHere = false;
+    ch.on('presence', { event: 'sync' }, () => {
+      teacherHere = Object.keys(ch.presenceState()).some((k) => k.startsWith('teacher-'));
     });
-    if (!found) { await supa.removeChannel(ch); setStatus('not-found'); return false; }
     ch.on('broadcast', { event: 'state' }, ({ payload }) => {
       const snap = payload as Snapshot<P, S>;
       setAccess(snap.access?.[studentId] ?? 'view');
       snapRef.current(snap);
     });
     ch.on('broadcast', { event: 'ended' }, () => setStatus('ended'));
+    const problem = await joinChannel(ch);
+    if (problem) { await supa.removeChannel(ch); setError(problem); setStatus('error'); return false; }
+    for (let i = 0; i < 20 && !teacherHere; i++) await pause(150);
+    if (!teacherHere) { await supa.removeChannel(ch); setStatus('not-found'); return false; }
     channelRef.current = ch;
     setStatus('idle');
     return true;
@@ -178,9 +201,9 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
     const ch = channelRef.current;
     if (!ch) return;
     setName(studentName);
+    setStatus('joined');
     await ch.track({ role: 'student', name: studentName });
     await ch.send({ type: 'broadcast', event: 'hello', payload: {} });
-    setStatus('joined');
   }, []);
 
   const sendOps = useCallback((ops: Omit<Ops<P, S>, 'from'>) => {
@@ -189,7 +212,7 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
 
   useEffect(() => () => { const ch = channelRef.current; if (ch) void getClient()?.removeChannel(ch); }, []);
 
-  return { status, access, name, checkCode, join, sendOps };
+  return { status, access, name, error, checkCode, join, sendOps };
 }
 
 // Changes from `before` to `after`, by id. Positions of pieces that are snapped into a row or a Sound Box are

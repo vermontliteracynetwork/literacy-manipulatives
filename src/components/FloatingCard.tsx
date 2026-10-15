@@ -27,7 +27,7 @@ export function FloatingCard({ x, y, width = 260, zoom, title, onMove, onClose, 
       >
         <span className="lm-float-grip" aria-hidden="true">⠿</span>
         <strong className="lm-float-title">{title}</strong>
-        <button type="button" className="lm-float-x" onPointerDown={(e) => e.stopPropagation()} onClick={onClose} aria-label="Close">✕</button>
+        <button type="button" className="lm-float-x" onPointerDown={(e) => e.stopPropagation()} onClick={onClose} aria-label="Close">×</button>
       </div>
       <div className="lm-float-body" onPointerDown={(e) => e.stopPropagation()}>{children}</div>
     </div>

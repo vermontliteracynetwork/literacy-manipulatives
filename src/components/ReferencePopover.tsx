@@ -3,7 +3,7 @@ import type { TTSSettings } from '../types';
 import { SyncedSpeakButton, type SyncedTTS } from './SyncedSpeakButton';
 
 // One shared "here's a small reference fact about this thing" component,
-// ported as-is from the dashboard's components/ReferencePopover.tsx —
+// ported as-is from the dashboard's components/ReferencePopover.tsx -
 // a hover tooltip (Grammar Symbols, Symbol Sentence previews) and an
 // always-visible inline card (Morpheme definitions) sharing one layout.
 export function ReferencePopover({ mode, title, body, children, speakId, speakText, tts, settings, style }: {

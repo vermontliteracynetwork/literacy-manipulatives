@@ -5,8 +5,10 @@ import { SANDBOX_PIECES } from './lib/grammarContent';
 import { MORPHEME_GROUPS, KIND_LABEL, buildWord, hasNotch, hasTab, kindExplanation, morphemeById, pieceLabel, type Morpheme } from './lib/morphemes';
 import { MorphemePiece, pieceBodyWidth, pieceOuterSize } from './components/MorphemePiece';
 import { FloatingCard } from './components/FloatingCard';
+import { Icon } from './components/Icon';
 import { SharePanel } from './components/SharePanel';
 import { JoinScreen } from './components/JoinScreen';
+import { WelcomeChoice } from './components/WelcomeChoice';
 import { diffItems, isJoinRoute, shareConfigured, useHostSession, useStudentSession, type Ops, type Snapshot } from './lib/share';
 import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from './lib/montessoriGrammar';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
@@ -21,7 +23,7 @@ import { playListeningStartChime, playListeningStopChime } from './lib/audioCues
 import { GRAMMAR_WORD_CLASS_COLORS, GRAMMAR_WORD_CLASS_TEXT_COLORS } from './types';
 import type { GrammarPiece, TTSSettings } from './types';
 
-// Literacy Manipulatives — rebuilt per direct teacher redesign (2026-09-22),
+// Literacy Manipulatives, rebuilt per direct teacher redesign (2026-09-22),
 // replacing the previous mode-switching build entirely: "the design...
 // is too scripted, too prompted. it should really just be a drag and
 // drop... an interactive whiteboard to explore all the tools... entirely
@@ -40,7 +42,7 @@ import type { GrammarPiece, TTSSettings } from './types';
 // pieces, letters, sound-box frames) drags from the sidebar onto the
 // canvas and can be freely repositioned, mixed, and combined, with no
 // fixed target/correct-answer/completion state anywhere. The one
-// surviving "smart" behavior is the noun+verb number-agreement snap —
+// surviving "smart" behavior is the noun+verb number-agreement snap -
 // a structural grammar rule applied to any two words regardless of
 // content (like real magnetic tiles), not a curriculum target, and it
 // predates and survived every design review this sandbox has had.
@@ -78,12 +80,12 @@ const LINE_SNAP = 70; // how close (px) a dropped piece must be to snap into a r
 // Pieces that snap into a sentence row: Grammar Symbols, Symbol Sentences, punctuation tiles.
 const SENTENCE_KINDS: PlacedKind[] = ['shape', 'symbolSentence', 'punctuation'];
 
-// Speech-to-text for the Text Box tool — direct teacher instruction
+// Speech-to-text for the Text Box tool, direct teacher instruction
 // ("SST option" on the new typeable fields). The browser's own Web
 // Speech API, feature-detected once at module scope, same pattern this
 // project used before speech-to-text was removed app-wide (2026-09-22,
 // "remove STT, but allow TTS for the items or things highlighted by
-// the student" — that removal was about ArticleReader specifically;
+// the student", that removal was about ArticleReader specifically;
 // this is a new, separate, explicit request for this one tool).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const SpeechRecognitionCtor: any = typeof window !== 'undefined' ? (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition : null;
@@ -185,7 +187,7 @@ const GRAPHEME_GROUPS: { key: string; label: string; graphemes: { g: string; sou
   ] },
 ];
 
-// Always-available baseline colors — direct teacher instruction: "grabbing
+// Always-available baseline colors, direct teacher instruction: "grabbing
 // purchased/earned/inventory markers of students in addition to regular."
 // A student with nothing purchased yet still has real colors to draw
 // with; owned Marketplace colors are appended after these.
@@ -207,26 +209,26 @@ interface PlacedItem {
   wordClass?: MontessoriWordClass; // shape
   letter?: string; // letter
   boxCount?: number; // frame; also reused for symbolSentence's word count (sizing only)
-  morphId?: string; // morpheme — id into lib/morphemes.ts
+  morphId?: string; // morpheme, id into lib/morphemes.ts
   // Snapping in a line (her request 2026-10-15: sentence pieces "snap in line beside each other as sentences are
   // built" and "snapped pieces move as a unit"; morpheme puzzle pieces too). The id of the piece this one is
   // attached to on its left; position is then always computed from that piece, so the row moves as one.
   snapLeftId?: string;
-  inFrameId?: string; // letter — the Sound Box frame it's snapped into (moves with the frame)
-  cellIndex?: number; // letter — which box of that frame
-  cellSize?: number; // frame — box size in px (resizable, default 44)
+  inFrameId?: string; // letter, the Sound Box frame it's snapped into (moves with the frame)
+  cellIndex?: number; // letter, which box of that frame
+  cellSize?: number; // frame, box size in px (resizable, default 44)
   groupId?: string; // items grouped together (Select → Group) move as one
-  lineTokens?: Record<number, LineToken[]>; // writingFrame — symbols dropped into each line
+  lineTokens?: Record<number, LineToken[]>; // writingFrame, symbols dropped into each line
   textValue?: string; // textbox
   fontSize?: number; // textbox
-  symbolSentenceId?: string; // symbolSentence — id into ALL_SYMBOL_SENTENCES
-  wordFills?: Record<number, string>; // symbolSentence — typed word per symbol, shown in that symbol's word bubble (replaces the default word)
-  punctFills?: Record<number, string>; // symbolSentence — punctuation icon after word N, when changed from the sentence's own mark
-  bubbleStyle?: BubbleStyle; // shape + symbolSentence — word bubbles drawn as an outline (default) or solid
-  bubbleWord?: string; // shape — the word typed (or 🎲 picked) in a single Grammar Symbol's bubble
-  punctId?: string; // punctuation — id into PUNCTUATION_MARKS
-  writingFrameId?: string; // writingFrame — id into WRITING_FRAMES
-  frameFills?: Record<number, string>; // writingFrame — typed text after each line's starter
+  symbolSentenceId?: string; // symbolSentence, id into ALL_SYMBOL_SENTENCES
+  wordFills?: Record<number, string>; // symbolSentence, typed word per symbol, shown in that symbol's word bubble (replaces the default word)
+  punctFills?: Record<number, string>; // symbolSentence, punctuation icon after word N, when changed from the sentence's own mark
+  bubbleStyle?: BubbleStyle; // shape + symbolSentence, word bubbles drawn as an outline (default) or solid
+  bubbleWord?: string; // shape, the word typed (or picked with the random-word die) in a single Grammar Symbol's bubble
+  punctId?: string; // punctuation, id into PUNCTUATION_MARKS
+  writingFrameId?: string; // writingFrame, id into WRITING_FRAMES
+  frameFills?: Record<number, string>; // writingFrame, typed text after each line's starter
 }
 
 const pieceById = (id: string): GrammarPiece | undefined => SANDBOX_PIECES.find((p) => p.id === id);
@@ -248,17 +250,17 @@ function sizeFor(kind: PlacedKind, boxCount?: number, item?: Partial<PlacedItem>
   return { w: 44, h: 44 }; // letter
 }
 
-// Pure appearance for any placed/tray item — one render path shared by
+// Pure appearance for any placed/tray item, one render path shared by
 // the sidebar tray and the canvas, so every material looks identical in
 // both places (a real navigation-clarity fix: one visual language, not
 // a different tile style per old "mode").
-// Vowel/consonant coloring toggle (A23-ROADMAP Phase 2) — a common
+// Vowel/consonant coloring toggle (A23-ROADMAP Phase 2), a common
 // Orton-Gillingham-style convention: color a letter/grapheme tile by
 // whether it spells a vowel or consonant sound, a second visual channel
 // alongside the letters themselves. Classified by the tile's first
 // alphabetic character (works correctly for every single letter and for
 // every grapheme in GRAPHEME_GROUPS below, including split-vowel "a_e"
-// style spellings and consonant digraphs like "sh"/"wr") — a real,
+// style spellings and consonant digraphs like "sh"/"wr"), a real,
 // simple, honest heuristic, not a claim of phonetic authority.
 function vcColorFor(text: string | undefined, on: boolean): CSSProperties | undefined {
   if (!on || !text) return undefined;
@@ -309,11 +311,11 @@ function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compa
   }
   if (kind === 'shape') {
     // Direct teacher instruction: "the current grammar symbols need to
-    // be 2x the size on default" — doubled from 48/40 to 96/80,
+    // be 2x the size on default", doubled from 48/40 to 96/80,
     // everywhere this renders (tray and canvas share this component).
     // Follow-up instruction: "shrink the size of the grammar symbols
     // when they are in the drop down menu, right now they take up too
-    // much space" — the `compact` prop (sidebar tray only) shrinks the
+    // much space", the `compact` prop (sidebar tray only) shrinks the
     // listing display back down without touching the full 2x size a
     // dragged/placed symbol actually gets on the board.
     // Also direct teacher instruction: hovering a symbol shows its name
@@ -333,14 +335,14 @@ function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compa
     );
   }
   if (kind === 'soundChip') {
-    // A23-ROADMAP Phase 3: a blank phoneme-segmenting counter — the real
+    // A23-ROADMAP Phase 3: a blank phoneme-segmenting counter, the real
     // physical-manipulative convention (drag out one chip per sound you
     // hear), no target word, no auto-count, matching this sandbox's
     // standing free-play philosophy.
     return <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid var(--ink)', background: LM_PHONO_COLOR, boxShadow: '2px 2px 0 rgba(31,17,71,0.2)' }} />;
   }
   if (kind === 'divider') {
-    // A23-ROADMAP Phase 3: Onset-Rime Divider — a plain physical-style
+    // A23-ROADMAP Phase 3: Onset-Rime Divider, a plain physical-style
     // dividing bar a student places between letter/grapheme tiles
     // already on the board to mark their own onset|rime split, rather
     // than a scripted "slider" that would need to know the right
@@ -351,7 +353,7 @@ function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compa
     // Also used for grapheme tiles (multi-character, e.g. "sh", "a_e"),
     // hence the min-width instead of a fixed square.
     const colorStyle = vcColorFor(letter, !!vowelConsonantColors);
-    // A23-ROADMAP Phase 2: "grapheme split-vowel connector" — a VCe
+    // A23-ROADMAP Phase 2: "grapheme split-vowel connector", a VCe
     // grapheme like "a_e"/"i_e" is stored as one tile (its underscore IS
     // the "there's a consonant between these two letters" spelling
     // pattern), but was rendered as plain literal text before. Now the
@@ -400,7 +402,7 @@ function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compa
   return m ? <MorphemePiece m={m} scale={compact ? 0.72 : 1} /> : null;
 }
 
-// One drag wrapper for every material, in the tray or on the canvas —
+// One drag wrapper for every material, in the tray or on the canvas -
 // pointer handlers passed in, appearance always comes from ItemVisual.
 function Draggable({ onPointerDown, onPointerMove, onPointerUp, onDoubleClick, style, glowing, label, children }: {
   onPointerDown: (e: React.PointerEvent) => void;
@@ -436,7 +438,7 @@ function Draggable({ onPointerDown, onPointerMove, onPointerUp, onDoubleClick, s
   );
 }
 
-// Polypad's own subcategory row — a plain clickable label + chevron that
+// Polypad's own subcategory row, a plain clickable label + chevron that
 // expands its own tile grid directly beneath it, independent of any
 // other subcategory row in the same category.
 function SubcategoryRow({ id, label, open, onToggle, children }: {
@@ -480,7 +482,7 @@ function Category({ label, color, open, onToggle, children }: {
   );
 }
 
-// A Word Lists row — plain text, not tile-styled (direct teacher
+// A Word Lists row, plain text, not tile-styled (direct teacher
 // instruction), but still draggable onto the board like every other
 // material. The 🔈 button is separate so a tap can still just hear the
 // word without placing a tile (its own pointerdown is stopped from
@@ -506,13 +508,13 @@ function WordListRow({ word, rowId, onDragStart, tts }: {
   );
 }
 
-// A Symbol Sentences tray card — direct teacher upload (a real
+// A Symbol Sentences tray card, direct teacher upload (a real
 // Montessori grammar-box deck: full sentences shown purely as a row of
 // colored symbols, no words). Dragging the card onto the board drops
 // its whole symbol row as one unit; the sentence text itself stays
 // symbols-only on the board, but direct follow-up instruction: "when
 // you highlight over a symbol sentence in the menu, it should pop up
-// with the example reference sentences saved in that original doc" —
+// with the example reference sentences saved in that original doc" -
 // hovering/focusing the tray card reveals its real sentence text,
 // reusing the same tooltip pattern the Grammar Symbol tiles already use.
 // The word bubble attached under a Grammar Symbol (her picture, 2026-10-15): a pill in the symbol's own color,
@@ -546,13 +548,18 @@ function PunctIcon({ mark, onTap }: { mark: string; onTap?: () => void }) {
   );
 }
 
+function BubbleSwatch({ solid }: { solid: boolean }) {
+  return <i className={`lm-bubble-swatch ${solid ? 'solid' : 'outline'}`} aria-hidden="true" />;
+}
+
+// "Word bubbles:" with the outline and solid choices right beside it, shown as their shapes only.
 function BubbleToggle({ value, onChange }: { value: BubbleStyle; onChange: (v: BubbleStyle) => void }) {
   return (
     <div className="lm-bubble-toggle" role="radiogroup" aria-label="Word bubbles">
       <span>Word bubbles:</span>
       {(['outline', 'solid'] as const).map((v) => (
-        <button key={v} type="button" role="radio" aria-checked={value === v} className={value === v ? 'on' : ''} onClick={() => onChange(v)}>
-          <i className={`lm-bubble-swatch ${v}`} aria-hidden="true" />{v === 'outline' ? 'Outline' : 'Solid'}
+        <button key={v} type="button" role="radio" aria-checked={value === v} aria-label={v === 'outline' ? 'Outline bubbles' : 'Solid bubbles'} title={v === 'outline' ? 'Outline' : 'Solid'} className={value === v ? 'on' : ''} onClick={() => onChange(v)}>
+          <BubbleSwatch solid={v === 'solid'} />
         </button>
       ))}
     </div>
@@ -579,7 +586,7 @@ function SymbolSentenceCard({ sentence, onPointerDown }: {
   );
 }
 
-// Text Box — direct teacher instruction: "add type text input fields so
+// Text Box, direct teacher instruction: "add type text input fields so
 // kids can type. SST option. text fields can be double tapped to edit
 // text, moveable, resize text options." A self-contained widget (same
 // pattern as the Sentence Formula frames): dragging it moves it around
@@ -624,11 +631,11 @@ function TextBoxWidget({ item, onPointerDown, onPointerMove, onPointerUp, onText
           <button type="button" className="btn btn-sm" style={{ minWidth: 34, padding: '2px 8px' }} onClick={() => onFontSizeChange(2)} aria-label="Bigger text">A+</button>
           {stt.supported && (
             <button type="button" className={`btn btn-sm ${stt.listening ? 'btn-primary' : ''}`} onClick={stt.toggle}>
-              {stt.listening ? '🎙️ Listening…' : '🎤 Speak'}
+              {stt.listening ? 'Listening...' : 'Speak'}
             </button>
           )}
           <button type="button" className="btn btn-sm" onClick={() => setEditing(false)}>Done</button>
-          <button type="button" className="btn btn-sm" onClick={onRemove} aria-label="Remove text box">🗑️</button>
+          <button type="button" className="btn btn-sm" onClick={onRemove} aria-label="Remove text box">Delete</button>
         </div>
       </div>
     );
@@ -655,7 +662,7 @@ function TextBoxWidget({ item, onPointerDown, onPointerMove, onPointerUp, onText
   );
 }
 
-// Standalone v1: no login, nothing saved — ported from the Homeplot
+// Standalone v1: no login, nothing saved, ported from the Homeplot
 // dashboard's native Literacy Manipulatives (GrammarSandbox.tsx). Every
 // account/marketplace/save-file concept that tool had is gone here on
 // purpose (see README): no student record, no purchased voice/color
@@ -692,9 +699,9 @@ export default function LiteracyManipulatives() {
   // A23-ROADMAP Phase 2: vowel/consonant coloring toggle for Alphabet
   // and Graphemes tiles (an Orton-Gillingham-style convention), off by
   // default (matching every other accommodation on this screen that
-  // changes how tiles look — opt-in, never forced).
+  // changes how tiles look, opt-in, never forced).
   const [vowelConsonantColors, setVowelConsonantColors] = useState(false);
-  // Zoom — direct teacher instruction: "add zoom feature for white
+  // Zoom, direct teacher instruction: "add zoom feature for white
   // board." Scales the whole canvas visually (transform: scale, from
   // the top-left); placed items keep their real, unscaled x/y, so
   // canvasRelative() below divides pointer coordinates by zoom to stay
@@ -703,7 +710,7 @@ export default function LiteracyManipulatives() {
   const zoomIn = () => setZoom((z) => Math.min(2, Math.round((z + 0.25) * 100) / 100));
   const zoomOut = () => setZoom((z) => Math.max(0.5, Math.round((z - 0.25) * 100) / 100));
   const zoomReset = () => setZoom(1);
-  // Top toolbar (Help/Exit/materials-toggle/Draw/Undo/Redo/Clear/Save) —
+  // Top toolbar (Help/Exit/materials-toggle/Draw/Undo/Redo/Clear/Save) -
   // direct teacher instruction: moved off the sidebar into its own
   // collapsible bar across the top of the screen.
   const [topBarOpen, setTopBarOpen] = useState(true);
@@ -715,7 +722,7 @@ export default function LiteracyManipulatives() {
   const historyRef = useRef<PlacedItem[][]>([]);
   const redoRef = useRef<PlacedItem[][]>([]);
 
-  // Draw — merged Mark+Draw into one tool, direct teacher instruction.
+  // Draw, merged Mark+Draw into one tool, direct teacher instruction.
   // A transparent canvas overlay sits on top of the shared tile canvas
   // (same technique the old Mark toggle used); Pen and Highlight are two
   // stroke styles of the same tool, not separate tools.
@@ -745,6 +752,15 @@ export default function LiteracyManipulatives() {
   };
   const host = useHostSession<PlacedItem, Stroke>(placed, strokes, applyOps);
   const [shareOpen, setShareOpen] = useState(false);
+  // First visit: welcome pop-up with "Start a whiteboard" or "Join a board". Remembered per browser; a page
+  // that embeds the board (the dashboard's iframe) can pass ?welcome=0 to skip it.
+  const [welcomeOpen, setWelcomeOpen] = useState(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get('welcome') === '0') return false;
+      return window.localStorage.getItem('lm-welcomed') !== '1';
+    } catch { return true; }
+  });
+  const closeWelcome = () => { setWelcomeOpen(false); try { window.localStorage.setItem('lm-welcomed', '1'); } catch { /* storage blocked */ } };
   const fromTeacher = useRef(false);
   const lastSynced = useRef<{ placed: PlacedItem[]; strokes: Stroke[] }>({ placed: [], strokes: [] });
   const student = useStudentSession<PlacedItem, Stroke>((snap: Snapshot<PlacedItem, Stroke>) => {
@@ -789,7 +805,7 @@ export default function LiteracyManipulatives() {
   const setSearch = (k: string) => (v: string) => setCatSearch((c) => ({ ...c, [k]: v }));
   const matches = (k: string, ...texts: string[]) => { const q = searchFor(k).trim().toLowerCase(); return !q || texts.some((t) => t.toLowerCase().includes(q)); };
 
-  // Alphabet — direct teacher instruction: full set of tiles, lowercase
+  // Alphabet, direct teacher instruction: full set of tiles, lowercase
   // and uppercase, toggled by double-tapping a tile. letterCase tracks
   // the tray's current case per letter (what gets dragged out next);
   // once placed, a tile's own case toggles independently via its own
@@ -840,7 +856,7 @@ export default function LiteracyManipulatives() {
   }, [selectedId]);
 
   // Quick-add from the top toolbar (direct teacher instruction: put
-  // Text Box next to Draw) — a plain click, no drag context to place
+  // Text Box next to Draw), a plain click, no drag context to place
   // from, so it just drops a fresh text box near the top-left of the
   // board, stacking down if more than one is added this way.
   const addTextBoxAtDefault = () => {
@@ -871,7 +887,7 @@ export default function LiteracyManipulatives() {
 
   // Direct teacher instruction: "within the settings for each symbol
   // sentence should be an option for text input fields similar to the
-  // current sentence formulas" — one typed word per symbol, shown under
+  // current sentence formulas", one typed word per symbol, shown under
   // that symbol once filled in. Same per-index fill pattern as
   // setFrameFill above.
   const setSymbolSentenceWordFill = (instanceId: string, wordIndex: number, value: string) => {
@@ -884,7 +900,7 @@ export default function LiteracyManipulatives() {
   const setTextBoxFontSize = (instanceId: string, delta: number) => {
     setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, fontSize: Math.min(48, Math.max(12, (pp.fontSize ?? 20) + delta)) } : pp)));
   };
-  // A23-ROADMAP Phase 3: Elkonin-boxes-v2's "flexible count" — a placed
+  // A23-ROADMAP Phase 3: Elkonin-boxes-v2's "flexible count", a placed
   // Sound Box frame's boxCount can now grow/shrink live via +/- controls
   // shown when it's selected (see the per-item controls badge below),
   // instead of only ever being fixed at whichever size was dragged out.
@@ -905,7 +921,7 @@ export default function LiteracyManipulatives() {
     });
   };
 
-  // Paragraph building — direct teacher instruction: "allow sentence
+  // Paragraph building, direct teacher instruction: "allow sentence
   // formulas to be used to build paragraphs... paste into the text
   // field... adding to the same text field currently active." Appends
   // to whichever Text Box was most recently created or opened; if none
@@ -1077,7 +1093,7 @@ export default function LiteracyManipulatives() {
     return { x: (clientX - rect.left) / zoom, y: (clientY - rect.top) / zoom };
   };
 
-  // Snap check — the one structural rule left: a dropped/moved grammar
+  // Snap check, the one structural rule left: a dropped/moved grammar
   // tile looks for the nearest OTHER grammar tile of the opposite word
   // class whose number agrees. Every other material kind is skipped
   // entirely, purely free placement.
@@ -1162,11 +1178,11 @@ export default function LiteracyManipulatives() {
     bindGlobalDragTracking([item], { x: item.x, y: item.y }, size, base.kind);
   };
 
-  // Symbol Sentences — direct follow-up instruction: "when you drag and
+  // Symbol Sentences, direct follow-up instruction: "when you drag and
   // drop symbol sentences, they should exist as a unit, with one option
   // for 'x' to close, not individual based on word." Now spawns ONE
   // 'symbolSentence' placed item (reusing the generic tray-spawn path
-  // every other material uses) instead of N separate 'shape' items —
+  // every other material uses) instead of N separate 'shape' items -
   // the whole row moves, selects, and deletes together. Its own real
   // words stay available for the settings popup (see PlacedItem.wordFills)
   // even though the board only ever shows the symbols.
@@ -1206,7 +1222,7 @@ export default function LiteracyManipulatives() {
     dragInstanceRef.current = instanceId;
     // Direct teacher instruction: picking an item up selects it (so its
     // delete/settings badge shows), and picking up a joined Sentence
-    // Formula card detaches it from whatever it was stacked under —
+    // Formula card detaches it from whatever it was stacked under -
     // anything joined BELOW it still comes along, via getChainDescendantIds.
     setSelectedId(instanceId);
     dragStartRef.current = { x: e.clientX, y: e.clientY, moved: false };
@@ -1256,7 +1272,7 @@ export default function LiteracyManipulatives() {
     });
   };
 
-  // Sound Boxes — direct teacher instruction: "ensure graphemes and
+  // Sound Boxes, direct teacher instruction: "ensure graphemes and
   // alphabet snap into the sound box frames." A dropped letter/grapheme
   // (both use the 'letter' PlacedKind, both happen to already be the
   // same 44x44 size as one box cell) snaps to whichever cell of a
@@ -1417,7 +1433,7 @@ export default function LiteracyManipulatives() {
     const id = dragInstanceRef.current;
     dragInstanceRef.current = null;
     if (!id) return;
-    // Drag-to-delete — direct teacher instruction: "allow dragging
+    // Drag-to-delete, direct teacher instruction: "allow dragging
     // objects (like frames, boxes) back into the left tool bar and
     // that act should delete it from view." The sidebar sits directly
     // left of the canvas, so releasing to the left of the canvas's own
@@ -1443,7 +1459,7 @@ export default function LiteracyManipulatives() {
     setPlaced([]);
   };
 
-  // Draw canvas — same transparent-overlay technique as the old marker
+  // Draw canvas, same transparent-overlay technique as the old marker
   // tool, now the only drawing mechanism (Mark and Draw merged).
   const drawPosFor = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = drawCanvasRef.current;
@@ -1506,7 +1522,7 @@ export default function LiteracyManipulatives() {
   }, [strokes]);
 
   // No accounts, no marketplace: everyone gets the full base pen/
-  // highlight color set — the dashboard's version adds purchased colors
+  // highlight color set, the dashboard's version adds purchased colors
   // on top of these same base arrays, which doesn't apply here.
   const activePalette = drawMode === 'highlight' ? BASE_HIGHLIGHT_COLORS : BASE_PEN_COLORS;
 
@@ -1519,15 +1535,18 @@ export default function LiteracyManipulatives() {
     return <div className="lm-join"><div className="lm-join-bar">Join a Board</div><div className="lm-join-center"><p className="lm-join-msg">Your teacher stopped sharing this board. Thanks for joining!</p></div></div>;
   }
   if (joinMode && student.status !== 'joined') {
-    return <JoinScreen status={student.status} onCheckCode={student.checkCode} onJoin={(n) => { void student.join(n); }} />;
+    return <JoinScreen status={student.status} error={student.error} onCheckCode={student.checkCode} onJoin={(n) => { void student.join(n); }} />;
   }
 
   return (
     <div className={`lm-page${studentViewOnly ? ' lm-readonly' : ''}`} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      {welcomeOpen && !joinMode && <WelcomeChoice onStart={closeWelcome} />}
       {shareOpen && !joinMode && (
         <SharePanel
           code={host.code}
           status={host.status}
+          error={host.error}
+          onRetry={() => { void host.start(); }}
           students={host.students}
           access={host.access}
           onSetAccess={host.setStudentAccess}
@@ -1535,31 +1554,31 @@ export default function LiteracyManipulatives() {
           onClose={() => setShareOpen(false)}
         />
       )}
-      {/* Top toolbar — same collapsible bar as the dashboard's native
+      {/* Top toolbar, same collapsible bar as the dashboard's native
           tool, minus Help (tied to a student account) and Exit (there's
           no "home" to leave to in a standalone page). */}
       <div className="lm-toolbar" style={{ flex: '0 0 auto' }}>
         {studentViewOnly ? (
           // A view-only student just watches: no tools, only who they are and what they can do.
           <>
-            <span className="lm-sidebar-title" style={{ marginRight: 8 }}>🧩 Literacy Manipulatives</span>
-            <span className="lm-share-badge">👁️ Watching your teacher's board{student.name ? `, ${student.name}` : ''}</span>
+            <span className="lm-sidebar-title" style={{ marginRight: 8 }}>Literacy Manipulatives</span>
+            <span className="lm-share-badge"><Icon name="eye" /> Watching your teacher's board{student.name ? `, ${student.name}` : ''}</span>
           </>
         ) : topBarOpen ? (
           <>
-            <span className="lm-sidebar-title" style={{ marginRight: 8 }}>🧩 Literacy Manipulatives</span>
+            <span className="lm-sidebar-title" style={{ marginRight: 8 }}>Literacy Manipulatives</span>
             <button className="btn btn-sm" onClick={() => setSidebarOpen((v) => !v)} aria-label={sidebarOpen ? 'Hide materials' : 'Show materials'}>{sidebarOpen ? '⟨⟨' : '⟩⟩'}</button>
             <span className="lm-toolbar-divider" />
-            <button className={`btn btn-sm ${drawOn ? 'btn-primary' : ''}`} onClick={() => setDrawOn((v) => !v)}>🖍️ Draw</button>
-            <button className="btn btn-sm" onClick={addTextBoxAtDefault}>⌨️ Text</button>
-            <button className={`btn btn-sm ${selectMode ? 'btn-primary' : ''}`} onClick={() => { setSelectMode((v) => !v); setMultiSel(new Set()); }} title="Pick several pieces to group or line up">☑️ Select</button>
-            <button className="btn btn-sm" onClick={undo} disabled={!canUndo}>↩️ Undo</button>
-            <button className="btn btn-sm" onClick={redo} disabled={!canRedo}>↪️ Redo</button>
-            <button className="btn btn-sm" onClick={clearBoard} disabled={placed.length === 0}>🗑️ Clear</button>
+            <button className={`btn btn-sm ${drawOn ? 'btn-primary' : ''}`} onClick={() => setDrawOn((v) => !v)}>Draw</button>
+            <button className="btn btn-sm" onClick={addTextBoxAtDefault}>Text</button>
+            <button className={`btn btn-sm ${selectMode ? 'btn-primary' : ''}`} onClick={() => { setSelectMode((v) => !v); setMultiSel(new Set()); }} title="Pick several pieces to group or line up">Select</button>
+            <button className="btn btn-sm" onClick={undo} disabled={!canUndo}>Undo</button>
+            <button className="btn btn-sm" onClick={redo} disabled={!canRedo}>Redo</button>
+            <button className="btn btn-sm" onClick={clearBoard} disabled={placed.length === 0}>Clear</button>
             <span className="lm-toolbar-divider" />
-            <button className="btn btn-sm" onClick={zoomOut} disabled={zoom <= 0.5} aria-label="Zoom out">➖</button>
+            <button className="btn btn-sm" onClick={zoomOut} disabled={zoom <= 0.5} aria-label="Zoom out">−</button>
             <button className="btn btn-sm" onClick={zoomReset} aria-label="Reset zoom">{Math.round(zoom * 100)}%</button>
-            <button className="btn btn-sm" onClick={zoomIn} disabled={zoom >= 2} aria-label="Zoom in">➕</button>
+            <button className="btn btn-sm" onClick={zoomIn} disabled={zoom >= 2} aria-label="Zoom in">+</button>
             <span className="lm-toolbar-divider" />
             <button
               className="btn btn-sm"
@@ -1567,18 +1586,18 @@ export default function LiteracyManipulatives() {
               title="Read-aloud speed"
               onClick={() => setTtsSettings((s) => ({ ...s, rate: s.rate >= 1.25 ? 0.75 : Math.round((s.rate + 0.25) * 100) / 100 }))}
             >
-              🔈 {ttsSettings.rate}x
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="speaker" /> {ttsSettings.rate}x</span>
             </button>
             <span className="lm-toolbar-divider" />
             {/* Share replaces Print and Projector Mode (her request 2026-10-15). */}
             {joinMode ? (
-              <span className="lm-share-badge">✏️ You can move pieces{student.name ? `, ${student.name}` : ''}</span>
+              <span className="lm-share-badge"><Icon name="pencil" /> You can move pieces{student.name ? `, ${student.name}` : ''}</span>
             ) : (
               <button
                 className={`btn btn-sm ${host.status === 'live' ? 'btn-primary' : ''}`}
                 onClick={() => { setShareOpen(true); if (shareConfigured && host.status === 'off') void host.start(); }}
               >
-                🔗 {host.status === 'live' && host.code ? `Sharing ${host.code} (${host.students.length})` : 'Share'}
+                {host.status === 'live' && host.code ? `Sharing ${host.code} (${host.students.length})` : 'Share'}
               </button>
             )}
             <span style={{ flex: 1 }} />
@@ -1590,9 +1609,9 @@ export default function LiteracyManipulatives() {
       </div>
       {topBarOpen && drawOn && (
         <div className="lm-toolbar" style={{ flex: '0 0 auto', paddingTop: 0 }}>
-          <button className={`btn btn-sm ${drawMode === 'pen' ? 'btn-primary' : ''}`} onClick={() => setDrawModeAndColor('pen')}>✏️ Pen</button>
-          <button className={`btn btn-sm ${drawMode === 'highlight' ? 'btn-primary' : ''}`} onClick={() => setDrawModeAndColor('highlight')}>🖊️ Highlight</button>
-          <button className={`btn btn-sm ${drawMode === 'eraser' ? 'btn-primary' : ''}`} onClick={() => setDrawModeAndColor('eraser')} title="Erase one mark at a time">🧽 Eraser</button>
+          <button className={`btn btn-sm ${drawMode === 'pen' ? 'btn-primary' : ''}`} onClick={() => setDrawModeAndColor('pen')}>Pen</button>
+          <button className={`btn btn-sm ${drawMode === 'highlight' ? 'btn-primary' : ''}`} onClick={() => setDrawModeAndColor('highlight')}>Highlight</button>
+          <button className={`btn btn-sm ${drawMode === 'eraser' ? 'btn-primary' : ''}`} onClick={() => setDrawModeAndColor('eraser')} title="Erase one mark at a time">Eraser</button>
           <span className="lm-toolbar-divider" />
           {drawMode !== 'eraser' && activePalette.map((hex, i) => (
             <button
@@ -1603,14 +1622,14 @@ export default function LiteracyManipulatives() {
             />
           ))}
           <span className="lm-toolbar-divider" />
-          <button className="btn btn-sm" onClick={clearDrawing} disabled={strokes.length === 0}>🗑️ Clear marks</button>
+          <button className="btn btn-sm" onClick={clearDrawing} disabled={strokes.length === 0}>Clear marks</button>
         </div>
       )}
 
       <div className="lm-shell" style={{ flex: 1, minHeight: 0 }}>
       {sidebarOpen && !studentViewOnly ? (
         <aside className="lm-sidebar">
-          <Category label="🔺 Grammar Symbols" color="#e9d5ff" open={openCategories.shapes} onToggle={() => toggleCategory('shapes')}>
+          <Category label="Grammar Symbols" color="#e9d5ff" open={openCategories.shapes} onToggle={() => toggleCategory('shapes')}>
             <TraySearch value={searchFor('shapes')} onChange={setSearch('shapes')} placeholder="Find a part of speech" />
             <BubbleToggle value={bubbleDefault} onChange={setAllBubbles} />
             <div className="row-wrap" style={{ gap: 8 }}>
@@ -1625,7 +1644,7 @@ export default function LiteracyManipulatives() {
             </div>
           </Category>
 
-          <Category label="📜 Symbol Sentences" color="#ddd6fe" open={openCategories.symbolSentences} onToggle={() => toggleCategory('symbolSentences')}>
+          <Category label="Symbol Sentences" color="#ddd6fe" open={openCategories.symbolSentences} onToggle={() => toggleCategory('symbolSentences')}>
             <TraySearch value={searchFor('sentences')} onChange={setSearch('sentences')} placeholder="Type a sentence or parts of speech" />
             <BubbleToggle value={bubbleDefault} onChange={setAllBubbles} />
             {searchFor('sentences').trim() ? (() => {
@@ -1652,7 +1671,7 @@ export default function LiteracyManipulatives() {
                 </div>
               );
             })() : SYMBOL_SENTENCE_PAGES.map((page) => (
-              <SubcategoryRow key={page.id} id={page.id} label={`${page.icon} ${page.label}`} open={openSubcategories[page.id]} onToggle={() => toggleSubcategory(page.id)}>
+              <SubcategoryRow key={page.id} id={page.id} label={page.label} open={openSubcategories[page.id]} onToggle={() => toggleSubcategory(page.id)}>
                 <div className="stack" style={{ gap: 8 }}>
                   {page.sentences.map((sentence) => (
                     <SymbolSentenceCard key={sentence.id} sentence={sentence} onPointerDown={startDragNewSymbolSentence(sentence)} />
@@ -1665,7 +1684,7 @@ export default function LiteracyManipulatives() {
           {/* Morphemes (her request 2026-10-15): every morpheme from the DSF Level 1 Unit 1 tile deck and the 111
               Greek/Latin list, sorted into prefixes, suffixes, free bases and Greek & Latin roots. Hover a piece
               to see its meaning; on the board, tap a piece for its card. */}
-          <Category label="🧩 Morphemes" color="#bae6fd" open={openCategories.morphemes} onToggle={() => toggleCategory('morphemes')}>
+          <Category label="Morphemes" color="#bae6fd" open={openCategories.morphemes} onToggle={() => toggleCategory('morphemes')}>
             <input className="lm-tray-search" type="search" value={morphSearch} onChange={(e) => setMorphSearch(e.target.value)} placeholder="Find a morpheme or meaning" aria-label="Find a morpheme or meaning" />
             {MORPHEME_GROUPS.map((group) => {
               const q = morphSearch.trim().toLowerCase();
@@ -1687,11 +1706,11 @@ export default function LiteracyManipulatives() {
             })}
           </Category>
 
-          <Category label="🔡 Alphabet" color="#fed7aa" open={openCategories.letters} onToggle={() => toggleCategory('letters')}>
+          <Category label="Alphabet" color="#fed7aa" open={openCategories.letters} onToggle={() => toggleCategory('letters')}>
             {/* A23-ROADMAP Phase 2: vowel/consonant coloring toggle,
                 shared with Graphemes below (both are letter tiles). */}
             <button type="button" className={`btn btn-sm ${vowelConsonantColors ? 'btn-primary' : ''}`} style={{ fontSize: '0.7rem', marginBottom: 6 }} onClick={() => setVowelConsonantColors((v) => !v)}>
-              🎨 Vowel/consonant colors: {vowelConsonantColors ? 'On' : 'Off'}
+              Vowel/consonant colors: {vowelConsonantColors ? 'On' : 'Off'}
             </button>
             <TraySearch value={searchFor('letters')} onChange={setSearch('letters')} placeholder="Find a letter" />
             <div className="row-wrap" style={{ gap: 6 }}>
@@ -1706,7 +1725,7 @@ export default function LiteracyManipulatives() {
             </div>
           </Category>
 
-          <Category label="🔠 Graphemes" color="#fde68a" open={openCategories.graphemes} onToggle={() => toggleCategory('graphemes')}>
+          <Category label="Graphemes" color="#fde68a" open={openCategories.graphemes} onToggle={() => toggleCategory('graphemes')}>
             <TraySearch value={searchFor('graphemes')} onChange={setSearch('graphemes')} placeholder="Find a spelling or sound" />
             {GRAPHEME_GROUPS.filter((group) => group.graphemes.some(({ g, sound }) => matches('graphemes', g, sound))).map((group) => (
               <SubcategoryRow key={group.key} id={`graph-${group.key}`} label={group.label} open={!!searchFor('graphemes').trim() || openSubcategories[`graph-${group.key}`]} onToggle={() => toggleSubcategory(`graph-${group.key}`)}>
@@ -1725,9 +1744,9 @@ export default function LiteracyManipulatives() {
 
           {/* The dashboard's native tool gates this per-student on a
               teacher toggle (StudentManager.tsx). No accounts here, so
-              it's always on — every tool unlocked for anyone. */}
+              it's always on, every tool unlocked for anyone. */}
           {(
-            <Category label="❓ Punctuation" color="#cbd5e1" open={openCategories.punctuation} onToggle={() => toggleCategory('punctuation')}>
+            <Category label="Punctuation" color="#cbd5e1" open={openCategories.punctuation} onToggle={() => toggleCategory('punctuation')}>
               <TraySearch value={searchFor('punct')} onChange={setSearch('punct')} placeholder="Find a mark" />
               <div className="row-wrap" style={{ gap: 8 }}>
                 {PUNCTUATION_MARKS.filter((m) => matches('punct', m.name, m.mark, m.label)).map((m) => (
@@ -1741,10 +1760,10 @@ export default function LiteracyManipulatives() {
 
           {/* A23-ROADMAP Phase 3: "phonological awareness (sound chips,
               syllable tapping, onset-rime slider) as new sidebar
-              categories" — free-play manipulatives, no target word, no
+              categories", free-play manipulatives, no target word, no
               auto-counting/auto-splitting, matching this sandbox's
               standing "entirely unscripted" rule. */}
-          <Category label="🔊 Phonological Awareness" color="#fce7f3" open={openCategories.phono} onToggle={() => toggleCategory('phono')}>
+          <Category label="Phonological Awareness" color="#fce7f3" open={openCategories.phono} onToggle={() => toggleCategory('phono')}>
             <div className="row-wrap" style={{ gap: 10, alignItems: 'flex-start' }}>
               <Draggable label="Sound chip" onPointerDown={startDragNewItem(() => ({ kind: 'soundChip' }))}>
                 <ItemVisual kind="soundChip" />
@@ -1755,7 +1774,7 @@ export default function LiteracyManipulatives() {
             </div>
           </Category>
 
-          <Category label="🟦 Sound Boxes" color="#bbf7d0" open={openCategories.frames} onToggle={() => toggleCategory('frames')}>
+          <Category label="Sound Boxes" color="#bbf7d0" open={openCategories.frames} onToggle={() => toggleCategory('frames')}>
             <div className="stack" style={{ gap: 10 }}>
               {FRAME_SIZES.map((n) => (
                 <Draggable key={n} label={`${n}-box frame`} onPointerDown={startDragNewItem(() => ({ kind: 'frame', boxCount: n }))}>
@@ -1765,13 +1784,13 @@ export default function LiteracyManipulatives() {
             </div>
           </Category>
 
-          <Category label="⌨️ Text Box" color="#c7d2fe" open={openCategories.textbox} onToggle={() => toggleCategory('textbox')}>
+          <Category label="Text Box" color="#c7d2fe" open={openCategories.textbox} onToggle={() => toggleCategory('textbox')}>
             <Draggable label="Add a text box" onPointerDown={startDragNewItem(() => ({ kind: 'textbox', textValue: '', fontSize: 20 }))} style={{ width: '100%' }}>
               <div style={{
                 width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 border: '2px dashed var(--ink)', borderRadius: 8, background: 'white', fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: '0.85rem', padding: '6px 10px',
               }}>
-                ⌨️ Add a text box
+                Add a text box
               </div>
             </Draggable>
           </Category>
@@ -1779,14 +1798,14 @@ export default function LiteracyManipulatives() {
           {/* A23-ROADMAP Phase 3: writing scaffolds. See
               writingScaffoldContent.ts for the fade-level judgment call
               logged there. */}
-          <Category label="📝 Writing Scaffolds" color={LM_WRITING_SCAFFOLD_COLOR} open={openCategories.writingScaffolds} onToggle={() => toggleCategory('writingScaffolds')}>
+          <Category label="Writing Scaffolds" color={LM_WRITING_SCAFFOLD_COLOR} open={openCategories.writingScaffolds} onToggle={() => toggleCategory('writingScaffolds')}>
             <TraySearch value={searchFor('writing')} onChange={setSearch('writing')} placeholder="Find a frame or starter" />
             <SubcategoryRow id="writingFrames" label="Writing Frames" open={!!searchFor('writing').trim() || openSubcategories.writingFrames} onToggle={() => toggleSubcategory('writingFrames')}>
               <div className="stack" style={{ gap: 4 }}>
                 {WRITING_FRAMES.filter((f) => matches('writing', f.title, ...f.lines)).map((f) => (
                   <Draggable key={f.id} label={f.title} onPointerDown={startDragNewItem(() => ({ kind: 'writingFrame', writingFrameId: f.id, frameFills: {} }))} style={{ width: '100%' }}>
                     <div style={{ width: '100%', textAlign: 'left', padding: '6px 8px', border: '2px solid var(--ink)', borderRadius: 8, background: 'white', fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: '0.78rem' }}>
-                      📝 {f.title}
+                      {f.title}
                     </div>
                   </Draggable>
                 ))}
@@ -1808,11 +1827,11 @@ export default function LiteracyManipulatives() {
           {(selectMode || multiSel.size > 0) && (
             <div className="lm-select-bar" role="toolbar" aria-label="Selected pieces">
               <strong>{multiSel.size ? `${multiSel.size} selected` : 'Tap pieces to select them'}</strong>
-              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={groupSelected}>🔗 Group</button>
-              <button className="btn btn-sm" disabled={!placed.some((pp) => multiSel.has(pp.instanceId) && pp.groupId)} onClick={ungroupSelected}>✂️ Ungroup</button>
-              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('middle')} title="Line up their middles side by side">⬌ Align middles</button>
-              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('center')} title="Line up their centers in a column">⬍ Align centers</button>
-              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('row')} title="Even row, middles lined up">↔ Line up</button>
+              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={groupSelected}>Group</button>
+              <button className="btn btn-sm" disabled={!placed.some((pp) => multiSel.has(pp.instanceId) && pp.groupId)} onClick={ungroupSelected}>Ungroup</button>
+              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('middle')} title="Line up their middles side by side">Align middles</button>
+              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('center')} title="Line up their centers in a column">Align centers</button>
+              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('row')} title="Even row, middles lined up">Line up</button>
               <button className="btn btn-sm" onClick={() => { setSelectMode(false); setMultiSel(new Set()); }}>Done</button>
             </div>
           )}
@@ -1826,7 +1845,7 @@ export default function LiteracyManipulatives() {
               // Sound Boxes sit behind everything else on purpose (a
               // background a student drops letters onto, direct teacher
               // report: letter/grapheme tiles were rendering behind the
-              // box outlines) — every other kind gets the higher z-index.
+              // box outlines), every other kind gets the higher z-index.
               // A Grammar Symbol and its word bubble stack as one centered column (her report 2026-10-15: bubbles
               // must sit centered under the symbol, even when the word is wider than the icon).
               <div key={p.instanceId} ref={setItemRef(p.instanceId)} style={{ position: 'absolute', left: p.x, top: p.y, zIndex: p.kind === 'frame' ? 1 : 2, ...(p.kind === 'shape' ? { display: 'flex', flexDirection: 'column', alignItems: 'center' } : {}) }}>
@@ -1859,7 +1878,7 @@ export default function LiteracyManipulatives() {
                     />
                   </div>
                 )}
-                {/* Delete (+ Settings for a single Grammar Symbol) —
+                {/* Delete (+ Settings for a single Grammar Symbol) -
                     direct teacher instruction: "ensure that after i drag
                     and drop, the x is not shown on the assets on the
                     whiteboard. only show x upon moving or selected.
@@ -1869,14 +1888,14 @@ export default function LiteracyManipulatives() {
                     something else is selected or empty canvas is tapped.
                     Follow-up instruction: "have the same setting button
                     appear for single grammar symbols" (matching the
-                    Symbol Sentence ⚙️/✕ pair). */}
+                    Symbol Sentence settings/close pair). */}
                 {selectedId === p.instanceId && p.kind === 'frame' && (
                   <div className="lm-resize-handle lm-item-controls" onPointerDown={startFrameResize(p.instanceId)} role="slider" aria-label="Resize sound boxes" aria-valuenow={p.cellSize ?? DEFAULT_CELL} aria-valuemin={36} aria-valuemax={140} title="Drag to resize">⤡</div>
                 )}
                 {selectedId === p.instanceId && (
                   <div className="lm-item-controls" style={{ position: 'absolute', top: -10, right: -10, display: 'flex', gap: 4, zIndex: 3 }}>
                     {/* A23-ROADMAP Phase 3: Elkonin-boxes-v2 flexible
-                        count — a selected Sound Box frame can grow/shrink
+                        count, a selected Sound Box frame can grow/shrink
                         live instead of only ever being the fixed size it
                         was dragged out at. */}
                     {p.kind === 'frame' && (
@@ -1907,8 +1926,8 @@ export default function LiteracyManipulatives() {
                     )}
                     {p.kind === 'shape' && (
                       <>
-                        <button type="button" className="lm-ctl" onClick={() => setPlacedField(p.instanceId, { bubbleWord: randomWordFor(p.wordClass ?? 'noun') })} onPointerDown={(e) => e.stopPropagation()} aria-label="Random word" title="Random word">🎲</button>
-                        <button type="button" className="lm-ctl" onClick={() => flipBubbleStyle(p.instanceId)} onPointerDown={(e) => e.stopPropagation()} aria-label="Solid or outline bubble" title="Solid or outline">{(p.bubbleStyle ?? bubbleDefault) === 'solid' ? '⬭' : '⬬'}</button>
+                        <button type="button" className="lm-ctl" onClick={() => setPlacedField(p.instanceId, { bubbleWord: randomWordFor(p.wordClass ?? 'noun') })} onPointerDown={(e) => e.stopPropagation()} aria-label="Random word" title="Random word"><Icon name="dice" size={16} /></button>
+                        <button type="button" className="lm-ctl" onClick={() => flipBubbleStyle(p.instanceId)} onPointerDown={(e) => e.stopPropagation()} aria-label="Solid or outline bubble" title="Solid or outline"><BubbleSwatch solid={(p.bubbleStyle ?? bubbleDefault) !== 'solid'} /></button>
                       </>
                     )}
                     <button
@@ -1922,13 +1941,13 @@ export default function LiteracyManipulatives() {
                         display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, lineHeight: 1,
                       }}
                     >
-                      ✕
+                      ×
                     </button>
                   </div>
                 )}
               </div>
             ))}
-            {/* A word built from snapped morpheme pieces gets a movable card (✕ to close, drag to move) that says
+            {/* A word built from snapped morpheme pieces gets a movable card (× to close, drag to move) that says
                 whether it's a real word and what each part means. A made-up word from real parts is welcome too. */}
             {morphemeWords.map((w) => {
               const st = wordCardState[w.head.instanceId];
@@ -1943,7 +1962,7 @@ export default function LiteracyManipulatives() {
                   y={w.head.y + 78 + (st?.dy ?? 0)}
                   width={280}
                   zoom={zoom}
-                  title={w.real ? `✨ ${w.word}` : `🧪 ${w.word}`}
+                  title={w.word}
                   onMove={(x, y) => setWordCardState((s) => ({ ...s, [w.head.instanceId]: { ...(s[w.head.instanceId] ?? {}), dx: x - w.head.x, dy: y - w.head.y - 78 } }))}
                   onClose={() => setWordCardState((s) => ({ ...s, [w.head.instanceId]: { dx: s[w.head.instanceId]?.dx ?? 0, dy: s[w.head.instanceId]?.dy ?? 0, closedWord: w.word } }))}
                 >
@@ -1984,9 +2003,9 @@ export default function LiteracyManipulatives() {
                 </FloatingCard>
               );
             })}
-            {/* Symbol Sentences, placed as one unit — direct follow-up
+            {/* Symbol Sentences, placed as one unit, direct follow-up
                 instructions: they drag/select/delete as a whole (not
-                per-symbol), and a selected one also shows a ⚙️ settings
+                per-symbol), and a selected one also shows a settings
                 button opening per-word text inputs (like Sentence
                 Formula blanks) so a student can label the words under
                 the symbols as the curriculum moves them toward full
@@ -2021,7 +2040,7 @@ export default function LiteracyManipulatives() {
                               label={`${info.name} word ${t.index + 1}`} onChange={(v) => setSymbolSentenceWordFill(item.instanceId, t.index, v)} />
                             {/* Her request 2026-10-15: a random-word die for each word, even inside a whole sentence. */}
                             {selected && (
-                              <button type="button" className="lm-ctl lm-item-controls" onPointerDown={(e) => e.stopPropagation()} onClick={() => setSymbolSentenceWordFill(item.instanceId, t.index, randomWordFor(w.wordClass))} aria-label={`Random ${info.name.toLowerCase()}`} title={`Random ${info.name.toLowerCase()}`}>🎲</button>
+                              <button type="button" className="lm-ctl lm-item-controls" onPointerDown={(e) => e.stopPropagation()} onClick={() => setSymbolSentenceWordFill(item.instanceId, t.index, randomWordFor(w.wordClass))} aria-label={`Random ${info.name.toLowerCase()}`} title={`Random ${info.name.toLowerCase()}`}><Icon name="dice" size={16} /></button>
                             )}
                           </div>
                         );
@@ -2040,7 +2059,7 @@ export default function LiteracyManipulatives() {
                       >
                         ↺
                       </button>
-                      <button type="button" className="lm-ctl" onClick={() => flipBubbleStyle(item.instanceId)} onPointerDown={(e) => e.stopPropagation()} aria-label="Solid or outline bubbles" title="Solid or outline">{(item.bubbleStyle ?? bubbleDefault) === 'solid' ? '⬭' : '⬬'}</button>
+                      <button type="button" className="lm-ctl" onClick={() => flipBubbleStyle(item.instanceId)} onPointerDown={(e) => e.stopPropagation()} aria-label="Solid or outline bubbles" title="Solid or outline"><BubbleSwatch solid={(item.bubbleStyle ?? bubbleDefault) !== 'solid'} /></button>
                       <button
                         type="button"
                         onClick={() => removePlacedItem(item.instanceId)}
@@ -2048,7 +2067,7 @@ export default function LiteracyManipulatives() {
                         aria-label="Remove this Symbol Sentence"
                         style={{ width: 22, height: 22, borderRadius: '50%', border: '2px solid var(--ink)', background: '#fee2e2', color: '#991b1b', fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, lineHeight: 1 }}
                       >
-                        ✕
+                        ×
                       </button>
                     </div>
                   )}
@@ -2070,7 +2089,7 @@ export default function LiteracyManipulatives() {
             ))}
             {/* Writing Scaffolds. Each line is also a drop zone (her request 2026-10-15): drop Grammar Symbols,
                 Symbol Sentences, punctuation, or a whole snapped row onto a line and they move into it, shown as
-                symbols with their word bubbles (still editable, ✕ to take one out). "Add to paragraph" sends the
+                symbols with their word bubbles (still editable, × to take one out). "Add to paragraph" sends the
                 finished text to the active Text Box. */}
             {placed.filter((p) => p.kind === 'writingFrame').map((item) => {
               const frame = WRITING_FRAMES.find((f) => f.id === item.writingFrameId);
@@ -2087,9 +2106,9 @@ export default function LiteracyManipulatives() {
                 <div key={item.instanceId} ref={setItemRef(item.instanceId)} className="chrome-frame" style={{ position: 'absolute', left: item.x, top: item.y, padding: 10, minWidth: 300, maxWidth: 720, zIndex: 4 }}>
                   <div className="space-between" style={{ alignItems: 'center', marginBottom: 6 }}>
                     <strong style={{ cursor: 'grab', touchAction: 'none', fontSize: '0.8rem' }} onPointerDown={startDragPlaced(item.instanceId)} onPointerMove={onDragMove} onPointerUp={onDragEnd}>
-                      📝 {frame.title}
+                      {frame.title}
                     </strong>
-                    <button type="button" className="btn btn-sm" onClick={() => removePlacedItem(item.instanceId)} aria-label={`Remove ${frame.title}`}>✕</button>
+                    <button type="button" className="btn btn-sm" onClick={() => removePlacedItem(item.instanceId)} aria-label={`Remove ${frame.title}`}>×</button>
                   </div>
                   <div className="stack" style={{ gap: 6 }}>
                     {frame.lines.map((line, i) => {
@@ -2112,7 +2131,7 @@ export default function LiteracyManipulatives() {
                                     onChange={(e) => setLineToken(item.instanceId, i, ti, stripPunctuation(e.target.value))}
                                     style={{ borderColor: MONTESSORI_WORD_CLASS_INFO[t.wordClass].color, color: BUBBLE_BLACK, background: BUBBLE_WHITE }}
                                   />
-                                  <button type="button" className="lm-ctl" style={{ width: 22, height: 22, fontSize: 10 }} onClick={() => setLineToken(item.instanceId, i, ti, null)} aria-label="Take this word out">✕</button>
+                                  <button type="button" className="lm-ctl" style={{ width: 22, height: 22, fontSize: 10 }} onClick={() => setLineToken(item.instanceId, i, ti, null)} aria-label="Take this word out">×</button>
                                 </span>
                               )))}
                             </div>
@@ -2132,7 +2151,7 @@ export default function LiteracyManipulatives() {
                     {assembled && (
                       <SyncedSpeakButton id={speakId} text={assembled} tts={tts} settings={ttsSettings} style={{ padding: '2px 8px', minHeight: 26 }} />
                     )}
-                    <button type="button" className="btn btn-sm" onClick={() => pasteSentenceToTextBox(assembled)} disabled={!assembled} title="Add this to your paragraph text box">📋 Add to paragraph</button>
+                    <button type="button" className="btn btn-sm" onClick={() => pasteSentenceToTextBox(assembled)} disabled={!assembled} title="Add this to your paragraph text box">Add to paragraph</button>
                   </div>
                 </div>
               );
@@ -2143,7 +2162,7 @@ export default function LiteracyManipulatives() {
               </p>
             )}
           </div>
-          {/* Transparent draw canvas — only captures pointer events while
+          {/* Transparent draw canvas, only captures pointer events while
               drawOn is true, the content layer takes them back instantly
               when Draw is toggled off. */}
           <canvas

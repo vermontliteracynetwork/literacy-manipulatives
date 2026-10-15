@@ -1,10 +1,10 @@
-// Punctuation tiles — A23-ROADMAP Phase 2: "punctuation tiles as a new
+// Punctuation tiles, A23-ROADMAP Phase 2: "punctuation tiles as a new
 // opt-in, teacher-toggleable category (not a replacement for the current
 // auto-punctuated Sentence Formulas, which are a helpful scaffold for
 // this population)." Ordinary, uncontroversial English punctuation
 // marks with a plain-language reference definition each (shown via the
 // shared ReferencePopover hover tooltip, same pattern Grammar Symbols
-// use) — not a specialized curriculum standard.
+// use), not a specialized curriculum standard.
 export interface PunctuationMark {
   id: string;
   mark: string;

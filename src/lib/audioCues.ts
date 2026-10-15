@@ -1,4 +1,4 @@
-// Speech-to-text listening cue — A23-ROADMAP Phase 2 ("STT listening cue:
+// Speech-to-text listening cue, A23-ROADMAP Phase 2 ("STT listening cue:
 // chime/TTS + visual state"). Every existing STT button in Literacy
 // Manipulatives (Text Box, Sentence Formula blanks) already flips a
 // visual state when listening starts/stops (a button label/style
@@ -23,7 +23,7 @@ function beep(freq: number, startAt: number, durationSec: number, ctx: AudioCont
   osc.stop(ctx.currentTime + startAt + durationSec + 0.02);
 }
 
-// A rising two-note chime — "I'm listening now."
+// A rising two-note chime, "I'm listening now."
 export function playListeningStartChime() {
   if (!AudioContextCtor) return;
   try {
@@ -34,7 +34,7 @@ export function playListeningStartChime() {
   } catch { /* audio not available, no cue, no crash */ }
 }
 
-// A single falling note — "stopped listening."
+// A single falling note, "stopped listening."
 export function playListeningStopChime() {
   if (!AudioContextCtor) return;
   try {
