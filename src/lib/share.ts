@@ -172,7 +172,7 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
 }
 
 // ---------- Student ----------
-const studentId = (() => {
+export const studentId = (() => {
   try {
     const existing = sessionStorage.getItem('lm-student-id');
     if (existing) return existing;

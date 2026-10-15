@@ -12,7 +12,7 @@ import { JoinScreen } from './components/JoinScreen';
 import { WelcomeChoice } from './components/WelcomeChoice';
 import { SettingsPanel } from './components/SettingsPanel';
 import { useFontChoice } from './lib/fontChoice';
-import { diffItems, isJoinRoute, shareConfigured, useHostSession, useStudentSession, type Ops, type Snapshot } from './lib/share';
+import { diffItems, isJoinRoute, shareConfigured, studentId as myStudentId, useHostSession, useStudentSession, type Ops, type Snapshot } from './lib/share';
 import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from './lib/montessoriGrammar';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
 import { searchSymbolSentences, symbolsForWords, type PatternWord } from './lib/sentenceSearch';
@@ -205,6 +205,8 @@ export type LineToken = { type: 'word'; wordClass: MontessoriWordClass; word: st
 
 interface PlacedItem {
   instanceId: string;
+  // On a shared board: the student who put this piece there (so a student's Clear only removes their own).
+  addedBy?: string;
   kind: PlacedKind;
   x: number;
   y: number;
@@ -728,8 +730,10 @@ export default function LiteracyManipulatives() {
   viewRef.current = { zoom, pan };
   const pinchRef = useRef(false);
   useEffect(() => {
-    const board = boardRef.current;
-    if (!board) return;
+    // Listeners live on the window and check the event happened over the board, so they keep working even if
+    // the board element is replaced (a laptop trackpad pinch arrives as ctrl + scroll).
+    const overBoard = (e: Event) => !!boardRef.current && e.target instanceof Node && boardRef.current.contains(e.target);
+    const board = { getBoundingClientRect: () => boardRef.current?.getBoundingClientRect() ?? new DOMRect() };
     const clampZoom = (z: number) => Math.min(2.5, Math.max(0.4, z));
     // Zoom so the board point under (sx, sy) on screen stays under it.
     const zoomAround = (sx: number, sy: number, nextZoom: number, from = viewRef.current) => {
@@ -741,14 +745,17 @@ export default function LiteracyManipulatives() {
       setPan({ x: mx - px * z, y: my - py * z });
     };
     const onWheel = (e: WheelEvent) => {
+      if (!overBoard(e)) return;
       e.preventDefault();
-      if (e.ctrlKey || e.metaKey) zoomAround(e.clientX, e.clientY, viewRef.current.zoom * Math.exp(-Math.max(-25, Math.min(25, e.deltaY)) * 0.01));
-      else setPan((pp) => ({ x: pp.x - e.deltaX, y: pp.y - e.deltaY }));
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      if (e.ctrlKey || e.metaKey) zoomAround(e.clientX, e.clientY, viewRef.current.zoom * Math.exp(-Math.max(-25, Math.min(25, e.deltaY * unit)) * 0.012));
+      else setPan((pp) => ({ x: pp.x - e.deltaX * unit, y: pp.y - e.deltaY * unit }));
     };
     // Safari on a Mac reports trackpad pinches as gesture events instead of ctrl + scroll.
     let gestureStart = viewRef.current;
-    const onGestureStart = (e: Event) => { e.preventDefault(); gestureStart = viewRef.current; };
+    const onGestureStart = (e: Event) => { if (!overBoard(e)) return; e.preventDefault(); gestureStart = viewRef.current; };
     const onGestureChange = (e: Event) => {
+      if (!overBoard(e)) return;
       e.preventDefault();
       const g = e as Event & { scale: number; clientX: number; clientY: number };
       zoomAround(g.clientX, g.clientY, gestureStart.zoom * g.scale, gestureStart);
@@ -761,7 +768,7 @@ export default function LiteracyManipulatives() {
       return { dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
     };
     const onDown = (e: PointerEvent) => {
-      if (e.pointerType !== 'touch') return;
+      if (e.pointerType !== 'touch' || !overBoard(e)) return;
       touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (touches.size === 2) {
         pinchRef.current = true;
@@ -787,18 +794,18 @@ export default function LiteracyManipulatives() {
       if (touches.size < 2) start = null;
       if (touches.size === 0) pinchRef.current = false;
     };
-    board.addEventListener('wheel', onWheel, { passive: false });
-    board.addEventListener('gesturestart', onGestureStart);
-    board.addEventListener('gesturechange', onGestureChange);
-    board.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('gesturestart', onGestureStart, { passive: false } as AddEventListenerOptions);
+    window.addEventListener('gesturechange', onGestureChange, { passive: false } as AddEventListenerOptions);
+    window.addEventListener('pointerdown', onDown, true);
     window.addEventListener('pointermove', onMove, true);
     window.addEventListener('pointerup', onUp, true);
     window.addEventListener('pointercancel', onUp, true);
     return () => {
-      board.removeEventListener('wheel', onWheel);
-      board.removeEventListener('gesturestart', onGestureStart);
-      board.removeEventListener('gesturechange', onGestureChange);
-      board.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('gesturestart', onGestureStart);
+      window.removeEventListener('gesturechange', onGestureChange);
+      window.removeEventListener('pointerdown', onDown, true);
       window.removeEventListener('pointermove', onMove, true);
       window.removeEventListener('pointerup', onUp, true);
       window.removeEventListener('pointercancel', onUp, true);
@@ -855,6 +862,7 @@ export default function LiteracyManipulatives() {
   });
   const closeWelcome = () => setWelcomeOpen(false);
   const fromTeacher = useRef(false);
+  const myAdded = useRef(new Set<string>());
   const lastSynced = useRef<{ placed: PlacedItem[]; strokes: Stroke[] }>({ placed: [], strokes: [] });
   const student = useStudentSession<PlacedItem, Stroke>((snap: Snapshot<PlacedItem, Stroke>) => {
     fromTeacher.current = true;
@@ -868,7 +876,14 @@ export default function LiteracyManipulatives() {
     if (!studentCanEdit) return;
     if (fromTeacher.current) { fromTeacher.current = false; return; }
     const t = window.setTimeout(() => {
-      const { upserts, removes } = diffItems(lastSynced.current.placed, placed);
+      const diff = diffItems(lastSynced.current.placed, placed);
+      const removes = diff.removes;
+      // Pieces this student just added are marked as theirs.
+      const upserts = diff.upserts.map((u) => {
+        if (lastSynced.current.placed.some((o) => o.instanceId === u.instanceId)) return u;
+        myAdded.current.add(u.instanceId);
+        return u.addedBy ? u : { ...u, addedBy: myStudentId };
+      });
       const strokeAdds = strokes.filter((st) => !lastSynced.current.strokes.some((o) => o.id === st.id));
       const strokeRemoves = lastSynced.current.strokes.filter((o) => !strokes.some((st) => st.id === o.id)).map((o) => o.id);
       if (upserts.length || removes.length || strokeAdds.length || strokeRemoves.length) {
@@ -1666,8 +1681,16 @@ export default function LiteracyManipulatives() {
 
   // Clearing the whole board asks first (her request 2026-10-15). Undo still brings it back.
   const [confirmClear, setConfirmClear] = useState(false);
+  const isMine = (pp: PlacedItem) => pp.addedBy === myStudentId || myAdded.current.has(pp.instanceId);
   const clearBoard = () => {
     setConfirmClear(false);
+    // A student on a shared board only clears what they added themselves.
+    if (joinMode) {
+      if (!placed.some(isMine)) return;
+      pushHistory();
+      setPlaced((p) => p.filter((pp) => !isMine(pp)));
+      return;
+    }
     if (placed.length === 0) return;
     pushHistory();
     setPlaced([]);
@@ -1818,11 +1841,30 @@ export default function LiteracyManipulatives() {
       {confirmClear && (
         <div className="lm-welcome-backdrop" onClick={() => setConfirmClear(false)}>
           <div className="lm-welcome lm-confirm" role="alertdialog" aria-labelledby="lm-confirm-title" onClick={(e) => e.stopPropagation()}>
-            <h2 id="lm-confirm-title">Clear the whole board?</h2>
-            <p>Every piece on the board will be removed. Pen marks stay. You can press Undo to bring the pieces back.</p>
+            {joinMode ? (
+              <>
+                <h2 id="lm-confirm-title">Clear what you added?</h2>
+                <p>
+                  {placed.some(isMine)
+                    ? "Only the pieces you put on this board will be removed. Your teacher's pieces and other students' pieces stay."
+                    : "You haven't added any pieces yet. You can only clear pieces you put on this board."}
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 id="lm-confirm-title">Clear the whole board?</h2>
+                <p>Every piece on the board will be removed. Pen marks stay. You can press Undo to bring the pieces back.</p>
+              </>
+            )}
             <div className="row" style={{ justifyContent: 'center', gap: 12 }}>
-              <button className="btn" autoFocus onClick={() => setConfirmClear(false)}>Keep my board</button>
-              <button className="btn btn-danger" onClick={clearBoard}>Clear board</button>
+              {joinMode && !placed.some(isMine) ? (
+                <button className="btn" autoFocus onClick={() => setConfirmClear(false)}>OK</button>
+              ) : (
+                <>
+                  <button className="btn" autoFocus onClick={() => setConfirmClear(false)}>Keep my board</button>
+                  <button className="btn btn-danger" onClick={clearBoard}>{joinMode ? 'Clear my pieces' : 'Clear board'}</button>
+                </>
+              )}
             </div>
           </div>
         </div>
