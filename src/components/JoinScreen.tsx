@@ -15,6 +15,7 @@ export function JoinScreen({ status, error, onCheckCode, onJoin }: {
   };
   return (
     <div className="lm-join">
+      <a className="lm-join-back" href="/" aria-label="Back to the welcome screen">←</a>
       <div className="lm-join-center">
         <h1 className="lm-join-title">Join a Board</h1>
         {!shareConfigured ? (
