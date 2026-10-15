@@ -15,7 +15,7 @@ import { isFontChoice, useFontChoice, type FontChoice } from './lib/fontChoice';
 import { diffItems, isJoinRoute, shareConfigured, studentId as myStudentId, useHostSession, useStudentSession, type Ops, type Snapshot } from './lib/share';
 import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from './lib/montessoriGrammar';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
-import { searchSymbolSentences, symbolsForWords, wordMismatch, type PatternWord } from './lib/sentenceSearch';
+import { isKnownWord, searchSymbolSentences, symbolsForWords, wordMismatch, type PatternWord } from './lib/sentenceSearch';
 import { PUNCTUATION_MARKS } from './lib/punctuationContent';
 import { BUBBLE_BLACK, BUBBLE_WHITE, nextPunct, randomWordInSentence, sentenceTokens, stripPunctuation, textOn, type BubbleStyle } from './lib/wordBubbles';
 import {
@@ -500,9 +500,14 @@ function Category({ label, color, open, onToggle, children }: {
 // out (it gets its own icon).
 // A word that doesn't fit its symbol (her request 2026-10-15) shows faded, with bold red text.
 const fade = (hex: string) => (/^#[0-9a-f]{6}$/i.test(hex) ? `${hex}66` : hex);
-function WordBubble({ value, placeholder, color, bubbleStyle, onChange, label, owner, idx = 0, wrong = false }: {
+// The dictionary's names for parts of speech, as the board's symbols.
+const DICT_PART: Record<string, MontessoriWordClass> = {
+  noun: 'noun', verb: 'verb', adjective: 'adjective', adverb: 'adverb', pronoun: 'pronoun', preposition: 'preposition',
+  conjunction: 'conjunction', interjection: 'interjection', article: 'article', determiner: 'article', exclamation: 'interjection',
+};
+function WordBubble({ value, placeholder, color, bubbleStyle, onChange, label, owner, idx = 0, wrong = false, onBlur }: {
   value: string; placeholder: string; color: string; bubbleStyle: BubbleStyle; onChange: (v: string) => void; label: string;
-  owner?: string; idx?: number; wrong?: boolean;
+  owner?: string; idx?: number; wrong?: boolean; onBlur?: (v: string) => void;
 }) {
   const solid = bubbleStyle === 'solid';
   const shown = value || placeholder;
@@ -517,6 +522,7 @@ function WordBubble({ value, placeholder, color, bubbleStyle, onChange, label, o
       size={Math.max(4, shown.length + 1)}
       onPointerDown={(e) => e.stopPropagation()}
       onChange={(e) => onChange(stripPunctuation(e.target.value))}
+      onBlur={(e) => onBlur?.(stripPunctuation(e.target.value))}
       aria-invalid={wrong || undefined}
       style={wrong
         ? { borderColor: fade(color), background: solid ? fade(color) : BUBBLE_WHITE, color: '#D2222E', fontWeight: 900 }
@@ -1146,19 +1152,33 @@ export default function LiteracyManipulatives() {
       else setBadgesFor(selectedId);
     }
   }, [selectedId, badgesFor]);
-  // A typed word that doesn't fit its symbol gets a small movable note (her request 2026-10-15), shown once the
-  // typing pauses. Closing it hides it for that word.
+  // A typed word that doesn't fit its symbol gets a small movable note (her request 2026-10-15), shown when the
+  // student clicks out of the bubble. Words the board doesn't know are looked up in the dictionary, so "leaf" in
+  // an adjective is caught too. Closing the note hides it for that word.
   const [wordAlert, setWordAlert] = useState<{ key: string; owner: string; word: string; cls: MontessoriWordClass; looks: MontessoriWordClass; dx: number; dy: number } | null>(null);
   const dismissedAlerts = useRef(new Set<string>());
-  const alertTimer = useRef<number | null>(null);
-  const checkTyped = (owner: string, idx: number, word: string, cls: MontessoriWordClass) => {
-    if (alertTimer.current) window.clearTimeout(alertTimer.current);
-    alertTimer.current = window.setTimeout(() => {
-      const looks = wordMismatch(word, cls);
-      const key = `${owner}:${idx}:${word.trim().toLowerCase()}`;
-      if (looks && !dismissedAlerts.current.has(key)) setWordAlert((a) => ({ key, owner, word: word.trim(), cls, looks, dx: a?.owner === owner ? a.dx : 0, dy: a?.owner === owner ? a.dy : 0 }));
-      else setWordAlert((a) => (a && a.key.startsWith(`${owner}:${idx}:`) ? null : a));
-    }, 600);
+  const [, setDictTick] = useState(0);
+  const wordProblem = (word: string | undefined, cls: MontessoriWordClass): MontessoriWordClass | null => {
+    const w = (word ?? '').trim();
+    if (!w || w.includes(' ')) return null;
+    const known = wordMismatch(w, cls);
+    if (known || isKnownWord(w) || cls === 'propernoun') return known;
+    const parts = (peekDefinition(w)?.parts ?? []).map((pt) => DICT_PART[pt.toLowerCase()]).filter((c): c is MontessoriWordClass => !!c);
+    if (!parts.length || parts.includes(cls) || (cls === 'article' && parts.includes('adjective'))) return null;
+    return parts[0];
+  };
+  const clearWordAlert = (owner: string, idx: number) => setWordAlert((a) => (a && a.key.startsWith(`${owner}:${idx}:`) ? null : a));
+  const checkWord = async (owner: string, idx: number, word: string, cls: MontessoriWordClass) => {
+    const w = word.trim();
+    if (!w) return clearWordAlert(owner, idx);
+    if (!isKnownWord(w) && cls !== 'propernoun' && peekDefinition(w) === undefined) {
+      await lookupDefinition(w);
+      setDictTick((n) => n + 1);
+    }
+    const looks = wordProblem(w, cls);
+    const key = `${owner}:${idx}:${w.toLowerCase()}`;
+    if (looks && !dismissedAlerts.current.has(key)) setWordAlert((a) => ({ key, owner, word: w, cls, looks, dx: a?.owner === owner ? a.dx : 0, dy: a?.owner === owner ? a.dy : 0 }));
+    else clearWordAlert(owner, idx);
   };
   // A student switched to view only (her request 2026-10-15): nothing stays selected or half-dragged.
   useEffect(() => {
@@ -2358,9 +2378,10 @@ export default function LiteracyManipulatives() {
                       color={MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].color}
                       bubbleStyle={p.bubbleStyle ?? bubbleDefault}
                       label={`${MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].name} word`}
-                      onChange={(v) => { setPlacedField(p.instanceId, { bubbleWord: v }); checkTyped(p.instanceId, 0, v, p.wordClass ?? 'noun'); }}
+                      onChange={(v) => { setPlacedField(p.instanceId, { bubbleWord: v }); clearWordAlert(p.instanceId, 0); }}
+                      onBlur={(v) => { void checkWord(p.instanceId, 0, v, p.wordClass ?? 'noun'); }}
                       owner={p.instanceId}
-                      wrong={!!wordMismatch(p.bubbleWord, p.wordClass ?? 'noun')}
+                      wrong={!!wordProblem(p.bubbleWord, p.wordClass ?? 'noun')}
                     />
                     {toolsOpenFor(p.instanceId) && unitOf(p.instanceId).length > 1 && (
                       <button type="button" className="lm-ctl lm-item-controls" style={{ position: 'absolute', top: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)' }} onPointerDown={(e) => e.stopPropagation()} onClick={() => randomizeWords(new Set([p.instanceId]))} aria-label={`Random ${MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].name.toLowerCase()}`} title="Random word"><Icon name="dice" size={16} /></button>
@@ -2697,8 +2718,9 @@ export default function LiteracyManipulatives() {
                               <img src={info.imageUrl} alt={info.name} draggable={false} />
                             </ReferencePopover>
                             <WordBubble value={fills[t.index] ?? w.word} placeholder={info.name.toLowerCase()} color={info.color} bubbleStyle={item.bubbleStyle ?? bubbleDefault}
-                              label={`${info.name} word ${t.index + 1}`} onChange={(v) => { setSymbolSentenceWordFill(item.instanceId, t.index, v); checkTyped(item.instanceId, t.index, v, w.wordClass); }}
-                              owner={item.instanceId} idx={t.index} wrong={!!wordMismatch(fills[t.index] ?? w.word, w.wordClass)} />
+                              label={`${info.name} word ${t.index + 1}`} onChange={(v) => { setSymbolSentenceWordFill(item.instanceId, t.index, v); clearWordAlert(item.instanceId, t.index); }}
+                              onBlur={(v) => { void checkWord(item.instanceId, t.index, v, w.wordClass); }}
+                              owner={item.instanceId} idx={t.index} wrong={!!wordProblem(fills[t.index] ?? w.word, w.wordClass)} />
                             {/* A random-word die for each word, shown once the card's settings are open. */}
                             {toolsOpenFor(item.instanceId) && (
                               <button type="button" className="lm-ctl lm-item-controls" onPointerDown={(e) => e.stopPropagation()} onClick={() => setSymbolSentenceWordFill(item.instanceId, t.index, randomWordInSentence(w.wordClass, t.index === 0 && startsSentence(placed, item)))} aria-label={`Random ${info.name.toLowerCase()}`} title={`Random ${info.name.toLowerCase()}`}><Icon name="dice" size={16} /></button>

@@ -570,3 +570,5 @@ button, input, select, textarea {
 .lm-filter-tag, .lm-filter-clear { min-height: 28px; padding: 0 9px; border-radius: 999px; border: 1.5px solid var(--content-border); background: #fff; color: var(--ink); font: inherit; font-size: 0.72rem; font-weight: 600; cursor: pointer; }
 .lm-filter-tag.on { background: var(--brand-blue); border-color: var(--brand-blue); color: #fff; }
 .lm-filter-clear { border-style: dashed; }
+/* The part-of-speech hint inside an empty word bubble disappears once the cursor is in it. */
+.lm-bubble:focus::placeholder { color: transparent; }

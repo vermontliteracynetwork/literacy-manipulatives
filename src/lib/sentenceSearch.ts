@@ -138,6 +138,10 @@ export function symbolsForWords(query: string): PatternWord[] {
 // flagged. Only words the board knows are checked, so a new or unusual word is never marked wrong. Returns the
 // job the word looks like it does when that isn't the symbol's job, or null when it fits or is unknown.
 const BASE_VERBS = new Set(VERB_BASES.split(/\s+/));
+export function isKnownWord(raw: string | undefined): boolean {
+  const key = (raw ?? '').toLowerCase().replace(/[^a-z' ]/g, '').trim();
+  return !!key && (JOBS.has(key) || VERBS.has(key));
+}
 export function wordMismatch(raw: string | undefined, cls: MontessoriWordClass): MontessoriWordClass | null {
   const word = (raw ?? '').trim();
   const key = word.toLowerCase().replace(/[^a-z' ]/g, '').trim();
