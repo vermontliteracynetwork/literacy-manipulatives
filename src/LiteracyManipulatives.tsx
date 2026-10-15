@@ -1203,6 +1203,31 @@ export default function LiteracyManipulatives() {
   };
   const setUnitBubbles = (ids: Set<string>, style: BubbleStyle) => setPlaced((p) => p.map((pp) => (ids.has(pp.instanceId) && (pp.kind === 'shape' || pp.kind === 'symbolSentence') ? { ...pp, bubbleStyle: style } : pp)));
   const setGroup = (ids: Set<string>, gid: string | undefined) => { pushHistory(); setPlaced((p) => p.map((pp) => (ids.has(pp.instanceId) ? { ...pp, groupId: gid } : pp))); };
+  // Duplicate (her request 2026-10-15): a copy of the piece or group, a little down and to the right, with
+  // its own snaps, Sound Box letters and grouping kept together inside the copy.
+  const duplicateUnit = (ids: Set<string>) => {
+    pushHistory();
+    const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const all = new Set(ids);
+    for (const pp of placed) if (pp.inFrameId && all.has(pp.inFrameId)) all.add(pp.instanceId);
+    const newId = new Map([...all].map((id, i) => [id, `dup-${stamp}-${i}`]));
+    const newGroup = new Map<string, string>();
+    const groupFor = (g: string) => { if (!newGroup.has(g)) newGroup.set(g, `g-${stamp}-${newGroup.size}`); return newGroup.get(g)!; };
+    const copies = placed.filter((pp) => all.has(pp.instanceId)).map((pp): PlacedItem => ({
+      ...pp,
+      instanceId: newId.get(pp.instanceId)!,
+      x: pp.x + 30,
+      y: pp.y + 30,
+      snapLeftId: pp.snapLeftId && all.has(pp.snapLeftId) ? newId.get(pp.snapLeftId) : undefined,
+      inFrameId: pp.inFrameId && all.has(pp.inFrameId) ? newId.get(pp.inFrameId) : undefined,
+      cellIndex: pp.inFrameId && all.has(pp.inFrameId) ? pp.cellIndex : undefined,
+      groupId: pp.groupId ? groupFor(pp.groupId) : undefined,
+      addedBy: joinMode ? myStudentId : undefined,
+    }));
+    setPlaced((p) => [...p, ...copies]);
+    const first = newId.get([...ids][0]);
+    if (first) { setSelectedId(first); setBadgesFor(first); setToolsFor(null); }
+  };
   const removeUnit = (ids: Set<string>) => {
     pushHistory();
     for (const id of ids) removePlacedItem(id);
@@ -2283,7 +2308,7 @@ export default function LiteracyManipulatives() {
                       owner={p.instanceId}
                       wrong={!!wordMismatch(p.bubbleWord, p.wordClass ?? 'noun')}
                     />
-                    {toolsOpenFor(p.instanceId) && (
+                    {toolsOpenFor(p.instanceId) && unitOf(p.instanceId).length > 1 && (
                       <button type="button" className="lm-ctl lm-item-controls" style={{ position: 'absolute', top: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)' }} onPointerDown={(e) => e.stopPropagation()} onClick={() => randomizeWords(new Set([p.instanceId]))} aria-label={`Random ${MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].name.toLowerCase()}`} title="Random word"><Icon name="dice" size={16} /></button>
                     )}
                   </div>
@@ -2412,7 +2437,8 @@ export default function LiteracyManipulatives() {
               const loneSentence = unit.length === 1 && sel.kind === 'symbolSentence';
               const loneFrame = unit.length === 1 && sel.kind === 'frame';
               const loneLetter = unit.length === 1 && sel.kind === 'letter';
-              const hasTools = worded.length > 0 || !!sel.groupId || canGroupRow || loneFrame || loneLetter;
+              const loneShape = unit.length === 1 && sel.kind === 'shape';
+              const hasTools = true; // every piece can at least be duplicated
               const badges = badgesFor === sel.instanceId;
               const stop = (e: React.PointerEvent) => e.stopPropagation();
               // A group gets one outline around all of its pieces, like a Symbol Sentence card.
@@ -2424,6 +2450,7 @@ export default function LiteracyManipulatives() {
                 {badges && <div className="lm-unit-controls lm-item-controls" style={{ left: right + 12, top: top - 22 }} onPointerDown={stop}>
                   {open && hasTools && (
                     <div className="lm-unit-tools" role="toolbar" aria-label={sel.groupId ? 'Group settings' : 'Settings'}>
+                      {loneShape && <button type="button" className="lm-tool-btn icon" onClick={() => randomizeWords(ids)} aria-label="Random word" title="Random word"><Icon name="dice" size={16} /></button>}
                       {worded.length > 0 && (
                         <>
                           <span className="lm-tool-pair" role="radiogroup" aria-label="Word bubbles">
@@ -2443,6 +2470,7 @@ export default function LiteracyManipulatives() {
                       )}
                       {sel.groupId && <button type="button" className="lm-tool-btn" onClick={() => setGroup(ids, undefined)}>Ungroup</button>}
                       {canGroupRow && <button type="button" className="lm-tool-btn" onClick={() => setGroup(new Set(row.map((pp) => pp.instanceId)), `g-${Date.now()}`)}>Group</button>}
+                      <button type="button" className="lm-tool-btn icon" onClick={() => duplicateUnit(ids)} aria-label={unit.length > 1 ? 'Duplicate this group' : 'Duplicate'} title="Duplicate"><Icon name="copy" size={16} /></button>
                     </div>
                   )}
                   <div className="lm-unit-badges">
