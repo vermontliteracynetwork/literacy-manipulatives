@@ -1,0 +1,314 @@
+// Morpheme puzzle pieces (her request 2026-10-15, with a picture of white "re- | sist | -ed" jigsaw pieces and
+// two uploads: the DSF "Level 1 Unit 1 Morpheme Tile Cards" deck and the "111 Roots, Suffixes, and Prefixes"
+// Greek/Latin list). Every morpheme from both is here, sorted the way she asked: prefixes, suffixes, free
+// bases (words on their own, like "play") and Greek & Latin roots.
+//
+// Pieces connect by position, not by a dictionary: a piece with a tab on its right (prefix, base, root, and a
+// suffix that can take another suffix) fits into a piece with a notch on its left (base, root, suffix). So a
+// student can build real words AND made-up words out of real parts (the 111 list's own Greekymon activity);
+// the board then says whether the result is a real word and what each part means. Nothing is ever "wrong."
+
+export type MorphemeKind = 'prefix' | 'suffix' | 'base' | 'root';
+
+export interface Morpheme {
+  id: string;
+  text: string; // the spelling on the piece, no hyphen
+  kind: MorphemeKind;
+  meaning: string;
+  origin?: string; // only where the source says (the DSF deck labels each card); the 111 list doesn't per item
+  example?: string;
+  note?: string; // the deck's "alternate form of" / "chameleon with" note
+  endsWord?: boolean; // inflectional suffixes (-s, -es, -ed, -ing, comparison -er, -est) close a word: no tab
+}
+
+// [text, meaning, example?, note?]
+type Row = [string, string, string?, string?];
+
+const make = (kind: MorphemeKind, origin: string | undefined, rows: Row[], extra?: Partial<Morpheme>): Morpheme[] =>
+  rows.map(([text, meaning, example, note]) => ({ id: `${kind}-${text}-${meaning.slice(0, 12).replace(/\W+/g, '')}`, text, kind, meaning, origin, example, note, ...extra }));
+
+// ---- DSF Level 1 Unit 1 Morpheme Tile Cards (47 cards) ----
+const L1U1_BASES = make('base', 'Anglo-Saxon', [
+  ['hope', 'to wish that something you want will happen', 'hopeful'],
+  ['kind', 'gentle, caring, helpful', 'kindness'],
+  ['do', 'to perform or carry out an action', 'redo'],
+  ['neighbor', 'someone who lives nearby', 'neighborhood'],
+]);
+
+const L1U1_LATIN_ROOTS = make('root', 'Latin', [
+  ['tract', 'to pull', 'tractor'],
+  ['ject', 'to throw', 'reject'],
+  ['act', 'to do', 'action'],
+  ['port', 'to carry', 'transport'],
+  ['rupt', 'to break', 'erupt'],
+  ['struct', 'to build or pile up', 'structure', 'alternate form of stroy'],
+  ['stroy', 'to build or pile up', 'destroy', 'alternate form of struct'],
+  ['press', 'to press or hold tight', 'pressure'],
+]);
+
+const L1U1_PREFIXES: Morpheme[] = [
+  ...make('prefix', 'Anglo-Saxon', [['un', 'not, opposite of', 'unkind']]),
+  ...make('prefix', 'Latin', [
+    ['dis', 'away, apart', 'distract', 'chameleon with di-'],
+    ['re', 'back, again; undo', 'redo'],
+    ['sub', 'under', 'subtract', 'chameleon with sup-'],
+    ['in', 'in, into, on, upon; not', 'inject', 'chameleon with im-'],
+    ['pro', 'forward', 'project'],
+    ['ob', 'in front of, towards, against', 'object'],
+    ['ex', 'out, away', 'export', 'chameleon with e-'],
+    ['trans', 'beyond, across', 'transport'],
+    ['e', 'out, away', 'erupt', 'chameleon with ex-'],
+    ['at', 'to, towards, near', 'attract', 'chameleon with ad-, as-, a-'],
+    ['ad', 'to, towards, near', 'adjust', 'chameleon with at-, as-, a-'],
+    ['im', 'in, into, on, upon; not', 'import', 'chameleon with in-'],
+    ['con', 'with, together', 'construct', 'chameleon with com-, cor-'],
+    ['de', 'down, off, totally, out, away', 'destroy'],
+    ['sup', 'under', 'support', 'chameleon with sub-'],
+    ['com', 'with, together', 'compress', 'chameleon with con-, cor-'],
+  ]),
+];
+
+const L1U1_SUFFIXES: Morpheme[] = [
+  ...make('suffix', 'Anglo-Saxon', [
+    ['s', 'plural; third person', 'hopes', 'alternate form of -es'],
+    ['es', 'plural; third person', 'does', 'alternate form of -s'],
+    ['ed', 'past tense', 'hoped'],
+    ['ing', 'continuous tense verb', 'hoping'],
+    ['er', 'comparison (more)', 'kinder'],
+    ['est', 'superlative (most)', 'kindest'],
+  ], { endsWord: true }),
+  ...make('suffix', 'Anglo-Saxon', [
+    ['ful', 'full of', 'hopeful'],
+    ['less', 'lacking, not having', 'hopeless'],
+    ['ness', 'quality or state of', 'kindness'],
+    ['hood', 'condition or state of being', 'neighborhood'],
+    ['ly', 'having the quality of', 'kindly'],
+    ['er', 'one who does or makes', 'reporter', 'alternate form of -or'],
+  ]),
+  ...make('suffix', 'Latin', [
+    ['or', 'one who does or makes', 'actor', 'alternate form of -er'],
+    ['ion', 'noun of action', 'action', 'alternate form of -(at)ion'],
+    ['ive', 'having the quality or tendency of', 'active', 'alternate form of -(at)ive'],
+    ['able', 'capable of', 'portable', 'alternate form of -ible'],
+    ['ible', 'capable of', 'destructible', 'alternate form of -able'],
+    ['ure', 'action or process', 'structure'],
+  ]),
+];
+
+// The board's original free bases, kept ("free bases, such as play").
+const BOARD_BASES = make('base', 'Anglo-Saxon', [
+  ['play', 'to have fun or take part in a game', 'replay'],
+  ['help', 'to make something easier for someone', 'helpful'],
+  ['care', 'to look after; to feel that something matters', 'careful'],
+  ['happy', 'feeling glad', 'unhappy'],
+]);
+
+// ---- "111 Roots, Suffixes, and Prefixes" (Greek/Latin, with English equivalents and examples) ----
+// Items the list shares with the DSF deck (ex-, in-/im-, sub-, trans, port, struct, or, er) are not repeated;
+// the deck's card already carries them.
+const LIST_PREFIXES = make('prefix', undefined, [
+  ['a', 'without', 'apathy'],
+  ['anti', 'against', 'antibiotic'],
+  ['di', 'two', 'diode'],
+  ['hyper', 'over, above', 'hyperactive'],
+  ['inter', 'between', 'interact'],
+  ['intra', 'within', 'intranet'],
+  ['peri', 'around', 'perimeter'],
+  ['post', 'after', 'postlude'],
+  ['pre', 'before', 'preview'],
+  ['pseudo', 'not true', 'pseudoscience'],
+  ['tri', 'three', 'triceratops'],
+  ['uni', 'one', 'unicycle'],
+]);
+
+const LIST_SUFFIXES = make('suffix', undefined, [
+  ['cracy', 'rule', 'democracy'],
+  ['ist', 'one who', 'technologist'],
+  ['eer', 'one who', 'engineer'],
+  ['mania', 'madness', 'Pokémania'],
+  ['ology', 'to study', 'geology'],
+  ['phobia', 'fear', 'claustrophobia'],
+]);
+
+const LIST_ROOTS = make('root', undefined, [
+  ['annu', 'year', 'annual'], ['anni', 'year', 'anniversary'],
+  ['anthro', 'human', 'anthropology'],
+  ['aqua', 'water', 'aquarium'],
+  ['archea', 'ancient', 'archaeologist'],
+  ['astro', 'star', 'astrologist'],
+  ['aud', 'sound', 'audio'],
+  ['auto', 'self', 'autocrat'],
+  ['bene', 'good', 'beneficial'],
+  ['bibl', 'book', 'bibliography'],
+  ['bio', 'life', 'biology'],
+  ['cardio', 'heart', 'cardiologist'],
+  ['carn', 'meat', 'carnivore'],
+  ['ced', 'move', 'precede'], ['ceed', 'move', 'proceed'],
+  ['cent', 'hundred', 'centimeter'],
+  ['ceph', 'head', 'cephalopod'],
+  ['chrom', 'color', 'monochrome'],
+  ['chron', 'time', 'chronology'],
+  ['cosm', 'world, universe', 'cosmos'],
+  ['cred', 'believe', 'incredible'],
+  ['deca', 'ten', 'decagon'],
+  ['demo', 'people', 'democracy'],
+  ['derma', 'skin', 'dermatologist'],
+  ['dict', 'say', 'dictate'],
+  ['dino', 'terrible', 'dinosaur'],
+  ['domest', 'home', 'domestic'],
+  ['dorm', 'sleep', 'dormant'],
+  ['dyna', 'power', 'dynamic'],
+  ['equ', 'equal', 'equator'],
+  ['flor', 'plants', 'floral'],
+  ['geo', 'earth', 'geography'],
+  ['graph', 'write', 'telegraph'],
+  ['helio', 'sun', 'heliocentric'],
+  ['hexa', 'six', 'hexagon'],
+  ['hydro', 'water', 'hydrofoil'],
+  ['igni', 'fire', 'ignite'],
+  ['legis', 'law', 'legislature'], ['lega', 'law', 'legal'],
+  ['lexi', 'word', 'lexicon'],
+  ['lib', 'free', 'liberty'],
+  ['lumin', 'light', 'luminosity'],
+  ['macro', 'large', 'macroeconomics'],
+  ['matr', 'mother', 'matriarch'],
+  ['mega', 'large', 'megaphone'],
+  ['mem', 'remember', 'memory'],
+  ['mer', 'ocean', 'mermaid'], ['mar', 'ocean', 'marine'],
+  ['meter', 'measure', 'speedometer'],
+  ['micro', 'small', 'microscopic'],
+  ['mobil', 'move', 'automobile'],
+  ['mono', 'one', 'monopoly'],
+  ['morpho', 'shape', 'morphology'],
+  ['multi', 'many', 'multitalented'],
+  ['nano', 'tiny', 'nanometer'],
+  ['neo', 'new', 'neoclassic'],
+  ['nov', 'nine', 'November'],
+  ['olig', 'a group', 'oligarchy'],
+  ['omni', 'all', 'omnivorous'],
+  ['onym', 'name', 'synonym'],
+  ['ortho', 'straight', 'orthogonal'],
+  ['paleo', 'ancient', 'paleontologist'],
+  ['pan', 'including all', 'panorama'],
+  ['path', 'feeling', 'apathy'],
+  ['patr', 'father', 'patriarch'],
+  ['ped', 'foot', 'pedestrian'],
+  ['penta', 'five', 'pentagon'],
+  ['petr', 'rock', 'petrified'],
+  ['phil', 'love', 'Philadelphia'],
+  ['phon', 'sound', 'telephone'],
+  ['phyto', 'plant', 'phytoplankton'],
+  ['poli', 'city', 'metropolis'],
+  ['poly', 'many', 'polyhedron'],
+  ['popu', 'people', 'population'],
+  ['proto', 'first', 'prototype'],
+  ['psych', 'mind', 'psychology'],
+  ['pub', 'people', 'public'],
+  ['sci', 'knowledge', 'science'],
+  ['scope', 'see', 'telescope'],
+  ['sept', 'seven', 'September'],
+  ['somn', 'sleep', 'insomnia'],
+  ['tele', 'far', 'telephone'],
+  ['terra', 'earth', 'terra cotta'],
+  ['tetra', 'four', 'tetrahedron'],
+  ['theo', 'god', 'theocracy'],
+  ['therm', 'heat', 'thermostat'],
+  ['toxi', 'poisonous', 'toxic'],
+  ['vac', 'empty', 'vacuum'],
+  ['velo', 'quick', 'velocity'],
+  ['veri', 'truth', 'verify'],
+  ['vor', 'eat', 'carnivore'],
+  ['zo', 'animal', 'zoology'],
+  // From the list's "Thirty-Five Sets" page, roots not in the 111 table itself.
+  ['soph', 'wisdom', 'philosophy'],
+  ['phile', 'love', 'bibliophile'],
+  ['ling', 'language', 'bilingual'], ['lang', 'language', 'language'],
+]);
+
+const byText = (a: Morpheme, b: Morpheme) => a.text.localeCompare(b.text) || a.meaning.localeCompare(b.meaning);
+
+export const MORPHEME_GROUPS: { key: string; label: string; items: Morpheme[] }[] = [
+  { key: 'prefixes', label: 'Prefixes', items: [...L1U1_PREFIXES, ...LIST_PREFIXES].sort(byText) },
+  { key: 'suffixes', label: 'Suffixes', items: [...L1U1_SUFFIXES, ...LIST_SUFFIXES].sort(byText) },
+  { key: 'bases', label: 'Free bases', items: [...L1U1_BASES, ...BOARD_BASES].sort(byText) },
+  { key: 'roots', label: 'Greek & Latin roots', items: [...L1U1_LATIN_ROOTS, ...LIST_ROOTS].sort(byText) },
+];
+
+export const ALL_MORPHEMES: Morpheme[] = MORPHEME_GROUPS.flatMap((g) => g.items);
+export const morphemeById = (id: string | undefined) => ALL_MORPHEMES.find((m) => m.id === id);
+
+// Shape: which sides interlock. A tab (bump) on the right fits into a notch on the left of the next piece.
+export const hasTab = (m: Morpheme) => m.kind !== 'suffix' || !m.endsWord;
+export const hasNotch = (m: Morpheme) => m.kind !== 'prefix';
+export const pieceLabel = (m: Morpheme) => (m.kind === 'prefix' ? `${m.text}-` : m.kind === 'suffix' ? `-${m.text}` : m.text);
+
+export const KIND_LABEL: Record<MorphemeKind, string> = {
+  prefix: 'Prefix', suffix: 'Suffix', base: 'Free base', root: 'Root',
+};
+
+// The small explanation a root's pop-up shows (her request: "if root, show a small explanation pop up").
+export function rootExplanation(m: Morpheme): string {
+  const from = m.origin ? `a ${m.origin} root` : 'a Greek or Latin root';
+  return `"${m.text}" is ${from}. A root is the part of a word that holds its main meaning, but it usually can't stand alone: add a prefix or suffix to build a word.${m.example ? ` You can find "${m.text}" in "${m.example}."` : ''}`;
+}
+
+export function kindExplanation(m: Morpheme): string {
+  if (m.kind === 'root') return rootExplanation(m);
+  if (m.kind === 'prefix') return `A prefix goes at the start of a word and changes its meaning.${m.example ? ` Like "${m.example}."` : ''}`;
+  if (m.kind === 'suffix') return `A suffix goes at the end of a word.${m.endsWord ? ' This one finishes a word, so nothing goes after it.' : ' Another suffix can come after it.'}${m.example ? ` Like "${m.example}."` : ''}`;
+  return `A free base is a word all on its own. You can add prefixes and suffixes to it.${m.example ? ` Like "${m.example}."` : ''}`;
+}
+
+// ---- Building a word from connected pieces ----
+// Spelling joins a teacher would expect: the silent e drops before a vowel suffix (hope + ing = hoping), y
+// changes to i (happy + ness = happiness), a doubled vowel at a Greek seam merges (bio + ology = biology).
+// A connecting "o" or "i" between two roots is only used when it makes a word on the list below
+// (therm + o + meter = thermometer), so made-up words stay a plain join of their real parts.
+const VOWELS = 'aeiou';
+
+function joinPair(a: string, b: string, bIsSuffix: boolean): string {
+  if (bIsSuffix && a.endsWith('e') && VOWELS.includes(b[0]) && !a.endsWith('ee')) return a.slice(0, -1) + b;
+  if (bIsSuffix && a.endsWith('y') && !VOWELS.includes(a[a.length - 2] ?? '') && b[0] !== 'i') return a.slice(0, -1) + 'i' + b;
+  if (a.endsWith(b[0]) && VOWELS.includes(b[0])) return a + b.slice(1);
+  return a + b;
+}
+
+export function buildWord(parts: Morpheme[]): { word: string; real: boolean } {
+  if (parts.length === 0) return { word: '', real: false };
+  let candidates = [parts[0].text];
+  for (let i = 1; i < parts.length; i++) {
+    const p = parts[i];
+    const next: string[] = [];
+    for (const c of candidates) {
+      next.push(joinPair(c, p.text, p.kind === 'suffix'));
+      if (p.kind !== 'suffix' && !VOWELS.includes(c[c.length - 1]) && !VOWELS.includes(p.text[0])) {
+        next.push(`${c}o${p.text}`, `${c}i${p.text}`);
+      }
+    }
+    candidates = next;
+  }
+  const real = candidates.find((c) => REAL_WORDS.has(c.toLowerCase()));
+  return { word: real ?? candidates[0], real: !!real };
+}
+
+// Real words these pieces can build (both sources' own examples plus everyday words from the same parts).
+// A word missing from here is called "made-up from real parts," never wrong.
+export const REAL_WORDS = new Set(`
+hopes hoped hoping hopeful hopefully hopefulness hopeless hopelessly hopelessness unhopeful
+kind kinder kindest kindly kindness unkind unkindly unkindness kindhearted
+do does doing doer undo undoes undoing redo redoes redoing undone
+neighbor neighbors neighborly neighborhood neighborhoods neighboring
+play plays played playing player players playful playfully playfulness replay replays replayed replaying display displays displayed displaying playable
+help helps helped helping helper helpers helpful helpfully helpfulness helpless helplessly helplessness unhelpful
+care cares cared caring careful carefully carefulness careless carelessly carelessness uncaring
+happy happier happiest happily happiness unhappy unhappily unhappiness
+tract tractor tractors traction attract attracts attracted attracting attraction attractive attractively distract distracts distracted distracting distraction subtract subtracts subtracted subtracting subtraction extract extracts extracted extracting extraction retract retracts retracted retraction contract contracts contracted contracting contraction contractor protract protracted protractor detract detracts detracted traceable tractable intractable
+ject reject rejects rejected rejecting rejection inject injects injected injecting injection project projects projected projecting projection projector object objects objected objecting objection objective subject subjects subjected subjective eject ejects ejected ejecting ejection deject dejected interject interjection
+act acts acted acting action actions active actively activeness actor actors react reacts reacted reacting reaction reactive reactor transact transaction interact interacts interacted interacting interaction interactive enact exact inactive inaction
+port ports ported porter portable report reports reported reporting reporter import imports imported importing importer export exports exported exporting exporter transport transports transported transporting transporter support supports supported supporting supporter supportive deport deports deported deporting comport purport portion
+rupt erupt erupts erupted erupting eruption disrupt disrupts disrupted disrupting disruption disruptive interrupt interrupts interrupted interrupting interruption rupture abrupt corrupt corruption
+struct construct constructs constructed constructing construction constructive constructor destruct destruction destructive destructible instruct instructs instructed instructing instruction instructive instructor obstruct obstructs obstructed obstructing obstruction structure structures structured restructure
+stroy destroy destroys destroyed destroying destroyer
+press presses pressed pressing pressure presser express expresses expressed expressing expression expressive impress impresses impressed impressing impression impressive depress depresses depressed depressing depression compress compresses compressed compressing compression compressor suppress suppresses suppressed suppressing suppression oppress oppressed oppression oppressive repress repressed pressable
+apathy annual anniversary anthropology antibiotic aquarium archaeologist astrology astrologist audio auditor audience autocrat autocracy beneficial bibliography biology biologist cardiology cardiologist carnivore carnivorous proceed precede recede concede succeed exceed century centimeter centipede cephalopod monochrome chronology chronic chronicle cosmos cosmic incredible credible credit decagon democracy demographic dermatologist diode dictate dictation diction predict contradict dinosaur domestic dormant dormitory dynamic dynamite equator equal floral geography geology geologist telegraph autograph photograph paragraph biography graphic heliocentric hexagon hydrofoil hydrogen hydrology hyperactive ignite intranet incredible interact legislature legal lexicon liberty luminous luminosity macroeconomics mania matriarch megaphone memory meter marine maritime mermaid speedometer thermometer microscope microscopic automobile mobile monopoly monologue morphology multitalented nanometer neoclassic november oligarchy zoology psychology theology omnivore omnivorous synonym antonym homonym acronym orthodontist paleontologist panorama apathy empathy sympathy telepathy patriarch pedestrian pentagon perimeter periscope petrified philosophy claustrophobia telephone microphone phonics symphony phytoplankton metropolis politics polyhedron polygraph population popular postlude prototype pseudoscience psychology public publish science scientist telescope microscope horoscope september insomnia structure subterranean telescope television terrarium terrain tetrahedron theocracy thermostat toxic translate transport triceratops tricycle unicycle uniform vacuum velocity verify herbivore insectivore zoo zoology technologist engineer bilingual linguistics language bibliophile philosopher sophomore megahertz biology geology cosmology
+`.trim().split(/\s+/).map((w) => w.toLowerCase()));

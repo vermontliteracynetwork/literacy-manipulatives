@@ -1,26 +1,19 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { useSyncedTTS, SyncedSpeakButton, HighlightedText, type SyncedTTS } from './components/SyncedSpeakButton';
 import { ReferencePopover } from './components/ReferencePopover';
 import { SANDBOX_PIECES } from './lib/grammarContent';
-import { MORPHEME_ROOTS, MORPHEME_PREFIXES, MORPHEME_SUFFIXES, MORPHEME_AFFIXES, MORPHEME_COMBOS, detectJoinRule, JOIN_RULE_NOTES } from './lib/morphemeContent';
-import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass, PROPER_NOUNS } from './lib/montessoriGrammar';
+import { MORPHEME_GROUPS, KIND_LABEL, buildWord, hasNotch, hasTab, kindExplanation, morphemeById, pieceLabel, type Morpheme } from './lib/morphemes';
+import { MorphemePiece, pieceBodyWidth, pieceOuterSize } from './components/MorphemePiece';
+import { FloatingCard } from './components/FloatingCard';
+import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from './lib/montessoriGrammar';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
 import { PUNCTUATION_MARKS } from './lib/punctuationContent';
 import { BUBBLE_BLACK, BUBBLE_WHITE, nextPunct, randomWordFor, sentenceTokens, stripPunctuation, textOn, type BubbleStyle } from './lib/wordBubbles';
-import { WORD_CHAINS } from './lib/wordChainContent';
-import { HEART_WORDS } from './lib/heartWordContent';
-import { SPELLING_RULES } from './lib/spellingRuleContent';
 import { WRITING_FRAMES, SENTENCE_STARTERS } from './lib/writingScaffoldContent';
 import {
-  LM_PUNCTUATION_COLOR, LM_PUNCTUATION_TEXT_COLOR, LM_PHONO_COLOR, LM_HEART_COLOR,
-  LM_WORD_CHAIN_COLOR, LM_SPELLING_RULE_COLOR, LM_DICTATION_COLOR, LM_WRITING_SCAFFOLD_COLOR,
+  LM_PUNCTUATION_COLOR, LM_PUNCTUATION_TEXT_COLOR, LM_PHONO_COLOR, LM_WRITING_SCAFFOLD_COLOR,
 } from './lib/literacyDesignTokens';
 import { playListeningStartChime, playListeningStopChime } from './lib/audioCues';
-import {
-  SENTENCE_FORMULAS, FORMULA_CATEGORIES, WHO_WORDS, SLOT_MONTESSORI_CLASS, SLOT_LABELS,
-  wordBankFor, actionWordsForTense, auxWordFor, retenseActionWord, TENSE_LABELS,
-  type FormulaCategory, type FormulaTense,
-} from './lib/sentenceFormulas';
 import { GRAMMAR_WORD_CLASS_COLORS, GRAMMAR_WORD_CLASS_TEXT_COLORS } from './types';
 import type { GrammarPiece, TTSSettings } from './types';
 
@@ -31,15 +24,10 @@ import type { GrammarPiece, TTSSettings } from './types';
 // unscripted and not aligned with a curriculum... this is open play,
 // dont build the activity component until all design, features,
 // navigation, and tools in literacy manipulatives is developed
-// completely." Every earlier scripted mode (Mad Libs, Sentence
-// Formulas, the Montessori decision-tree Sentence Builder, Sound Boxes/
-// Blending Board tied to one target word, Word Sorts' fixed buckets,
-// Morpheme Web's tap-to-attach validator) is gone from THIS screen —
-// their content modules (sentenceFormulas.ts, soundContent.ts,
-// montessoriGrammar.ts's GRAMMAR_STATES, morphemeContent.ts's
-// MORPHEME_COMBOS) stay in the repo untouched for the future
-// teacher-authored Activity mode, which is explicitly not being built
-// yet.
+// completely." Every earlier scripted mode is gone from this screen.
+// Removed 2026-10-15 at her request: Word Matrix, Reverse Morphology,
+// Syllable Tapper, Sentence Formulas, Word Chains, Spelling Rules,
+// Heart Words, and the Dictation Card.
 //
 // This is now ONE shared canvas plus a left-side material palette
 // (nav moved off the old top bar, direct instruction: "the bar across
@@ -57,6 +45,10 @@ const TILE_H = 58;
 const SNAP_GAP = 14;
 const SNAP_THRESHOLD = 160;
 const HISTORY_LIMIT = 20;
+const SENTENCE_GAP = 8; // space between snapped sentence pieces
+const LINE_SNAP = 70; // how close (px) a dropped piece must be to snap into a row
+// Pieces that snap into a sentence row: Grammar Symbols, Symbol Sentences, punctuation tiles.
+const SENTENCE_KINDS: PlacedKind[] = ['shape', 'symbolSentence', 'punctuation'];
 
 // Speech-to-text for the Text Box tool — direct teacher instruction
 // ("SST option" on the new typeable fields). The browser's own Web
@@ -116,39 +108,54 @@ function useTextBoxVoiceToText(onFinalText: (text: string) => void) {
 const LETTERS = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i));
 const FRAME_SIZES = [2, 3, 4, 5];
 
-// Grapheme tiles — direct teacher instruction, replacing the earlier
-// Sound-Wall-derived categories with her own hand-specified scope and
-// sequence: "sort graphemes in these categories: Consonant Structures,
-// VCe, Ending patterns, r-controlled vowels, Long Vowels and
-// Diphthongs, advanced and alternative." Content is ordinary, real
-// English spelling patterns (not a specialized/copyrighted curriculum
-// standard). A few spellings (ar, ea, ew, ue, ou, ey...) legitimately
-// appear in more than one category, since the same letters can spell
-// more than one sound depending on the word — kept exactly as she
-// listed them rather than deduplicated across categories.
-const GRAPHEME_GROUPS: { key: string; label: string; graphemes: string[] }[] = [
-  { key: 'consonant-structures', label: 'Consonant Structures', graphemes: ['sh', 'th', 'ch', 'wh', 'ph', 'ng', 'nk'] },
-  { key: 'vce', label: 'VCe', graphemes: ['a_e', 'i_e', 'o_e', 'e_e', 'u_e', '-ce', '-ge'] },
-  { key: 'ending-patterns', label: 'Ending Patterns', graphemes: ['y', 'tch', '-le', 'dge', 'ild', 'ind', 'old', 'olt', 'ost'] },
-  { key: 'r-controlled', label: 'R-Controlled Vowels', graphemes: ['ar', 'or', 'ore', 'er', 'ir', 'ur'] },
-  { key: 'long-vowels-diphthongs', label: 'Long Vowels & Diphthongs', graphemes: ['ai', 'ay', 'ee', 'ea', 'ey', 'ie', 'igh', 'oa', 'ow', 'oe', 'oo', 'ew', 'ui', 'ue', 'oi', 'oy', 'ou', 'au', 'aw', 'augh'] },
-  { key: 'advanced', label: 'Advanced & Alternative', graphemes: ['kn', 'wr', 'mb', '-ar', '-or', 'air', 'are', 'ear', 'eer', 'ei', 'eight', 'aigh', 'eu', 'ough', 'ch'] },
+// Grapheme tiles (her request 2026-10-15, with the UFLI Foundations "Scope & Sequence At-a-Glance (K-2)"): one
+// group per red header on that sheet, every spelling pattern from Digraphs on, in the sheet's order. Affixes
+// (Reading Longer Words' -es/-ed/-ing, Suffixes & Prefixes, Suffix Spelling Changes, Additional Affixes) are
+// left out here on purpose: they live in Morphemes only. Each tile's sound (from the sheet) shows on hover.
+// The VCe "_ce"/"_ge" patterns are written "-ce"/"-ge" so the tile doesn't draw a split-vowel connector.
+const GRAPHEME_GROUPS: { key: string; label: string; graphemes: { g: string; sound: string }[] }[] = [
+  { key: 'digraphs', label: 'Digraphs', graphemes: [
+    { g: 'ff', sound: 'FLSZ rule /f/' }, { g: 'll', sound: 'FLSZ rule /l/' }, { g: 'ss', sound: 'FLSZ rule /s/' }, { g: 'zz', sound: 'FLSZ rule /z/' },
+    { g: 'all', sound: '-all' }, { g: 'oll', sound: '-oll' }, { g: 'ull', sound: '-ull' },
+    { g: 'ck', sound: '/k/' }, { g: 'sh', sound: '/sh/' }, { g: 'th', sound: '/th/ voiced and unvoiced' }, { g: 'ch', sound: '/ch/' },
+    { g: 'wh', sound: '/w/' }, { g: 'ph', sound: '/f/' }, { g: 'ng', sound: '/ng/' }, { g: 'nk', sound: '/nk/' },
+  ] },
+  { key: 'vce', label: 'VCe', graphemes: [
+    { g: 'a_e', sound: '/ā/' }, { g: 'i_e', sound: '/ī/' }, { g: 'o_e', sound: '/ō/' }, { g: 'e_e', sound: '/ē/' }, { g: 'u_e', sound: '/ū/, /yū/' },
+    { g: '-ce', sound: '/s/' }, { g: '-ge', sound: '/j/' },
+  ] },
+  { key: 'ending', label: 'Ending Spelling Patterns', graphemes: [
+    { g: 'tch', sound: '/ch/' }, { g: 'dge', sound: '/j/' },
+    { g: 'ild', sound: 'long VCC' }, { g: 'old', sound: 'long VCC' }, { g: 'ind', sound: 'long VCC' }, { g: 'olt', sound: 'long VCC' }, { g: 'ost', sound: 'long VCC' },
+    { g: 'y', sound: '/ī/ or /ē/' }, { g: '-le', sound: '-le' },
+  ] },
+  { key: 'r-controlled', label: 'R-Controlled Vowels', graphemes: [
+    { g: 'ar', sound: '/ar/' }, { g: 'or', sound: '/or/' }, { g: 'ore', sound: '/or/' }, { g: 'er', sound: '/er/' }, { g: 'ir', sound: '/er/' }, { g: 'ur', sound: '/er/' }, { g: 'wor', sound: '/er/ (w + or)' },
+  ] },
+  { key: 'long-vowel-teams', label: 'Long Vowel Teams', graphemes: [
+    { g: 'ai', sound: '/ā/' }, { g: 'ay', sound: '/ā/' }, { g: 'ee', sound: '/ē/' }, { g: 'ea', sound: '/ē/' }, { g: 'ey', sound: '/ē/' },
+    { g: 'oa', sound: '/ō/' }, { g: 'ow', sound: '/ō/' }, { g: 'oe', sound: '/ō/' }, { g: 'ie', sound: '/ī/' }, { g: 'igh', sound: '/ī/' },
+  ] },
+  { key: 'other-vowel-teams', label: 'Other Vowel Teams', graphemes: [
+    { g: 'oo', sound: '/oo/ or /ū/' }, { g: 'u', sound: '/oo/' }, { g: 'ew', sound: '/ū/' }, { g: 'ui', sound: '/ū/' }, { g: 'ue', sound: '/ū/' },
+    { g: 'au', sound: '/aw/' }, { g: 'aw', sound: '/aw/' }, { g: 'augh', sound: '/aw/' }, { g: 'ea', sound: '/ĕ/' }, { g: 'a', sound: '/ŏ/' },
+  ] },
+  { key: 'diphthongs', label: 'Diphthongs', graphemes: [
+    { g: 'oi', sound: '/oi/' }, { g: 'oy', sound: '/oi/' }, { g: 'ou', sound: '/ow/' }, { g: 'ow', sound: '/ow/' },
+  ] },
+  { key: 'silent', label: 'Silent Letters', graphemes: [
+    { g: 'kn', sound: '/n/' }, { g: 'wr', sound: '/r/' }, { g: 'mb', sound: '/m/' },
+  ] },
+  { key: 'low-frequency', label: 'Low Frequency Spellings', graphemes: [
+    { g: 'ar', sound: '/er/ (as in dollar)' }, { g: 'or', sound: '/er/ (as in doctor)' },
+    { g: 'air', sound: '/air/' }, { g: 'are', sound: '/air/' }, { g: 'ear', sound: '/air/ or /ear/' },
+    { g: 'ei', sound: 'alternate /ā/' }, { g: 'ey', sound: 'alternate /ā/' }, { g: 'eigh', sound: 'alternate /ā/' }, { g: 'aigh', sound: 'alternate /ā/' }, { g: 'ea', sound: 'alternate /ā/' },
+    { g: 'ew', sound: 'alternate long u /yū/' }, { g: 'eu', sound: 'alternate long u /yū/' }, { g: 'ue', sound: 'alternate long u /yū/' }, { g: 'ou', sound: 'alternate long u /ū/' },
+    { g: 'ough', sound: '/aw/ or /ō/' },
+    { g: 'c', sound: 'signal vowel /s/' }, { g: 'g', sound: 'signal vowel /j/' },
+    { g: 'ch', sound: '/sh/ or /k/' }, { g: 'gn', sound: '/n/' }, { g: 'gh', sound: '/g/' }, { g: 't', sound: 'silent t' },
+  ] },
 ];
-
-// Ordinary, well-documented affix meanings — used to compose a plain
-// definition when a morpheme piece connects to a real word (see
-// AFFIX_MEANINGS usage below). Not a specialized curriculum standard.
-// Reverse Morphology prompt words — A23-ROADMAP Phase 3 ("reverse
-// morphology mode under Morphemes"): derived directly from
-// MORPHEME_COMBOS's own real resulting words (not a separate hand-typed
-// list), so a prompt card can never name a word the jigsaw pieces
-// themselves couldn't actually build.
-const REVERSE_MORPH_WORDS = Array.from(new Set(Object.values(MORPHEME_COMBOS))).sort((a, b) => a.localeCompare(b));
-
-const AFFIX_MEANINGS: Record<string, string> = {
-  'un-': 'not, or the opposite of', 're-': 'again', 'dis-': 'not, or the opposite of',
-  '-ed': 'happened in the past', '-ing': 'happening right now', '-ful': 'full of', '-less': 'without',
-};
 
 // Always-available baseline colors — direct teacher instruction: "grabbing
 // purchased/earned/inventory markers of students in addition to regular."
@@ -157,7 +164,11 @@ const AFFIX_MEANINGS: Record<string, string> = {
 const BASE_PEN_COLORS = ['#1f1147', '#dc2626', '#2563eb', '#16a34a', '#f97316', '#7c3aed'];
 const BASE_HIGHLIGHT_COLORS = ['#fde047', '#86efac', '#93c5fd', '#f9a8d4'];
 
-type PlacedKind = 'grammar' | 'shape' | 'letter' | 'frame' | 'morpheme' | 'sentenceFrame' | 'textbox' | 'symbolSentence' | 'punctuation' | 'soundChip' | 'divider' | 'syllableTapper' | 'heartWord' | 'spellingRule' | 'dictation' | 'wordMatrix' | 'reverseMorphPrompt' | 'writingFrame';
+type PlacedKind = 'grammar' | 'shape' | 'letter' | 'frame' | 'morpheme' | 'textbox' | 'symbolSentence' | 'punctuation' | 'soundChip' | 'divider' | 'writingFrame';
+
+// A word or punctuation mark dropped into a Writing Scaffold line (from a Grammar Symbol, a Symbol Sentence, or a
+// punctuation tile), kept as a symbol with its word bubble inside the frame.
+export type LineToken = { type: 'word'; wordClass: MontessoriWordClass; word: string } | { type: 'punct'; mark: string };
 
 interface PlacedItem {
   instanceId: string;
@@ -168,13 +179,15 @@ interface PlacedItem {
   wordClass?: MontessoriWordClass; // shape
   letter?: string; // letter
   boxCount?: number; // frame; also reused for symbolSentence's word count (sizing only)
-  morphText?: string; // morpheme
-  morphType?: 'root' | 'prefix' | 'suffix'; // morpheme
-  morphId?: string; // morpheme — original MORPHEME_ROOTS/PREFIXES/SUFFIXES id, for MORPHEME_COMBOS lookup
-  formulaId?: string; // sentenceFrame
-  frameFills?: Record<number, string>; // sentenceFrame
-  tense?: FormulaTense; // sentenceFrame
-  joinedToId?: string; // sentenceFrame — instanceId of the card this one is stacked directly beneath, forming a paragraph chain
+  morphId?: string; // morpheme — id into lib/morphemes.ts
+  // Snapping in a line (her request 2026-10-15: sentence pieces "snap in line beside each other as sentences are
+  // built" and "snapped pieces move as a unit"; morpheme puzzle pieces too). The id of the piece this one is
+  // attached to on its left; position is then always computed from that piece, so the row moves as one.
+  snapLeftId?: string;
+  inFrameId?: string; // letter — the Sound Box frame it's snapped into (moves with the frame)
+  cellIndex?: number; // letter — which box of that frame
+  cellSize?: number; // frame — box size in px (resizable, default 44)
+  lineTokens?: Record<number, LineToken[]>; // writingFrame — symbols dropped into each line
   textValue?: string; // textbox
   fontSize?: number; // textbox
   symbolSentenceId?: string; // symbolSentence — id into ALL_SYMBOL_SENTENCES
@@ -183,62 +196,27 @@ interface PlacedItem {
   bubbleStyle?: BubbleStyle; // shape + symbolSentence — word bubbles drawn as an outline (default) or solid
   bubbleWord?: string; // shape — the word typed (or 🎲 picked) in a single Grammar Symbol's bubble
   punctId?: string; // punctuation — id into PUNCTUATION_MARKS
-  tapCount?: number; // syllableTapper — how many claps the student has tapped so far
-  heartWordId?: string; // heartWord — id into HEART_WORDS
-  heartIndices?: number[]; // heartWord — which letter positions the student marked as "heart" (tricky) letters
-  ruleId?: string; // spellingRule — id into SPELLING_RULES
-  dictationPrompt?: string; // dictation — the word the student is writing from dictation, chosen manually (never randomized, see DictationWidget)
-  matrixRootId?: string; // wordMatrix — which MORPHEME_ROOTS entry this matrix is currently showing
-  reverseMorphWord?: string; // reverseMorphPrompt — the real word the student is asked to build from pieces
-  writingFrameId?: string; // writingFrame — id into WRITING_FRAMES (fills reuse the existing frameFills field, same shape as sentenceFrame)
+  writingFrameId?: string; // writingFrame — id into WRITING_FRAMES
+  frameFills?: Record<number, string>; // writingFrame — typed text after each line's starter
 }
 
 const pieceById = (id: string): GrammarPiece | undefined => SANDBOX_PIECES.find((p) => p.id === id);
 
-function sizeFor(kind: PlacedKind, boxCount?: number): { w: number; h: number } {
+const CELL_GAP = 4;
+const DEFAULT_CELL = 44;
+const frameWidth = (n: number, cell: number) => n * cell + (n - 1) * CELL_GAP;
+
+function sizeFor(kind: PlacedKind, boxCount?: number, item?: Partial<PlacedItem>): { w: number; h: number } {
   if (kind === 'grammar') return { w: TILE_W, h: TILE_H };
-  if (kind === 'morpheme') return { w: 96, h: 64 };
-  if (kind === 'frame') { const n = boxCount ?? 3; return { w: n * 44 + (n - 1) * 4, h: 44 }; }
+  if (kind === 'morpheme') { const m = morphemeById(item?.morphId); return m ? pieceOuterSize(m) : { w: 96, h: 70 }; }
+  if (kind === 'frame') { const n = boxCount ?? 3; const c = item?.cellSize ?? DEFAULT_CELL; return { w: frameWidth(n, c), h: c }; }
   if (kind === 'textbox') return { w: 160, h: 56 };
   if (kind === 'shape') return { w: 130, h: 150 };
   if (kind === 'symbolSentence') { const n = boxCount ?? 3; return { w: n * 110 + 60, h: 130 }; }
   if (kind === 'soundChip') return { w: 36, h: 36 };
   if (kind === 'divider') return { w: 10, h: 70 };
-  if (kind === 'syllableTapper') return { w: 220, h: 110 };
-  if (kind === 'heartWord') { const n = boxCount ?? 4; return { w: n * 30, h: 40 }; }
-  if (kind === 'spellingRule') return { w: 140, h: 44 };
-  if (kind === 'dictation') return { w: 220, h: 150 };
-  if (kind === 'wordMatrix') return { w: 260, h: 200 };
-  if (kind === 'reverseMorphPrompt') return { w: 220, h: 70 };
-  if (kind === 'writingFrame') return { w: 280, h: 220 };
-  return { w: 44, h: 44 }; // letter, sentenceFrame
-}
-
-// Jigsaw-piece morpheme silhouette — direct teacher follow-up
-// instruction: "make puzzle pieces only have left and right notches
-// (not top or bottom)" (removing the earlier top-knob restyle). Purely
-// decorative on its own (no attach validation, per the "entirely
-// unscripted" redesign): root pieces show both a tab and a notch, a
-// prefix only its right-side tab, a suffix only its left-side notch,
-// so the interlocking affordance still reads visually even though
-// nothing checks whether a combination is a real word anymore.
-function PuzzlePiece({ text, color, textColor = '#fff', hasNotch, hasTab }: {
-  text: string; color: string; textColor?: string; hasNotch: boolean; hasTab: boolean;
-}) {
-  const w = 96;
-  const h = 64;
-  const r = 9;
-  const cy = h / 2;
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
-      <rect x="3" y="3" width={w - 6} height={h - 6} rx="8" fill={color} stroke="var(--ink)" strokeWidth="3" />
-      {hasTab && <circle cx={w - 3} cy={cy} r={r} fill={color} stroke="var(--ink)" strokeWidth="3" />}
-      {hasNotch && <circle cx="3" cy={cy} r={r - 1} fill="var(--paper, #fdfdfb)" stroke="var(--ink)" strokeWidth="3" />}
-      <text x={w / 2} y={cy + 6} textAnchor="middle" fontFamily="'Baloo 2', sans-serif" fontWeight={800} fontSize="14" fill={textColor}>
-        {text}
-      </text>
-    </svg>
-  );
+  if (kind === 'writingFrame') return { w: 320, h: 220 };
+  return { w: 44, h: 44 }; // letter
 }
 
 // Pure appearance for any placed/tray item — one render path shared by
@@ -261,24 +239,10 @@ function vcColorFor(text: string | undefined, on: boolean): CSSProperties | unde
   return { color: isVowel ? '#b91c1c' : '#1d4ed8' };
 }
 
-function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphText, morphType, compact, punctId, vowelConsonantColors, ruleId }: {
+function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compact, punctId, vowelConsonantColors, cellSize, tileSize }: {
   kind: PlacedKind; pieceId?: string; wordClass?: MontessoriWordClass; letter?: string; boxCount?: number;
-  morphText?: string; morphType?: 'root' | 'prefix' | 'suffix'; compact?: boolean; punctId?: string; vowelConsonantColors?: boolean; ruleId?: string;
+  morphId?: string; compact?: boolean; punctId?: string; vowelConsonantColors?: boolean; cellSize?: number; tileSize?: number;
 }) {
-  if (kind === 'spellingRule') {
-    const rule = SPELLING_RULES.find((r) => r.id === ruleId);
-    if (!rule) return null;
-    return (
-      <ReferencePopover mode="hover" title={rule.title} body={`${rule.rule} Example: ${rule.example}.`}>
-        <div style={{
-          minWidth: 120, padding: '8px 10px', border: '2px solid var(--ink)', borderRadius: 10, background: LM_SPELLING_RULE_COLOR,
-          fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: '0.8rem', textAlign: 'center',
-        }}>
-          📏 {rule.title}
-        </div>
-      </ReferencePopover>
-    );
-  }
   if (kind === 'punctuation') {
     // A23-ROADMAP Phase 2: opt-in punctuation tiles. Same bordered-tile
     // shape as a letter tile, its own slate color (literacyDesignTokens)
@@ -371,9 +335,9 @@ function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphText, mor
       const [head, tail] = (letter ?? '').split('_');
       return (
         <div style={{
-          minWidth: 40, height: 40, padding: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1,
+          minWidth: tileSize ?? 40, height: tileSize ?? 40, padding: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1,
           border: '3px solid var(--ink)', borderRadius: 8, background: 'white',
-          fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: '1.1rem', boxShadow: '2px 2px 0 rgba(31,17,71,0.2)', ...colorStyle,
+          fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: tileSize ? tileSize * 0.42 : '1.1rem', boxShadow: '2px 2px 0 rgba(31,17,71,0.2)', ...colorStyle,
         }}>
           <span>{head}</span>
           <svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true" style={{ flexShrink: 0 }}>
@@ -385,9 +349,9 @@ function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphText, mor
     }
     return (
       <div style={{
-        minWidth: 40, height: 40, padding: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        minWidth: tileSize ?? 40, height: tileSize ?? 40, padding: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box',
         border: '3px solid var(--ink)', borderRadius: 8, background: 'white',
-        fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: (letter?.length ?? 1) > 2 ? '0.85rem' : '1.2rem', boxShadow: '2px 2px 0 rgba(31,17,71,0.2)', ...colorStyle,
+        fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: tileSize ? tileSize * ((letter?.length ?? 1) > 2 ? 0.32 : 0.48) : ((letter?.length ?? 1) > 2 ? '0.85rem' : '1.2rem'), boxShadow: '2px 2px 0 rgba(31,17,71,0.2)', ...colorStyle,
       }}>
         {letter}
       </div>
@@ -395,17 +359,16 @@ function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphText, mor
   }
   if (kind === 'frame') {
     return (
-      <div style={{ display: 'flex', gap: 4 }}>
+      <div style={{ display: 'flex', gap: CELL_GAP }}>
         {Array.from({ length: boxCount ?? 3 }).map((_, i) => (
-          <div key={i} style={{ width: 44, height: 44, border: '3px solid var(--ink)', borderRadius: 6, background: 'white' }} />
+          <div key={i} style={{ width: cellSize ?? DEFAULT_CELL, height: cellSize ?? DEFAULT_CELL, boxSizing: 'border-box', border: '3px solid var(--ink)', borderRadius: 6, background: 'white' }} />
         ))}
       </div>
     );
   }
   // morpheme
-  const color = morphType === 'root' ? '#F6C445' : morphType === 'prefix' ? '#7c3aed' : '#14b8a6';
-  const textColor = morphType === 'root' ? '#241a05' : '#fff';
-  return <PuzzlePiece text={morphText ?? ''} color={color} textColor={textColor} hasTab={morphType !== 'suffix'} hasNotch={morphType !== 'prefix'} />;
+  const m = morphemeById(morphId);
+  return m ? <MorphemePiece m={m} scale={compact ? 0.72 : 1} /> : null;
 }
 
 // One drag wrapper for every material, in the tray or on the canvas —
@@ -657,225 +620,6 @@ function TextBoxWidget({ item, onPointerDown, onPointerMove, onPointerUp, onText
   );
 }
 
-// Syllable Tapper — A23-ROADMAP Phase 3 phonological-awareness tool: a
-// student types or speaks a word, then taps "👏 Tap" once per syllable
-// they clap out themselves (self-directed, no auto-syllable-counting —
-// this sandbox never claims to judge a spoken/typed answer as right or
-// wrong). Same self-contained-widget pattern as TextBoxWidget: a drag
-// handle on the title, ✕ to remove.
-function SyllableTapperWidget({ item, onPointerDown, onPointerMove, onPointerUp, onWordChange, onTapCountChange, onRemove }: {
-  item: PlacedItem;
-  onPointerDown: (e: React.PointerEvent) => void;
-  onPointerMove: (e: React.PointerEvent) => void;
-  onPointerUp: (e: React.PointerEvent) => void;
-  onWordChange: (value: string) => void;
-  onTapCountChange: (count: number) => void;
-  onRemove: () => void;
-}) {
-  const stt = useTextBoxVoiceToText((text) => onWordChange(`${item.textValue ?? ''} ${text}`.trim()));
-  const taps = item.tapCount ?? 0;
-  return (
-    <div className="chrome-frame" style={{ position: 'absolute', left: item.x, top: item.y, padding: 10, zIndex: 5, minWidth: 200 }}>
-      <div className="space-between" style={{ alignItems: 'center', marginBottom: 6 }}>
-        <strong style={{ fontSize: '0.8rem', cursor: 'grab', touchAction: 'none' }} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
-          👏 Syllable Tapper
-        </strong>
-        <button type="button" className="btn btn-sm" onClick={onRemove} aria-label="Remove Syllable Tapper">✕</button>
-      </div>
-      <div className="row-wrap" style={{ gap: 4, marginBottom: 6, alignItems: 'center' }}>
-        <input
-          value={item.textValue ?? ''}
-          onChange={(e) => onWordChange(e.target.value)}
-          placeholder="Type or say the word"
-          style={{ flex: 1, border: '2px solid var(--content-border)', borderRadius: 6, padding: '4px 6px', fontSize: '0.85rem' }}
-        />
-        {stt.supported && (
-          <button type="button" className={`btn btn-sm ${stt.listening ? 'btn-primary' : ''}`} style={{ minWidth: 30, padding: '2px 6px' }} onClick={stt.toggle} aria-label={stt.listening ? 'Listening, tap to stop' : 'Speak the word'}>
-            {stt.listening ? '🎙️' : '🎤'}
-          </button>
-        )}
-      </div>
-      <div className="row-wrap" style={{ gap: 4, marginBottom: 6, minHeight: 22 }} aria-label={`${taps} claps so far`}>
-        {Array.from({ length: taps }).map((_, i) => (
-          <span key={i} style={{ width: 18, height: 18, borderRadius: '50%', background: '#1968AB', display: 'inline-block' }} />
-        ))}
-      </div>
-      <div className="row-wrap" style={{ gap: 4 }}>
-        <button type="button" className="btn btn-sm" onClick={() => onTapCountChange(Math.min(8, taps + 1))}>👏 Tap</button>
-        <button type="button" className="btn btn-sm" onClick={() => onTapCountChange(0)} disabled={taps === 0}>↺ Reset</button>
-      </div>
-    </div>
-  );
-}
-
-// Dictation Card — A23-ROADMAP Phase 3, "reusing the Morphemes 'connects
-// only if real, never punitive' pattern": hear a word, write what you
-// heard, then reveal to check yourself — never auto-graded, never a red
-// X. Deliberately NOT randomized: a prior direct teacher instruction
-// removed every randomize/surprise-me mechanic app-wide, so the prompt
-// word is always chosen manually here (a dropdown of the student's own
-// active Literacy Focus words when one exists, or a plain typed field —
-// e.g. for a teacher dictating their own chosen word — when it doesn't),
-// never auto-picked.
-function DictationWidget({ item, wordOptions, onPointerDown, onPointerMove, onPointerUp, onPromptChange, onAnswerChange, onRemove, tts, settings }: {
-  item: PlacedItem;
-  wordOptions: string[];
-  onPointerDown: (e: React.PointerEvent) => void;
-  onPointerMove: (e: React.PointerEvent) => void;
-  onPointerUp: (e: React.PointerEvent) => void;
-  onPromptChange: (value: string) => void;
-  onAnswerChange: (value: string) => void;
-  onRemove: () => void;
-  tts: SyncedTTS;
-  settings?: TTSSettings;
-}) {
-  const [revealed, setRevealed] = useState(false);
-  const prompt = item.dictationPrompt ?? '';
-  const speakId = `dict-${item.instanceId}`;
-  return (
-    <div className="chrome-frame" style={{ position: 'absolute', left: item.x, top: item.y, padding: 10, zIndex: 5, minWidth: 220 }}>
-      <div className="space-between" style={{ alignItems: 'center', marginBottom: 6 }}>
-        <strong style={{ fontSize: '0.8rem', cursor: 'grab', touchAction: 'none' }} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
-          🎧 Dictation
-        </strong>
-        <button type="button" className="btn btn-sm" onClick={onRemove} aria-label="Remove Dictation Card">✕</button>
-      </div>
-      <div className="row-wrap" style={{ gap: 4, marginBottom: 6, alignItems: 'center' }}>
-        {wordOptions.length > 0 ? (
-          <select value={prompt} onChange={(e) => onPromptChange(e.target.value)} style={{ flex: 1, border: '2px solid var(--content-border)', borderRadius: 6, padding: '4px 6px', fontSize: '0.8rem' }}>
-            <option value="">Pick a word…</option>
-            {wordOptions.map((w) => <option key={w} value={w}>{w}</option>)}
-          </select>
-        ) : (
-          <input value={prompt} onChange={(e) => onPromptChange(e.target.value)} placeholder="Type the word to dictate" style={{ flex: 1, border: '2px solid var(--content-border)', borderRadius: 6, padding: '4px 6px', fontSize: '0.8rem' }} />
-        )}
-        {prompt && (
-          <SyncedSpeakButton id={speakId} text={prompt} tts={tts} settings={settings} ariaLabel="Hear the word" style={{ padding: '2px 8px', minHeight: 28 }} />
-        )}
-      </div>
-      <input
-        value={item.textValue ?? ''}
-        onChange={(e) => onAnswerChange(e.target.value)}
-        placeholder="Write what you heard"
-        style={{ width: '100%', boxSizing: 'border-box', border: '2px solid var(--ink)', borderRadius: 6, padding: '6px 8px', fontSize: '0.85rem', marginBottom: 6 }}
-      />
-      <div className="row-wrap" style={{ gap: 6, alignItems: 'center' }}>
-        <button type="button" className="btn btn-sm" onClick={() => setRevealed((v) => !v)} disabled={!prompt}>{revealed ? '🙈 Hide' : '👁️ Reveal'}</button>
-        {revealed && prompt && <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>{prompt}</span>}
-      </div>
-    </div>
-  );
-}
-
-// Word Matrix — A23-ROADMAP Phase 3 ("word matrix builder... under
-// Morphemes"): a reference grid showing, for one chosen root, which of
-// every prefix/suffix in the tray actually combines into a real word —
-// derived directly from MORPHEME_COMBOS (the same single source of
-// truth the jigsaw pieces themselves use to decide whether to connect),
-// not a second hand-authored grid that could drift out of sync. Picking
-// a different root is the only interaction; this is a reference tool, no
-// build-it-yourself step (that's what the jigsaw pieces and Reverse
-// Morphology prompts, right below, are for).
-function WordMatrixWidget({ item, onPointerDown, onPointerMove, onPointerUp, onRootChange, onRemove }: {
-  item: PlacedItem;
-  onPointerDown: (e: React.PointerEvent) => void;
-  onPointerMove: (e: React.PointerEvent) => void;
-  onPointerUp: (e: React.PointerEvent) => void;
-  onRootChange: (rootId: string) => void;
-  onRemove: () => void;
-}) {
-  const rootId = item.matrixRootId ?? MORPHEME_ROOTS[0].id;
-  return (
-    <div className="chrome-frame" style={{ position: 'absolute', left: item.x, top: item.y, padding: 10, zIndex: 5, minWidth: 260 }}>
-      <div className="space-between" style={{ alignItems: 'center', marginBottom: 6 }}>
-        <strong style={{ fontSize: '0.8rem', cursor: 'grab', touchAction: 'none' }} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
-          🔢 Word Matrix
-        </strong>
-        <button type="button" className="btn btn-sm" onClick={onRemove} aria-label="Remove Word Matrix">✕</button>
-      </div>
-      <select value={rootId} onChange={(e) => onRootChange(e.target.value)} style={{ width: '100%', marginBottom: 8, border: '2px solid var(--content-border)', borderRadius: 6, padding: '4px 6px', fontSize: '0.8rem' }}>
-        {MORPHEME_ROOTS.map((r) => <option key={r.id} value={r.id}>{r.text}</option>)}
-      </select>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4 }}>
-        {MORPHEME_AFFIXES.map((a) => {
-          const word = MORPHEME_COMBOS[`${rootId}:${a.id}`];
-          return (
-            <div key={a.id} style={{ border: '1px solid var(--content-border)', borderRadius: 6, padding: '4px 6px', fontSize: '0.72rem', textAlign: 'center', background: word ? '#f0fdf4' : '#f8fafc', opacity: word ? 1 : 0.5 }}>
-              <div style={{ fontWeight: 700 }}>{a.text}</div>
-              <div>{word ?? '—'}</div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// One Sentence Formula blank — direct teacher follow-up instructions:
-// "drop down menus need to be alphabetized and scroll feature allows
-// more to be shown. typing the start of a word also starts searching
-// for the word... SST is option for text inputs." The picker list is
-// alphabetized and scroll-capped, with its own search box that filters
-// by prefix as the student types (helps with spelling since they only
-// need the first letter or two), and the blank itself gets a 🎤
-// speech-to-text button alongside the existing dropdown, same pattern
-// as the Text Box tool.
-function FormulaBlankField({ value, onType, onPick, placeholder, color, bank, open, onToggleOpen }: {
-  value: string;
-  onType: (v: string) => void;
-  onPick: (text: string) => void;
-  placeholder: string;
-  color: string;
-  bank: { text: string }[];
-  open: boolean;
-  onToggleOpen: () => void;
-}) {
-  const [search, setSearch] = useState('');
-  const stt = useTextBoxVoiceToText((text) => onType(`${value} ${text}`.trim()));
-  const filtered = bank
-    .filter((o) => o.text.toLowerCase().startsWith(search.trim().toLowerCase()))
-    .slice()
-    .sort((a, b) => a.text.localeCompare(b.text));
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, position: 'relative' }}>
-      <input
-        value={value}
-        onChange={(e) => onType(e.target.value)}
-        placeholder={placeholder}
-        style={{ width: 92, border: `2px solid ${color}`, borderRadius: 6, padding: '4px 6px', fontSize: '0.85rem' }}
-      />
-      {stt.supported && (
-        // A23-ROADMAP Phase 2: visual listening state made explicit here
-        // too (was icon-only before), matching the Text Box tool's own
-        // "🎙️ Listening…" label — paired with the new audio chime in
-        // useTextBoxVoiceToText's toggle().
-        <button type="button" className={`btn btn-sm ${stt.listening ? 'btn-primary' : ''}`} style={{ padding: '2px 6px', minHeight: 28 }} onClick={stt.toggle} aria-label={stt.listening ? 'Listening, tap to stop' : 'Speak this word'}>
-          {stt.listening ? '🎙️' : '🎤'}
-        </button>
-      )}
-      <button type="button" className="btn btn-sm" style={{ padding: '2px 6px', minHeight: 28, minWidth: 28 }} onClick={() => { setSearch(''); onToggleOpen(); }}>▾</button>
-      {open && (
-        <div className="chrome-frame" style={{ position: 'absolute', top: '110%', left: 0, zIndex: 10, padding: 6, width: 220 }}>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Type to search..."
-            autoFocus
-            style={{ width: '100%', border: '2px solid var(--content-border)', borderRadius: 6, padding: '4px 6px', fontSize: '0.78rem', marginBottom: 6, boxSizing: 'border-box' }}
-          />
-          <div className="row-wrap" style={{ gap: 4, maxHeight: 180, overflowY: 'auto' }}>
-            {filtered.map((opt) => (
-              <button key={opt.text} className="tag-pill" style={{ cursor: 'pointer' }} onClick={() => onPick(opt.text)}>{opt.text}</button>
-            ))}
-            {bank.length > 0 && filtered.length === 0 && <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>No matches</span>}
-            {bank.length === 0 && <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>Fill WHO first!</span>}
-          </div>
-        </div>
-      )}
-    </span>
-  );
-}
-
 // Standalone v1: no login, nothing saved — ported from the Homeplot
 // dashboard's native Literacy Manipulatives (GrammarSandbox.tsx). Every
 // account/marketplace/save-file concept that tool had is gone here on
@@ -900,14 +644,6 @@ export default function LiteracyManipulatives() {
   // Word bubbles for newly placed symbols start as an outline or solid (the toggle in the Grammar Symbols and
   // Symbol Sentences trays, which also switches every bubble already on the board).
   const [bubbleDefault, setBubbleDefault] = useState<BubbleStyle>('outline');
-  // Sentence Formulas joined into a paragraph chain — direct
-  // instruction: "sentence formulas can be joined together (a
-  // connection animation) to stack them into a paragraph form."
-  // formulaCardRefs holds each card's real DOM node so a join can snap
-  // to its actual measured height rather than a guessed one.
-  const formulaCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const [formulaGlowIds, setFormulaGlowIds] = useState<Set<string>>(new Set());
-  const formulaGlowTimerRef = useRef<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   // A23-ROADMAP Phase 1 (spec's own top priority): one shared TTS-with-
   // synced-word-highlighting engine, mounted once here and passed down to
@@ -919,18 +655,6 @@ export default function LiteracyManipulatives() {
   // default (matching every other accommodation on this screen that
   // changes how tiles look — opt-in, never forced).
   const [vowelConsonantColors, setVowelConsonantColors] = useState(false);
-  // A23-ROADMAP Phase 2: projector/presentation mode — hides the sidebar
-  // and bumps zoom so the board reads from across a classroom; print
-  // mode is just the existing "🖨️ Print" button calling window.print()
-  // with the @media print rules in index.css doing the actual hiding.
-  const [projectorMode, setProjectorMode] = useState(false);
-  const toggleProjectorMode = () => {
-    setProjectorMode((v) => {
-      const next = !v;
-      if (next) { setSidebarOpen(false); setZoom(1.5); } else { setZoom(1); }
-      return next;
-    });
-  };
   // Zoom — direct teacher instruction: "add zoom feature for white
   // board." Scales the whole canvas visually (transform: scale, from
   // the top-left); placed items keep their real, unscaled x/y, so
@@ -964,15 +688,15 @@ export default function LiteracyManipulatives() {
   const drawLast = useRef<{ x: number; y: number } | null>(null);
 
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
-    shapes: true, symbolSentences: false, morphemes: false, letters: false, graphemes: false, punctuation: false, phono: false, frames: false, textbox: false, formulas: false, wordLists: false,
-    wordChains: false, heartWords: false, spellingRules: false, dictation: false, writingScaffolds: false,
+    shapes: true, symbolSentences: false, morphemes: false, letters: false, graphemes: false, punctuation: false, phono: false, frames: false, textbox: false, writingScaffolds: false,
   });
   const toggleCategory = (key: string) => setOpenCategories((s) => ({ ...s, [key]: !s[key] }));
   const [openSubcategories, setOpenSubcategories] = useState<Record<string, boolean>>({
     page1: false, page2: false, page3: false, page4: false, page5: false, page6: false, page7: false, page8: false, page9: false, page10: false, page11: false,
-    roots: true, affixes: true, phonics: true, morphemesList: true, spelling: true,
+    prefixes: true, suffixes: false, bases: false, roots: false,
   });
   const toggleSubcategory = (key: string) => setOpenSubcategories((s) => ({ ...s, [key]: !s[key] }));
+  const [morphSearch, setMorphSearch] = useState('');
 
   // Alphabet — direct teacher instruction: full set of tiles, lowercase
   // and uppercase, toggled by double-tapping a tile. letterCase tracks
@@ -988,39 +712,22 @@ export default function LiteracyManipulatives() {
       : pp
   )));
 
-  // Sentence Formulas — direct teacher instruction: brought back as a
-  // left-sidebar category (not a full-screen mode), reusing
-  // sentenceFormulas.ts's real 22-formula content. Picking a formula adds
-  // a self-contained frame widget to the canvas (its own placed item,
-  // not draggable — a fixed-position card with a close button, to avoid
-  // the widget's internal clickable blanks fighting canvas drag). Each
-  // blank is both a plain text input (type your own word) and a "▾"
-  // dropdown (pick from the real word bank), satisfying "drag and drop
-  // or type" without the real cross-widget drag risk that would add.
-  const [sfCategoryId, setSfCategoryId] = useState<FormulaCategory>('basic-action');
-  const [openFramePicker, setOpenFramePicker] = useState<string | null>(null);
-  // Direct teacher instruction: "to the left of the x, i want a settings
-  // button for sentence formulas. the setting will change... the tenses
-  // (past, present, future...) and adjusting any words currently within
-  // the frame to be the selected tense." Tracks which formula's settings
-  // popup is open, same pattern as openFramePicker.
-  const [openFormulaSettings, setOpenFormulaSettings] = useState<string | null>(null);
-  // Direct teacher instruction: "allow sentence formulas to be used to
-  // build paragraphs... paste into the text field... if another
-  // sentence formula is created, the paste... adding to the same text
-  // field currently active." Tracks whichever Text Box the student
-  // most recently created or opened for editing.
+  // Writing Scaffolds' "Add to paragraph" appends to whichever Text Box the student most recently created or
+  // opened for editing.
   const [activeTextBoxId, setActiveTextBoxId] = useState<string | null>(null);
 
-  const addSentenceFrame = (formulaId: string) => {
-    const count = placed.filter((p) => p.kind === 'sentenceFrame').length;
-    const instanceId = `sf-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    setPlaced((p) => [...p, { instanceId, kind: 'sentenceFrame', formulaId, frameFills: {}, x: 40, y: 20 + count * 130 }]);
-  };
-
-  const removePlacedItem = (instanceId: string) => setPlaced((p) => p
-    .filter((pp) => pp.instanceId !== instanceId)
-    .map((pp) => (pp.joinedToId === instanceId ? { ...pp, joinedToId: undefined } : pp)));
+  // Removing a piece from the middle of a snapped row closes the gap (the piece after it re-attaches to the
+  // piece before it); letters in a removed Sound Box stay on the board, just no longer attached.
+  const removePlacedItem = (instanceId: string) => setPlaced((p) => {
+    const gone = p.find((pp) => pp.instanceId === instanceId);
+    return p
+      .filter((pp) => pp.instanceId !== instanceId)
+      .map((pp) => {
+        if (pp.snapLeftId === instanceId) return { ...pp, snapLeftId: gone?.snapLeftId };
+        if (pp.inFrameId === instanceId) return { ...pp, inFrameId: undefined, cellIndex: undefined };
+        return pp;
+      });
+  });
 
   // Direct teacher instruction: "if an object is selected and backspace
   // or delete is clicked, delete the object." Ignored while typing
@@ -1080,76 +787,11 @@ export default function LiteracyManipulatives() {
     setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, wordFills: { ...(pp.wordFills ?? {}), [wordIndex]: value } } : pp)));
   };
 
-  // Direct teacher instruction: changing a formula's tense setting must
-  // adjust "any words currently within the frame" — re-tenses every
-  // already-filled 'action' blank using the same reversible base-form
-  // lookup the word bank itself uses (retenseActionWord), so this is
-  // never a fabricated grammar judgment, just re-conjugating the same
-  // fixed verb pool.
-  const setFormulaTense = (instanceId: string, tense: FormulaTense) => {
-    setPlaced((p) => p.map((pp) => {
-      if (pp.instanceId !== instanceId || pp.kind !== 'sentenceFrame') return pp;
-      const formula = SENTENCE_FORMULAS.find((f) => f.id === pp.formulaId);
-      if (!formula) return { ...pp, tense };
-      const fills = pp.frameFills ?? {};
-      const whoIdx = formula.segments.findIndex((s) => s.kind === 'slot' && s.slot === 'who');
-      const whoText = whoIdx >= 0 ? fills[whoIdx] : undefined;
-      const whoVerbForm: 'singular' | 'plural' | null = whoText ? (WHO_WORDS.find((w) => w.text === whoText)?.verbForm ?? 'singular') : null;
-      const newFills = { ...fills };
-      formula.segments.forEach((seg, i) => {
-        if (seg.kind === 'slot' && seg.slot === 'action' && newFills[i]) {
-          newFills[i] = retenseActionWord(newFills[i], tense, whoVerbForm, seg.verbFormOverride);
-        }
-      });
-      return { ...pp, tense, frameFills: newFills };
-    }));
-  };
-
-  // Direct teacher instruction: "students should also be able to
-  // duplicate formulas on their whiteboards, saving the words within
-  // them." A shallow clone with a fresh instanceId, offset so it doesn't
-  // sit exactly on top of the original.
-  const duplicateFormula = (instanceId: string) => {
-    setPlaced((p) => {
-      const orig = p.find((pp) => pp.instanceId === instanceId);
-      if (!orig || orig.kind !== 'sentenceFrame') return p;
-      const newId = `sf-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      return [...p, { ...orig, instanceId: newId, x: orig.x + 24, y: orig.y + 24, frameFills: { ...(orig.frameFills ?? {}) }, joinedToId: undefined }];
-    });
-  };
-
   const setTextBoxValue = (instanceId: string, value: string) => {
     setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, textValue: value } : pp)));
   };
   const setTextBoxFontSize = (instanceId: string, delta: number) => {
     setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, fontSize: Math.min(48, Math.max(12, (pp.fontSize ?? 20) + delta)) } : pp)));
-  };
-  const setSyllableWord = (instanceId: string, value: string) => {
-    setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, textValue: value } : pp)));
-  };
-  const setSyllableTapCount = (instanceId: string, count: number) => {
-    setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, tapCount: count } : pp)));
-  };
-  // Heart Words — a student marks which letters of a placed word are
-  // the "heart" (tricky, irregular) part themselves by tapping each
-  // letter, rather than the app asserting a possibly-wrong answer (see
-  // heartWordContent.ts). Purely additive/toggle, never graded.
-  const toggleHeartIndex = (instanceId: string, index: number) => {
-    setPlaced((p) => p.map((pp) => {
-      if (pp.instanceId !== instanceId) return pp;
-      const set = new Set(pp.heartIndices ?? []);
-      if (set.has(index)) set.delete(index); else set.add(index);
-      return { ...pp, heartIndices: Array.from(set) };
-    }));
-  };
-  const setDictationPrompt = (instanceId: string, value: string) => {
-    setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, dictationPrompt: value } : pp)));
-  };
-  const setDictationAnswer = (instanceId: string, value: string) => {
-    setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, textValue: value } : pp)));
-  };
-  const setMatrixRoot = (instanceId: string, rootId: string) => {
-    setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, matrixRootId: rootId } : pp)));
   };
   // A23-ROADMAP Phase 3: Elkonin-boxes-v2's "flexible count" — a placed
   // Sound Box frame's boxCount can now grow/shrink live via +/- controls
@@ -1160,7 +802,16 @@ export default function LiteracyManipulatives() {
   // a single multi-letter unit.
   const adjustFrameBoxCount = (instanceId: string, delta: number) => {
     pushHistory();
-    setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId && pp.kind === 'frame' ? { ...pp, boxCount: Math.max(1, Math.min(8, (pp.boxCount ?? 3) + delta)) } : pp)));
+    setPlaced((p) => {
+      const frame = p.find((pp) => pp.instanceId === instanceId);
+      const n = Math.max(1, Math.min(8, (frame?.boxCount ?? 3) + delta));
+      return p.map((pp) => {
+        if (pp.instanceId === instanceId && pp.kind === 'frame') return { ...pp, boxCount: n };
+        // A letter in a box that just went away stays put, no longer attached.
+        if (pp.inFrameId === instanceId && (pp.cellIndex ?? 0) >= n) return { ...pp, inFrameId: undefined, cellIndex: undefined };
+        return pp;
+      });
+    });
   };
 
   // Paragraph building — direct teacher instruction: "allow sentence
@@ -1181,70 +832,81 @@ export default function LiteracyManipulatives() {
     });
   };
 
-  // Morphemes — direct teacher instruction: puzzle pieces only link if
-  // they form a real word ("pre" + "view" = "previewing" — a real
-  // word); otherwise they never connect, and no definition appears.
-  // Unlike the noun/verb snap (always snaps on number agreement,
-  // whatever the words), this only snaps position when MORPHEME_COMBOS
-  // confirms a real result — an invalid attempt simply doesn't move.
-  const runMorphemeSnapCheck = (instanceId: string) => {
-    setPlaced((current) => {
-      const dragged = current.find((p) => p.instanceId === instanceId);
-      if (!dragged || dragged.kind !== 'morpheme') return current;
-      let bestId: string | null = null;
-      let bestDist = SNAP_THRESHOLD;
-      for (const other of current) {
-        if (other.instanceId === instanceId || other.kind !== 'morpheme') continue;
-        const isPair = dragged.morphType === 'root' ? other.morphType !== 'root' : other.morphType === 'root';
-        if (!isPair) continue;
-        const dist = Math.hypot(other.x - dragged.x, other.y - dragged.y);
-        if (dist < bestDist) { bestDist = dist; bestId = other.instanceId; }
-      }
-      if (!bestId) return current;
-      const other = current.find((p) => p.instanceId === bestId)!;
-      const rootItem = dragged.morphType === 'root' ? dragged : other;
-      const affixItem = dragged.morphType === 'root' ? other : dragged;
-      if (!MORPHEME_COMBOS[`${rootItem.morphId}:${affixItem.morphId}`]) return current;
-      // Direct follow-up instruction: "puzzle pieces should visually
-      // click together when they make a real word" — a small overlap
-      // (instead of the old 4px gap) so the tab bump actually nests
-      // into the neighboring notch instead of just sitting nearby.
-      const morphW = sizeFor('morpheme').w;
-      const overlap = 8;
-      const newX = affixItem.morphType === 'prefix' ? rootItem.x - morphW + overlap : rootItem.x + morphW - overlap;
-      return current.map((p) => (p.instanceId === affixItem.instanceId ? { ...p, x: newX, y: rootItem.y } : p));
-    });
+  // Movable pop-ups on the board: a morpheme's meaning card (tap a piece) and the word card a snapped word
+  // shows. Kept outside `placed` so they never land in undo history.
+  const [morphCards, setMorphCards] = useState<{ id: string; morphId: string; x: number; y: number }[]>([]);
+  const openMorphemeCard = (item: PlacedItem) => {
+    if (!item.morphId) return;
+    setMorphCards((cards) => [...cards.filter((c) => c.morphId !== item.morphId), { id: `mc-${Date.now()}`, morphId: item.morphId!, x: item.x, y: item.y + 80 }]);
   };
+  // Word cards: offset from the word's first piece (so the card follows the word), or closed for that word.
+  const [wordCardState, setWordCardState] = useState<Record<string, { dx: number; dy: number; closedWord?: string }>>({});
 
-  // Real-word connections currently on the board, derived (not stored)
-  // from position — recomputed every render, cheap given the tiny
-  // MORPHEME_ROOTS/PREFIXES/SUFFIXES pool.
-  const morphemeCombos = placed
-    .filter((p) => p.kind === 'morpheme' && p.morphType === 'root')
-    .flatMap((root) => placed
-      .filter((p) => p.kind === 'morpheme' && p.morphType !== 'root' && Math.hypot(p.x - root.x, p.y - root.y) < 140)
-      .map((affix) => {
-        const word = MORPHEME_COMBOS[`${root.morphId}:${affix.morphId}`];
-        if (!word) return null;
-        const rootData = MORPHEME_ROOTS.find((r) => r.id === root.morphId);
-        const meaning = AFFIX_MEANINGS[affix.morphText ?? ''] ?? '';
-        // A23-ROADMAP Phase 2: "morpheme join-rule animation (e-drop,
-        // consonant-doubling, visible at the seam)" — derived directly
-        // from comparing the root's spelling to the real word (see
-        // detectJoinRule), not a second hand-tagged data source.
-        const joinRule = (rootData?.text && affix.morphText && affix.morphType && affix.morphType !== 'root')
-          ? detectJoinRule(rootData.text, affix.morphText, affix.morphType, word)
-          : null;
-        const joinRuleNote = joinRule && rootData?.text && affix.morphText ? JOIN_RULE_NOTES[joinRule](rootData.text, affix.morphText) : null;
-        return {
-          id: `${root.instanceId}-${affix.instanceId}`, x: root.x, y: root.y,
-          seamX: affix.morphType === 'prefix' ? root.x : affix.x,
-          word, definition: `"${word}" = ${affix.morphType === 'prefix' ? affix.morphText : rootData?.text}${affix.morphType === 'prefix' ? '' : affix.morphText} (${affix.morphText} means "${meaning}")`,
-          etymology: rootData?.etymology,
-          joinRule, joinRuleNote,
-        };
-      })
-      .filter((x): x is NonNullable<typeof x> => !!x));
+  // ---- Snapped rows (sentences and morpheme words) ----
+  // Each attached piece stores only `snapLeftId`; its position is always computed from the piece on its left
+  // (see the layout effect below), so dragging the first piece moves the whole row as one unit.
+  const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const setItemRef = (id: string) => (el: HTMLDivElement | null) => {
+    if (el) itemRefs.current.set(id, el); else itemRefs.current.delete(id);
+  };
+  const measured = (item: PlacedItem) => {
+    const el = itemRefs.current.get(item.instanceId);
+    return el ? { w: el.offsetWidth, h: el.offsetHeight } : sizeFor(item.kind, item.boxCount, item);
+  };
+  const rightOf = (list: PlacedItem[], id: string) => list.find((pp) => pp.snapLeftId === id);
+  const rowFrom = (list: PlacedItem[], id: string): PlacedItem[] => {
+    const out: PlacedItem[] = [];
+    let cur = list.find((pp) => pp.instanceId === id);
+    while (cur && !out.includes(cur)) { out.push(cur); cur = rightOf(list, cur.instanceId); }
+    return out;
+  };
+  // Keeps every snapped row laid out and every lettered Sound Box filled, after each change: a morpheme sits
+  // exactly one body-width to the right (its notch on the left piece's knob); a sentence piece sits a small gap
+  // to the right, bottoms lined up; a letter sits centered in its box and grows with the box.
+  useLayoutEffect(() => {
+    const pos = new Map(placed.map((pp) => [pp.instanceId, { x: pp.x, y: pp.y }]));
+    const byId = new Map(placed.map((pp) => [pp.instanceId, pp]));
+    const heads = placed.filter((pp) => !pp.snapLeftId || !byId.has(pp.snapLeftId));
+    for (const head of heads) {
+      const row = rowFrom(placed, head.instanceId);
+      for (let i = 1; i < row.length; i++) {
+        const left = row[i - 1];
+        const item = row[i];
+        const lp = pos.get(left.instanceId)!;
+        if (item.kind === 'morpheme') {
+          const lm = morphemeById(left.morphId);
+          pos.set(item.instanceId, { x: lp.x + (lm ? pieceBodyWidth(lm) : 96), y: lp.y });
+        } else {
+          const ls = measured(left);
+          const is = measured(item);
+          pos.set(item.instanceId, { x: lp.x + ls.w + SENTENCE_GAP, y: lp.y + ls.h - is.h });
+        }
+      }
+    }
+    for (const pp of placed) {
+      if (pp.kind !== 'letter' || !pp.inFrameId) continue;
+      const f = byId.get(pp.inFrameId);
+      if (!f) continue;
+      const fp = pos.get(f.instanceId)!;
+      const cell = f.cellSize ?? DEFAULT_CELL;
+      pos.set(pp.instanceId, { x: fp.x + (pp.cellIndex ?? 0) * (cell + CELL_GAP), y: fp.y });
+    }
+    const changed = placed.some((pp) => {
+      const q = pos.get(pp.instanceId)!;
+      return Math.abs(q.x - pp.x) > 0.5 || Math.abs(q.y - pp.y) > 0.5;
+    });
+    if (changed) setPlaced((cur) => cur.map((pp) => { const q = pos.get(pp.instanceId); return q ? { ...pp, x: q.x, y: q.y } : pp; }));
+  });
+
+  // Words currently built from snapped morpheme pieces (two or more), derived from the board every render.
+  const morphemeWords = placed
+    .filter((pp) => pp.kind === 'morpheme' && !placed.some((q) => q.instanceId === pp.snapLeftId))
+    .map((head) => {
+      const row = rowFrom(placed, head.instanceId).filter((pp) => pp.kind === 'morpheme');
+      const parts = row.map((pp) => morphemeById(pp.morphId)).filter((m): m is Morpheme => !!m);
+      return { head, row, parts, ...buildWord(parts) };
+    })
+    .filter((w) => w.parts.length >= 2);
 
   const pushHistory = () => {
     historyRef.current = [...historyRef.current.slice(-(HISTORY_LIMIT - 1)), placed];
@@ -1345,13 +1007,12 @@ export default function LiteracyManipulatives() {
         return off ? { ...pp, x: anchorX + off.dx, y: anchorY + off.dy } : pp;
       }));
     };
-    const up = () => {
+    const up = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       dragInstanceRef.current = null;
       const anchorId = spawned[spawned.length - 1].instanceId;
-      if (kind === 'grammar') runSnapCheck(anchorId);
-      if (kind === 'morpheme') runMorphemeSnapCheck(anchorId);
+      handleDrop(anchorId, kind, ev.clientX, ev.clientY);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -1363,7 +1024,7 @@ export default function LiteracyManipulatives() {
     const { x, y } = canvasRelative(e.clientX, e.clientY);
     const instanceId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const base = factory();
-    const size = sizeFor(base.kind, base.boxCount);
+    const size = sizeFor(base.kind, base.boxCount, base);
     const item = { ...base, instanceId, x: x - size.w / 2, y: y - size.h / 2 };
     setPlaced((p) => [...p, item]);
     if (base.kind === 'textbox') setActiveTextBoxId(instanceId);
@@ -1396,48 +1057,37 @@ export default function LiteracyManipulatives() {
     // Formula card detaches it from whatever it was stacked under —
     // anything joined BELOW it still comes along, via getChainDescendantIds.
     setSelectedId(instanceId);
-    setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId && pp.kind === 'sentenceFrame' ? { ...pp, joinedToId: undefined } : pp)));
+    dragStartRef.current = { x: e.clientX, y: e.clientY, moved: false };
+    // Picking up a piece in the middle or end of a snapped row lifts out just that piece (the row closes the
+    // gap); picking up the first piece moves the whole row. A letter lifted out of a Sound Box leaves it.
+    setPlaced((p) => {
+      const item = p.find((pp) => pp.instanceId === instanceId);
+      if (!item) return p;
+      if (item.inFrameId) return p.map((pp) => (pp.instanceId === instanceId ? { ...pp, inFrameId: undefined, cellIndex: undefined } : pp));
+      if (!item.snapLeftId) return p;
+      return p.map((pp) => {
+        if (pp.instanceId === instanceId) return { ...pp, snapLeftId: undefined };
+        if (pp.snapLeftId === instanceId) return { ...pp, snapLeftId: item.snapLeftId };
+        return pp;
+      });
+    });
     try { (e.target as Element).setPointerCapture(e.pointerId); } catch { /* not supported */ }
   };
 
-  // Walks the Sentence Formula "joinedToId" chain to find every card
-  // currently stacked (directly or transitively) beneath rootId — used
-  // both to drag a whole paragraph stack together and to stop a join
-  // from creating a cycle.
-  const getChainDescendantIds = (list: PlacedItem[], rootId: string): Set<string> => {
-    const result = new Set<string>();
-    let frontier = [rootId];
-    while (frontier.length) {
-      const next: string[] = [];
-      for (const p of list) {
-        if (p.kind === 'sentenceFrame' && p.joinedToId && frontier.includes(p.joinedToId) && !result.has(p.instanceId)) {
-          result.add(p.instanceId);
-          next.push(p.instanceId);
-        }
-      }
-      frontier = next;
-    }
-    return result;
-  };
+  const dragStartRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
 
+  // Only the picked-up piece moves here; anything snapped to its right follows through the layout effect.
   const onDragMove = (e: React.PointerEvent) => {
     const id = dragInstanceRef.current;
     if (!id) return;
+    const start = dragStartRef.current;
+    if (start && !start.moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6) start.moved = true;
     const { x, y } = canvasRelative(e.clientX, e.clientY);
     setPlaced((p) => {
       const dragged = p.find((pp) => pp.instanceId === id);
       if (!dragged) return p;
-      const size = sizeFor(dragged.kind, dragged.boxCount);
-      const newX = x - size.w / 2;
-      const newY = y - size.h / 2;
-      const dx = newX - dragged.x;
-      const dy = newY - dragged.y;
-      const descendants = dragged.kind === 'sentenceFrame' ? getChainDescendantIds(p, id) : null;
-      return p.map((pp) => {
-        if (pp.instanceId === id) return { ...pp, x: newX, y: newY };
-        if (descendants?.has(pp.instanceId)) return { ...pp, x: pp.x + dx, y: pp.y + dy };
-        return pp;
-      });
+      const size = sizeFor(dragged.kind, dragged.boxCount, dragged);
+      return p.map((pp) => (pp.instanceId === id ? { ...pp, x: x - size.w / 2, y: y - size.h / 2 } : pp));
     });
   };
 
@@ -1450,65 +1100,152 @@ export default function LiteracyManipulatives() {
     setPlaced((current) => {
       const dragged = current.find((p) => p.instanceId === instanceId);
       if (!dragged) return current;
-      const cellW = 44;
-      const cellGap = 4;
-      const cellPitch = cellW + cellGap;
-      const centerX = dragged.x + cellW / 2;
-      const centerY = dragged.y + cellW / 2;
+      const centerX = dragged.x + 20;
+      const centerY = dragged.y + 20;
       let best: { frame: PlacedItem; cellIndex: number; dist: number } | null = null;
       for (const f of current) {
         if (f.kind !== 'frame') continue;
         const n = f.boxCount ?? 3;
-        const frameW = n * cellW + (n - 1) * cellGap;
-        if (centerY < f.y - 24 || centerY > f.y + cellW + 24) continue;
-        if (centerX < f.x - 24 || centerX > f.x + frameW + 24) continue;
-        let cellIndex = Math.round((centerX - f.x - cellW / 2) / cellPitch);
-        cellIndex = Math.max(0, Math.min(n - 1, cellIndex));
-        const cellCenterX = f.x + cellIndex * cellPitch + cellW / 2;
-        const dist = Math.abs(centerX - cellCenterX);
+        const cell = f.cellSize ?? DEFAULT_CELL;
+        const pitch = cell + CELL_GAP;
+        if (centerY < f.y - 24 || centerY > f.y + cell + 24) continue;
+        if (centerX < f.x - 24 || centerX > f.x + frameWidth(n, cell) + 24) continue;
+        const cellIndex = Math.max(0, Math.min(n - 1, Math.round((centerX - f.x - cell / 2) / pitch)));
+        const dist = Math.abs(centerX - (f.x + cellIndex * pitch + cell / 2));
         if (!best || dist < best.dist) best = { frame: f, cellIndex, dist };
       }
       if (!best) return current;
-      const targetX = best.frame.x + best.cellIndex * cellPitch;
-      const targetY = best.frame.y;
-      return current.map((p) => (p.instanceId === instanceId ? { ...p, x: targetX, y: targetY } : p));
+      return current.map((p) => (p.instanceId === instanceId ? { ...p, inFrameId: best!.frame.instanceId, cellIndex: best!.cellIndex } : p));
     });
   };
 
-  // Sentence Formula paragraph joining — direct teacher instruction:
-  // "sentence formulas can be joined together (a connection animation)
-  // to stack them into a paragraph form." Dropping one card with its
-  // top edge near another card's bottom edge snaps it directly beneath
-  // (aligned, using the target's real measured height), records the
-  // link in joinedToId, and briefly pulses both cards.
-  const runFormulaJoinCheck = (instanceId: string) => {
+  // Sound Box resizing (her request 2026-10-15): drag the corner handle; the boxes grow or shrink together and
+  // any letters in them grow with them.
+  const startFrameResize = (instanceId: string) => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    pushHistory();
+    const target = e.currentTarget as Element;
+    try { target.setPointerCapture(e.pointerId); } catch { /* window listener below still tracks */ }
+    const move = (ev: PointerEvent) => {
+      const { x } = canvasRelative(ev.clientX, ev.clientY);
+      setPlaced((p) => p.map((pp) => {
+        if (pp.instanceId !== instanceId) return pp;
+        const n = pp.boxCount ?? 3;
+        const cell = Math.round(Math.max(36, Math.min(140, (x - pp.x - (n - 1) * CELL_GAP) / n)));
+        return { ...pp, cellSize: cell };
+      }));
+    };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  // Sentence rows (her request 2026-10-15): a Grammar Symbol, Symbol Sentence, or punctuation tile dropped
+  // just right of another one snaps in line beside it (or just left of the first one in a row, in front of it),
+  // bottoms lined up. Morpheme pieces snap the same way, but only where a knob meets a notch.
+  const runRowSnap = (instanceId: string) => {
     setPlaced((current) => {
       const dragged = current.find((p) => p.instanceId === instanceId);
-      if (!dragged || dragged.kind !== 'sentenceFrame') return current;
-      const descendants = getChainDescendantIds(current, instanceId);
-      let bestId: string | null = null;
-      let bestDist = SNAP_THRESHOLD;
-      for (const p of current) {
-        if (p.kind !== 'sentenceFrame' || p.instanceId === instanceId || descendants.has(p.instanceId)) continue;
-        const pEl = formulaCardRefs.current.get(p.instanceId);
-        const pH = pEl?.offsetHeight ?? 120;
-        const targetTop = p.y + pH;
-        const dx = Math.abs(dragged.x - p.x);
-        const dy = Math.abs(dragged.y - targetTop);
-        if (dx < 80 && dy < SNAP_THRESHOLD) {
-          const dist = dx + dy;
-          if (dist < bestDist) { bestDist = dist; bestId = p.instanceId; }
+      if (!dragged) return current;
+      const isMorph = dragged.kind === 'morpheme';
+      if (!isMorph && !SENTENCE_KINDS.includes(dragged.kind)) return current;
+      const row = rowFrom(current, instanceId);
+      const tail = row[row.length - 1];
+      const rowIds = new Set(row.map((r) => r.instanceId));
+      const morph = (pp: PlacedItem) => morphemeById(pp.morphId);
+      const sameFamily = (pp: PlacedItem) => (isMorph ? pp.kind === 'morpheme' : SENTENCE_KINDS.includes(pp.kind));
+      const fits = (left: PlacedItem, right: PlacedItem) => {
+        if (!isMorph) return true;
+        const l = morph(left); const r = morph(right);
+        return !!l && !!r && hasTab(l) && hasNotch(r);
+      };
+      const dSize = measured(dragged);
+      const tSize = measured(tail);
+      let best: { kind: 'after' | 'before'; target: PlacedItem; dist: number } | null = null;
+      for (const q of current) {
+        if (rowIds.has(q.instanceId) || !sameFamily(q)) continue;
+        const qs = measured(q);
+        // After q: dragged's left edge near q's right edge.
+        const afterX = isMorph ? q.x + (morph(q) ? pieceBodyWidth(morph(q)!) : qs.w) : q.x + qs.w + SENTENCE_GAP;
+        const afterY = isMorph ? q.y : q.y + qs.h - dSize.h;
+        const dA = Math.hypot(dragged.x - afterX, dragged.y - afterY);
+        const qRight = rightOf(current, q.instanceId);
+        if (dA < LINE_SNAP && fits(q, dragged) && (!qRight || fits(tail, qRight)) && (!best || dA < best.dist)) best = { kind: 'after', target: q, dist: dA };
+        // Before q (only the first piece of a row): the dragged row's tail ends where q starts.
+        if (!q.snapLeftId || !current.some((c) => c.instanceId === q.snapLeftId)) {
+          const tailRight = isMorph ? tail.x + (morph(tail) ? pieceBodyWidth(morph(tail)!) : tSize.w) : tail.x + tSize.w + SENTENCE_GAP;
+          const dB = Math.hypot(q.x - tailRight, isMorph ? q.y - tail.y : (q.y + qs.h) - (tail.y + tSize.h));
+          if (dB < LINE_SNAP && fits(tail, q) && (!best || dB < best.dist)) best = { kind: 'before', target: q, dist: dB };
         }
       }
-      if (!bestId) return current;
-      const target = current.find((p) => p.instanceId === bestId)!;
-      const targetEl = formulaCardRefs.current.get(bestId);
-      const targetH = targetEl?.offsetHeight ?? 120;
-      if (formulaGlowTimerRef.current) window.clearTimeout(formulaGlowTimerRef.current);
-      setFormulaGlowIds(new Set([instanceId, bestId]));
-      formulaGlowTimerRef.current = window.setTimeout(() => setFormulaGlowIds(new Set()), 900);
-      return current.map((p) => (p.instanceId === instanceId ? { ...p, x: target.x, y: target.y + targetH + 12, joinedToId: bestId } : p));
+      if (!best) return current;
+      const target = best.target;
+      if (glowTimerRef.current) window.clearTimeout(glowTimerRef.current);
+      setGlowIds(new Set([instanceId, target.instanceId]));
+      glowTimerRef.current = window.setTimeout(() => setGlowIds(new Set()), 900);
+      if (best.kind === 'after') {
+        const qRight = rightOf(current, target.instanceId);
+        return current.map((pp) => {
+          if (pp.instanceId === instanceId) return { ...pp, snapLeftId: target.instanceId };
+          if (qRight && pp.instanceId === qRight.instanceId) return { ...pp, snapLeftId: tail.instanceId };
+          return pp;
+        });
+      }
+      return current.map((pp) => (pp.instanceId === target.instanceId ? { ...pp, snapLeftId: tail.instanceId } : pp));
     });
+  };
+
+  // Writing Scaffolds take sentence symbols (her request 2026-10-15): dropping a Grammar Symbol, a Symbol
+  // Sentence, a punctuation tile, or a whole snapped row onto a line of a Writing Frame moves those words
+  // into that line, still shown as symbols with their word bubbles.
+  const tokensFor = (pp: PlacedItem): LineToken[] => {
+    if (pp.kind === 'shape') return [{ type: 'word', wordClass: pp.wordClass ?? 'noun', word: pp.bubbleWord ?? '' }];
+    if (pp.kind === 'punctuation') { const m = PUNCTUATION_MARKS.find((pm) => pm.id === pp.punctId); return m ? [{ type: 'punct', mark: m.mark }] : []; }
+    if (pp.kind === 'symbolSentence') {
+      const sentence = ALL_SYMBOL_SENTENCES.find((ss) => ss.id === pp.symbolSentenceId);
+      if (!sentence) return [];
+      return sentenceTokens(sentence).map((t): LineToken => (t.type === 'punct'
+        ? { type: 'punct', mark: pp.punctFills?.[t.slot] ?? t.mark }
+        : { type: 'word', wordClass: sentence.words[t.index].wordClass, word: pp.wordFills?.[t.index] ?? sentence.words[t.index].word }));
+    }
+    return [];
+  };
+  const tryDropIntoWritingFrame = (instanceId: string, clientX: number, clientY: number): boolean => {
+    const lineEl = document.elementsFromPoint(clientX, clientY)
+      .map((el) => (el as HTMLElement).closest?.('[data-wf-line]') as HTMLElement | null)
+      .find((el) => !!el);
+    if (!lineEl) return false;
+    const frameId = lineEl.dataset.wfFrame;
+    const lineIndex = Number(lineEl.dataset.wfLine);
+    const row = rowFrom(placed, instanceId);
+    if (!frameId || !row.length || !SENTENCE_KINDS.includes(row[0].kind)) return false;
+    const tokens = row.flatMap(tokensFor);
+    const ids = new Set(row.map((r) => r.instanceId));
+    setPlaced((p) => p
+      .filter((pp) => !ids.has(pp.instanceId))
+      .map((pp) => (pp.instanceId === frameId
+        ? { ...pp, lineTokens: { ...(pp.lineTokens ?? {}), [lineIndex]: [...(pp.lineTokens?.[lineIndex] ?? []), ...tokens] } }
+        : pp)));
+    setSelectedId(null);
+    return true;
+  };
+  const setLineToken = (frameId: string, line: number, index: number, word: string | null) => {
+    setPlaced((p) => p.map((pp) => {
+      if (pp.instanceId !== frameId) return pp;
+      const list = [...(pp.lineTokens?.[line] ?? [])];
+      if (word === null) list.splice(index, 1);
+      else { const t = list[index]; if (t?.type === 'word') list[index] = { ...t, word }; }
+      return { ...pp, lineTokens: { ...(pp.lineTokens ?? {}), [line]: list } };
+    }));
+  };
+
+  // One place every drop (from the tray or on the board) ends up.
+  const handleDrop = (id: string, kind: PlacedKind, clientX: number, clientY: number) => {
+    if (SENTENCE_KINDS.includes(kind) && tryDropIntoWritingFrame(id, clientX, clientY)) return;
+    if (kind === 'grammar') runSnapCheck(id);
+    if (kind === 'morpheme' || SENTENCE_KINDS.includes(kind)) runRowSnap(id);
+    if (kind === 'letter') runSoundBoxSnap(id);
   };
 
   const onDragEnd = (e: React.PointerEvent) => {
@@ -1527,10 +1264,11 @@ export default function LiteracyManipulatives() {
       return;
     }
     const item = placed.find((p) => p.instanceId === id);
-    if (item?.kind === 'grammar') runSnapCheck(id);
-    if (item?.kind === 'morpheme') runMorphemeSnapCheck(id);
-    if (item?.kind === 'letter') runSoundBoxSnap(id);
-    if (item?.kind === 'sentenceFrame') runFormulaJoinCheck(id);
+    // A tap without moving a morpheme piece opens its meaning card (her request: "a hover or click on ipad
+    // needs to show the morpheme meaning").
+    if (item?.kind === 'morpheme' && dragStartRef.current && !dragStartRef.current.moved) openMorphemeCard(item);
+    dragStartRef.current = null;
+    if (item) handleDrop(id, item.kind, e.clientX, e.clientY);
   };
 
   const clearBoard = () => {
@@ -1592,13 +1330,8 @@ export default function LiteracyManipulatives() {
     setDrawColor(mode === 'pen' ? BASE_PEN_COLORS[0] : BASE_HIGHLIGHT_COLORS[0]);
   };
 
-  // No teacher "Literacy Focus" account, so there's never a picklist of
-  // target words for the Dictation Card — it just falls back to its
-  // plain typed-word field.
-  const dictationWordOptions: string[] = [];
-
   return (
-    <div className={`lm-page${projectorMode ? ' lm-projector' : ''}`} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div className="lm-page" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {/* Top toolbar — same collapsible bar as the dashboard's native
           tool, minus Help (tied to a student account) and Exit (there's
           no "home" to leave to in a standalone page). */}
@@ -1627,8 +1360,7 @@ export default function LiteracyManipulatives() {
               🔈 {ttsSettings.rate}x
             </button>
             <span className="lm-toolbar-divider" />
-            <button className="btn btn-sm" onClick={() => window.print()}>🖨️ Print</button>
-            <button className={`btn btn-sm ${projectorMode ? 'btn-primary' : ''}`} onClick={toggleProjectorMode}>🖥️ Projector Mode</button>
+            {/* SHARE_BUTTON */}
             <span style={{ flex: 1 }} />
             <button className="btn btn-sm" onClick={() => setTopBarOpen(false)} aria-label="Hide toolbar">▲ Hide bar</button>
           </>
@@ -1685,53 +1417,30 @@ export default function LiteracyManipulatives() {
             ))}
           </Category>
 
+          {/* Morphemes (her request 2026-10-15): every morpheme from the DSF Level 1 Unit 1 tile deck and the 111
+              Greek/Latin list, sorted into prefixes, suffixes, free bases and Greek & Latin roots. Hover a piece
+              to see its meaning; on the board, tap a piece for its card. */}
           <Category label="🧩 Morphemes" color="#bae6fd" open={openCategories.morphemes} onToggle={() => toggleCategory('morphemes')}>
-            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Pieces only link if they make a real word!</p>
-            <SubcategoryRow id="roots" label="Roots" open={openSubcategories.roots} onToggle={() => toggleSubcategory('roots')}>
-              <div className="row-wrap" style={{ gap: 8 }}>
-                {MORPHEME_ROOTS.map((r) => (
-                  <Draggable key={r.id} label={r.text} onPointerDown={startDragNewItem(() => ({ kind: 'morpheme', morphText: r.text, morphType: 'root', morphId: r.id }))}>
-                    <ItemVisual kind="morpheme" morphText={r.text} morphType="root" />
-                  </Draggable>
-                ))}
-              </div>
-            </SubcategoryRow>
-            <SubcategoryRow id="affixes" label="Prefixes & suffixes" open={openSubcategories.affixes} onToggle={() => toggleSubcategory('affixes')}>
-              <div className="row-wrap" style={{ gap: 8 }}>
-                {MORPHEME_PREFIXES.map((a) => (
-                  <Draggable key={a.id} label={a.text} onPointerDown={startDragNewItem(() => ({ kind: 'morpheme', morphText: a.text, morphType: 'prefix', morphId: a.id }))}>
-                    <ItemVisual kind="morpheme" morphText={a.text} morphType="prefix" />
-                  </Draggable>
-                ))}
-                {MORPHEME_SUFFIXES.map((a) => (
-                  <Draggable key={a.id} label={a.text} onPointerDown={startDragNewItem(() => ({ kind: 'morpheme', morphText: a.text, morphType: 'suffix', morphId: a.id }))}>
-                    <ItemVisual kind="morpheme" morphText={a.text} morphType="suffix" />
-                  </Draggable>
-                ))}
-              </div>
-            </SubcategoryRow>
-            {/* A23-ROADMAP Phase 3: word matrix builder + reverse
-                morphology, both under Morphemes as the roadmap
-                specifies, both deriving their content from the same
-                MORPHEME_COMBOS the jigsaw pieces already use. */}
-            <SubcategoryRow id="wordMatrix" label="Word Matrix" open={openSubcategories.wordMatrix} onToggle={() => toggleSubcategory('wordMatrix')}>
-              <Draggable label="Add a Word Matrix" onPointerDown={startDragNewItem(() => ({ kind: 'wordMatrix', matrixRootId: MORPHEME_ROOTS[0].id }))} style={{ width: '100%' }}>
-                <div style={{
-                  width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  border: '2px dashed var(--ink)', borderRadius: 8, background: 'white', fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: '0.8rem', padding: '6px 10px',
-                }}>
-                  🔢 Add a Word Matrix
-                </div>
-              </Draggable>
-            </SubcategoryRow>
-            <SubcategoryRow id="reverseMorph" label="Reverse Morphology" open={openSubcategories.reverseMorph} onToggle={() => toggleSubcategory('reverseMorph')}>
-              <p style={{ margin: '0 0 6px', fontSize: '0.68rem', opacity: 0.6 }}>Drag a word, then try to build it out of root/prefix/suffix pieces.</p>
-              <div className="stack" style={{ gap: 2 }}>
-                {REVERSE_MORPH_WORDS.map((w) => (
-                  <WordListRow key={`revmorph-${w}`} word={w} rowId={`revmorph-tray-${w}`} onDragStart={startDragNewItem(() => ({ kind: 'reverseMorphPrompt', reverseMorphWord: w }))} tts={tts} />
-                ))}
-              </div>
-            </SubcategoryRow>
+            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.7 }}>Pieces fit where a knob meets a notch. Build real words or made-up words from real parts!</p>
+            <input className="lm-tray-search" type="search" value={morphSearch} onChange={(e) => setMorphSearch(e.target.value)} placeholder="Find a morpheme or meaning" aria-label="Find a morpheme or meaning" />
+            {MORPHEME_GROUPS.map((group) => {
+              const q = morphSearch.trim().toLowerCase();
+              const items = q ? group.items.filter((m) => m.text.toLowerCase().includes(q) || m.meaning.toLowerCase().includes(q)) : group.items;
+              if (q && items.length === 0) return null;
+              return (
+                <SubcategoryRow key={group.key} id={group.key} label={`${group.label} (${items.length})`} open={!!q || openSubcategories[group.key]} onToggle={() => toggleSubcategory(group.key)}>
+                  <div className="row-wrap" style={{ gap: 6 }}>
+                    {items.map((m) => (
+                      <Draggable key={m.id} label={`${pieceLabel(m)}: ${m.meaning}`} onPointerDown={startDragNewItem(() => ({ kind: 'morpheme', morphId: m.id }))}>
+                        <ReferencePopover mode="hover" title={`${pieceLabel(m)} (${KIND_LABEL[m.kind].toLowerCase()})`} body={m.meaning}>
+                          <ItemVisual kind="morpheme" morphId={m.id} compact />
+                        </ReferencePopover>
+                      </Draggable>
+                    ))}
+                  </div>
+                </SubcategoryRow>
+              );
+            })}
           </Category>
 
           <Category label="🔡 Alphabet" color="#fed7aa" open={openCategories.letters} onToggle={() => toggleCategory('letters')}>
@@ -1754,13 +1463,15 @@ export default function LiteracyManipulatives() {
           </Category>
 
           <Category label="🔠 Graphemes" color="#fde68a" open={openCategories.graphemes} onToggle={() => toggleCategory('graphemes')}>
-            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Multi-letter spellings only (single letters are in Alphabet). Not UFLI-verified, see code comment.</p>
+            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Sorted like the UFLI Foundations scope and sequence. Hover a tile to see its sound. Prefixes and suffixes are in Morphemes.</p>
             {GRAPHEME_GROUPS.map((group) => (
               <SubcategoryRow key={group.key} id={`graph-${group.key}`} label={group.label} open={openSubcategories[`graph-${group.key}`]} onToggle={() => toggleSubcategory(`graph-${group.key}`)}>
                 <div className="row-wrap" style={{ gap: 4 }}>
-                  {group.graphemes.map((g) => (
-                    <Draggable key={g} label={g} onPointerDown={startDragNewItem(() => ({ kind: 'letter', letter: g }))}>
-                      <ItemVisual kind="letter" letter={g} vowelConsonantColors={vowelConsonantColors} />
+                  {group.graphemes.map(({ g, sound }) => (
+                    <Draggable key={`${g}-${sound}`} label={`${g}, ${sound}`} onPointerDown={startDragNewItem(() => ({ kind: 'letter', letter: g }))}>
+                      <ReferencePopover mode="hover" title={g} body={sound}>
+                        <ItemVisual kind="letter" letter={g} vowelConsonantColors={vowelConsonantColors} />
+                      </ReferencePopover>
                     </Draggable>
                   ))}
                 </div>
@@ -1789,21 +1500,13 @@ export default function LiteracyManipulatives() {
               auto-counting/auto-splitting, matching this sandbox's
               standing "entirely unscripted" rule. */}
           <Category label="🔊 Phonological Awareness" color="#fce7f3" open={openCategories.phono} onToggle={() => toggleCategory('phono')}>
-            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Drag out chips, dividers, or a tapper to work with sounds yourself.</p>
+            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Drag out chips or dividers to work with sounds yourself.</p>
             <div className="row-wrap" style={{ gap: 10, alignItems: 'flex-start' }}>
               <Draggable label="Sound chip" onPointerDown={startDragNewItem(() => ({ kind: 'soundChip' }))}>
                 <ItemVisual kind="soundChip" />
               </Draggable>
               <Draggable label="Onset-rime divider" onPointerDown={startDragNewItem(() => ({ kind: 'divider' }))}>
                 <ItemVisual kind="divider" />
-              </Draggable>
-              <Draggable label="Add a Syllable Tapper" onPointerDown={startDragNewItem(() => ({ kind: 'syllableTapper', textValue: '', tapCount: 0 }))}>
-                <div style={{
-                  minWidth: 130, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  border: '2px dashed var(--ink)', borderRadius: 8, background: 'white', fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: '0.8rem', padding: '6px 10px',
-                }}>
-                  👏 Syllable Tapper
-                </div>
               </Draggable>
             </div>
           </Category>
@@ -1826,95 +1529,6 @@ export default function LiteracyManipulatives() {
                 border: '2px dashed var(--ink)', borderRadius: 8, background: 'white', fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: '0.85rem', padding: '6px 10px',
               }}>
                 ⌨️ Add a text box
-              </div>
-            </Draggable>
-          </Category>
-
-          <Category label="📐 Sentence Formulas" color="#fbcfe8" open={openCategories.formulas} onToggle={() => toggleCategory('formulas')}>
-            <div className="row-wrap" style={{ gap: 4 }}>
-              {FORMULA_CATEGORIES.map((c) => (
-                <button key={c.id} className={`btn btn-sm ${sfCategoryId === c.id ? 'btn-primary' : ''}`} style={{ padding: '3px 8px', fontSize: '0.75rem', minHeight: 30, minWidth: 30 }} onClick={() => setSfCategoryId(c.id)} title={c.label}>{c.icon}</button>
-              ))}
-            </div>
-            <div className="stack" style={{ gap: 2, marginTop: 8 }}>
-              {SENTENCE_FORMULAS.filter((f) => f.category === sfCategoryId).map((f) => (
-                <button key={f.id} className="btn btn-sm" style={{ textAlign: 'left', fontSize: '0.78rem', minHeight: 32 }} onClick={() => addSentenceFrame(f.id)}>➕ {f.name}</button>
-              ))}
-            </div>
-          </Category>
-
-          {/* The dashboard's native tool has a teacher-curated "Word
-              Lists" category here (Literacy Focus words), tied to a
-              teacher/student account. This standalone v1 has no
-              accounts, so that category is intentionally left out —
-              dictationWordOptions below is always empty as a result,
-              which just means the Dictation Card falls back to its
-              plain typed-word field instead of a picklist. */}
-
-          {/* A23-ROADMAP Phase 3: "word chains, ... reusing the Morphemes
-              'connects only if real, never punitive' pattern" — every
-              word here is real, each chain is a real one-letter-swap
-              ladder (see wordChainContent.ts); reuses WordListRow, the
-              same plain-reference-row-that's-also-draggable pattern Word
-              Lists already established. */}
-          <Category label="🔗 Word Chains" color={LM_WORD_CHAIN_COLOR} open={openCategories.wordChains} onToggle={() => toggleCategory('wordChains')}>
-            {WORD_CHAINS.map((chain) => (
-              <SubcategoryRow key={chain.id} id={`chain-${chain.id}`} label={chain.label} open={openSubcategories[`chain-${chain.id}`]} onToggle={() => toggleSubcategory(`chain-${chain.id}`)}>
-                <div className="stack" style={{ gap: 2 }}>
-                  {chain.words.map((w, i) => (
-                    <WordListRow key={`${chain.id}-${i}-${w}`} word={w} rowId={`chain-${chain.id}-${i}`} onDragStart={startDragNewItem(() => ({ kind: 'letter', letter: w }))} tts={tts} />
-                  ))}
-                </div>
-              </SubcategoryRow>
-            ))}
-          </Category>
-
-          {/* A23-ROADMAP Phase 3: heart words — a student taps each
-              letter of a placed word to mark it as a "heart" (tricky)
-              letter themselves, rather than the app asserting a
-              possibly-wrong "correct" irregular part (see
-              heartWordContent.ts's own comment for why). */}
-          <Category label="❤️ Heart Words" color="#fecdd3" open={openCategories.heartWords} onToggle={() => toggleCategory('heartWords')}>
-            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Drag a word onto the board, then tap its tricky letters to mark them with a heart.</p>
-            <div className="stack" style={{ gap: 2 }}>
-              {HEART_WORDS.map((hw) => (
-                <WordListRow
-                  key={hw.id}
-                  word={hw.word}
-                  rowId={`hw-tray-${hw.id}`}
-                  onDragStart={startDragNewItem(() => ({ kind: 'heartWord', heartWordId: hw.id, boxCount: hw.word.length, heartIndices: [] }))}
-                  tts={tts}
-                />
-              ))}
-            </div>
-          </Category>
-
-          {/* A23-ROADMAP Phase 3: spelling rule reference cards. */}
-          <Category label="📏 Spelling Rules" color={LM_SPELLING_RULE_COLOR} open={openCategories.spellingRules} onToggle={() => toggleCategory('spellingRules')}>
-            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Hover or focus a card to read the rule and an example.</p>
-            <div className="row-wrap" style={{ gap: 8 }}>
-              {SPELLING_RULES.map((r) => (
-                <Draggable key={r.id} label={r.title} onPointerDown={startDragNewItem(() => ({ kind: 'spellingRule', ruleId: r.id }))}>
-                  <ItemVisual kind="spellingRule" ruleId={r.id} />
-                </Draggable>
-              ))}
-            </div>
-          </Category>
-
-          {/* A23-ROADMAP Phase 3: dictation mode. Deliberately NOT
-              randomized (a prior direct teacher instruction removed
-              every randomize/surprise-me mechanic app-wide) — the
-              student or teacher picks the dictation word manually from
-              a dropdown/typed field on the card itself, never an
-              auto-picked one. */}
-          <Category label="🎧 Dictation" color={LM_DICTATION_COLOR} open={openCategories.dictation} onToggle={() => toggleCategory('dictation')}>
-            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Pick a word, hear it, write what you heard, then reveal to check yourself.</p>
-            <Draggable label="Add a Dictation Card" onPointerDown={startDragNewItem(() => ({ kind: 'dictation', dictationPrompt: '', textValue: '' }))} style={{ width: '100%' }}>
-              <div style={{
-                width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                border: '2px dashed var(--ink)', borderRadius: 8, background: 'white', fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: '0.85rem', padding: '6px 10px',
-              }}>
-                🎧 Add a Dictation Card
               </div>
             </Draggable>
           </Category>
@@ -1953,14 +1567,14 @@ export default function LiteracyManipulatives() {
             style={{ position: 'relative', height: '100%', pointerEvents: drawOn ? 'none' : undefined, transform: `scale(${zoom})`, transformOrigin: '0 0' }}
             onPointerDown={(e) => { if (e.target === e.currentTarget) setSelectedId(null); }}
           >
-            {placed.filter((p) => p.kind !== 'sentenceFrame' && p.kind !== 'textbox' && p.kind !== 'symbolSentence' && p.kind !== 'syllableTapper' && p.kind !== 'heartWord' && p.kind !== 'dictation' && p.kind !== 'wordMatrix' && p.kind !== 'reverseMorphPrompt' && p.kind !== 'writingFrame').map((p) => (
+            {placed.filter((p) => p.kind !== 'textbox' && p.kind !== 'symbolSentence' && p.kind !== 'writingFrame').map((p) => (
               // Sound Boxes sit behind everything else on purpose (a
               // background a student drops letters onto, direct teacher
               // report: letter/grapheme tiles were rendering behind the
               // box outlines) — every other kind gets the higher z-index.
               // A Grammar Symbol and its word bubble stack as one centered column (her report 2026-10-15: bubbles
               // must sit centered under the symbol, even when the word is wider than the icon).
-              <div key={p.instanceId} style={{ position: 'absolute', left: p.x, top: p.y, zIndex: p.kind === 'frame' ? 1 : 2, ...(p.kind === 'shape' ? { display: 'flex', flexDirection: 'column', alignItems: 'center' } : {}) }}>
+              <div key={p.instanceId} ref={setItemRef(p.instanceId)} style={{ position: 'absolute', left: p.x, top: p.y, zIndex: p.kind === 'frame' ? 1 : 2, ...(p.kind === 'shape' ? { display: 'flex', flexDirection: 'column', alignItems: 'center' } : {}) }}>
                 <Draggable
                   label="Placed item"
                   glowing={glowIds.has(p.instanceId)}
@@ -1970,7 +1584,11 @@ export default function LiteracyManipulatives() {
                   onDoubleClick={p.kind === 'letter' ? () => toggleLetterCase(p.instanceId) : undefined}
                   style={selectedId === p.instanceId ? { boxShadow: '0 0 0 3px rgba(124,58,237,0.35)', borderRadius: 10 } : undefined}
                 >
-                  <ItemVisual kind={p.kind} pieceId={p.pieceId} wordClass={p.wordClass} letter={p.letter} boxCount={p.boxCount} morphText={p.morphText} morphType={p.morphType} punctId={p.punctId} vowelConsonantColors={vowelConsonantColors} ruleId={p.ruleId} />
+                  <ItemVisual
+                    kind={p.kind} pieceId={p.pieceId} wordClass={p.wordClass} letter={p.letter} boxCount={p.boxCount} morphId={p.morphId} punctId={p.punctId}
+                    vowelConsonantColors={vowelConsonantColors} cellSize={p.cellSize}
+                    tileSize={p.kind === 'letter' && p.inFrameId ? (placed.find((f) => f.instanceId === p.inFrameId)?.cellSize ?? DEFAULT_CELL) : undefined}
+                  />
                 </Draggable>
                 {/* The word bubble is part of the symbol (her picture, 2026-10-15): it sits right under the icon and
                     moves with it. Tap it to type a word. */}
@@ -1997,6 +1615,9 @@ export default function LiteracyManipulatives() {
                     Follow-up instruction: "have the same setting button
                     appear for single grammar symbols" (matching the
                     Symbol Sentence ⚙️/✕ pair). */}
+                {selectedId === p.instanceId && p.kind === 'frame' && (
+                  <div className="lm-resize-handle lm-item-controls" onPointerDown={startFrameResize(p.instanceId)} role="slider" aria-label="Resize sound boxes" aria-valuenow={p.cellSize ?? DEFAULT_CELL} aria-valuemin={36} aria-valuemax={140} title="Drag to resize">⤡</div>
+                )}
                 {selectedId === p.instanceId && (
                   <div className="lm-item-controls" style={{ position: 'absolute', top: -10, right: -10, display: 'flex', gap: 4, zIndex: 3 }}>
                     {/* A23-ROADMAP Phase 3: Elkonin-boxes-v2 flexible
@@ -2052,67 +1673,60 @@ export default function LiteracyManipulatives() {
                 )}
               </div>
             ))}
-            {/* Word Web — A23-ROADMAP Phase 3 ("word webs... under
-                Morphemes"): rather than reviving the earlier, explicitly-
-                removed radial tap-to-attach mode (redundant with the
-                jigsaw pieces under the one-canvas model, per this file's
-                own 2026-09-22 build log), this is a lightweight visual
-                layered ON TOP of the existing jigsaw connections: a
-                faint connector line from each connected root to each of
-                its connected affixes, derived from the same
-                morphemeCombos data the definition cards below already
-                use. When two or more affixes connect to the same root,
-                the lines fan out into a real web, with zero new
-                interaction model. */}
-            {morphemeCombos.length > 0 && (
-              <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }} aria-hidden="true">
-                {morphemeCombos.map((c) => (
-                  <line key={`web-${c.id}`} x1={c.x + 48} y1={c.y + 32} x2={c.seamX + 20} y2={c.y + 32} stroke="#94a3b8" strokeWidth="2" strokeDasharray="4 3" />
-                ))}
-              </svg>
-            )}
-            {/* Morpheme definitions — direct teacher instruction: only
-                appears once a piece combination is a real word, pulled
-                from the root's own etymology plus the affix's ordinary
-                meaning. Follow-up instruction: "add TTS for definitons
-                of combined words using morphemes." */}
-            {morphemeCombos.map((c) => {
-              // A23-ROADMAP Phase 1: generalized into ReferencePopover
-              // (inline mode) with synced word-highlighting — the visible
-              // body text is now the exact same string that's spoken
-              // (word + definition + etymology as one flowing passage),
-              // so the highlighted word always matches what's on screen.
-              // A23-ROADMAP Phase 2: a detected join rule's plain-language
-              // note is appended to both the spoken and visible text.
-              const spokenText = `${c.word}. ${c.definition}${c.etymology ? `. ${c.etymology}` : ''}${c.joinRuleNote ? ` ${c.joinRuleNote}` : ''}`;
-              const speakId = `morph-${c.id}`;
+            {/* A word built from snapped morpheme pieces gets a movable card (✕ to close, drag to move) that says
+                whether it's a real word and what each part means. A made-up word from real parts is welcome too. */}
+            {morphemeWords.map((w) => {
+              const st = wordCardState[w.head.instanceId];
+              if (st?.closedWord === w.word) return null;
+              const speakId = `word-${w.head.instanceId}`;
+              const partsText = w.parts.map((m) => `${pieceLabel(m)} means ${m.meaning}`).join('. ');
+              const spoken = `${w.word}. ${w.real ? 'This is a real word.' : 'This is a made-up word built from real parts.'} ${partsText}.`;
               return (
-                <div key={c.id}>
-                  <ReferencePopover
-                    mode="inline"
-                    title="✨ Real word!"
-                    body={<HighlightedText text={spokenText} active={tts.activeId === speakId} wordIndex={tts.wordIndex} />}
-                    speakId={speakId}
-                    speakText={spokenText}
-                    tts={tts}
-                    settings={ttsSettings}
-                    style={{ position: 'absolute', left: c.x - 20, top: c.y + 72, width: 240, padding: 8, fontSize: '0.72rem', zIndex: 3 }}
-                  />
-                  {/* Join-rule animation, visible right at the seam
-                      between the two puzzle pieces (not just named in
-                      the card text below) — a small badge that pops in
-                      once, per the spec's own "visible at the seam"
-                      wording. */}
-                  {c.joinRule && (
-                    <div
-                      className="lm-morpheme-join-badge"
-                      style={{ position: 'absolute', left: c.seamX + 30, top: c.y - 20, zIndex: 4 }}
-                      title={c.joinRuleNote ?? undefined}
-                    >
-                      {c.joinRule === 'e-drop' ? 'e̶' : '××'}
-                    </div>
-                  )}
-                </div>
+                <FloatingCard
+                  key={`word-${w.head.instanceId}`}
+                  x={w.head.x + (st?.dx ?? 0)}
+                  y={w.head.y + 78 + (st?.dy ?? 0)}
+                  width={280}
+                  zoom={zoom}
+                  title={w.real ? `✨ ${w.word}` : `🧪 ${w.word}`}
+                  onMove={(x, y) => setWordCardState((s) => ({ ...s, [w.head.instanceId]: { ...(s[w.head.instanceId] ?? {}), dx: x - w.head.x, dy: y - w.head.y - 78 } }))}
+                  onClose={() => setWordCardState((s) => ({ ...s, [w.head.instanceId]: { dx: s[w.head.instanceId]?.dx ?? 0, dy: s[w.head.instanceId]?.dy ?? 0, closedWord: w.word } }))}
+                >
+                  <div className="space-between" style={{ alignItems: 'center', gap: 6 }}>
+                    <span className="lm-float-kind">{w.real ? 'Real word' : 'Made-up word from real parts'}</span>
+                    <SyncedSpeakButton id={speakId} text={spoken} tts={tts} settings={ttsSettings} style={{ padding: '2px 8px', minHeight: 30 }} ariaLabel={`Hear ${w.word}`} />
+                  </div>
+                  <ul className="lm-float-parts">
+                    {w.parts.map((m, i) => <li key={i}><strong>{pieceLabel(m)}</strong> = {m.meaning}</li>)}
+                  </ul>
+                </FloatingCard>
+              );
+            })}
+            {/* A morpheme's meaning card (tap a piece on the board). A root's card also explains what a root is. */}
+            {morphCards.map((c) => {
+              const m = morphemeById(c.morphId);
+              if (!m) return null;
+              const speakId = `mcard-${c.id}`;
+              const spoken = `${pieceLabel(m)}. ${m.meaning}. ${kindExplanation(m)}`;
+              return (
+                <FloatingCard
+                  key={c.id}
+                  x={c.x}
+                  y={c.y}
+                  zoom={zoom}
+                  title={pieceLabel(m)}
+                  onMove={(x, y) => setMorphCards((cards) => cards.map((cc) => (cc.id === c.id ? { ...cc, x, y } : cc)))}
+                  onClose={() => setMorphCards((cards) => cards.filter((cc) => cc.id !== c.id))}
+                >
+                  <div className="space-between" style={{ alignItems: 'center', gap: 6 }}>
+                    <span className="lm-float-kind">{m.origin ? `${m.origin} ` : ''}{KIND_LABEL[m.kind].toLowerCase()}</span>
+                    <SyncedSpeakButton id={speakId} text={spoken} tts={tts} settings={ttsSettings} style={{ padding: '2px 8px', minHeight: 30 }} ariaLabel={`Hear ${m.text}`} />
+                  </div>
+                  <p style={{ margin: '4px 0', fontWeight: 800 }}>Means: {m.meaning}</p>
+                  {m.example && <p style={{ margin: '0 0 4px' }}>Example: <em>{m.example}</em></p>}
+                  {m.note && <p style={{ margin: '0 0 4px', fontSize: '0.78rem', opacity: 0.75 }}>{m.note}</p>}
+                  <p style={{ margin: 0, fontSize: '0.8rem' }}>{kindExplanation(m)}</p>
+                </FloatingCard>
               );
             })}
             {/* Symbol Sentences, placed as one unit — direct follow-up
@@ -2128,10 +1742,10 @@ export default function LiteracyManipulatives() {
               const fills = item.wordFills ?? {};
               const selected = selectedId === item.instanceId;
               return (
-                <div key={item.instanceId} style={{ position: 'absolute', left: item.x, top: item.y, zIndex: 2 }}>
+                <div key={item.instanceId} ref={setItemRef(item.instanceId)} style={{ position: 'absolute', left: item.x, top: item.y, zIndex: 2 }}>
                   <Draggable
                     label={sentence.sentence}
-                    glowing={false}
+                    glowing={glowIds.has(item.instanceId)}
                     onPointerDown={startDragPlaced(item.instanceId)}
                     onPointerMove={onDragMove}
                     onPointerUp={onDragEnd}
@@ -2182,232 +1796,6 @@ export default function LiteracyManipulatives() {
                 </div>
               );
             })}
-            {/* Sentence Formula frames — self-contained widgets whose
-                internal clickable blanks never fight canvas-drag pointer
-                handling (only the title-bar "handle" starts a drag).
-                Direct follow-up instruction: "sentence formulas can be
-                moved around the whiteboard" / "joined together... to
-                stack them into a paragraph form." */}
-            {placed.filter((p) => p.kind === 'sentenceFrame').map((item) => {
-              const formula = SENTENCE_FORMULAS.find((f) => f.id === item.formulaId);
-              if (!formula) return null;
-              const fills = item.frameFills ?? {};
-              const tense: FormulaTense = item.tense ?? 'present';
-              const whoIdx = formula.segments.findIndex((s) => s.kind === 'slot' && s.slot === 'who');
-              const whoText = whoIdx >= 0 ? fills[whoIdx] : undefined;
-              const whoVerbForm: 'singular' | 'plural' | null = whoText ? (WHO_WORDS.find((w) => w.text === whoText)?.verbForm ?? 'singular') : null;
-              const isComplete = formula.segments.every((seg, i) => seg.kind !== 'slot' || (fills[i] && fills[i].trim()));
-              const sentenceText = formula.segments.map((seg, i) => {
-                if (seg.kind === 'fixed') return seg.text;
-                if (seg.kind === 'aux') return auxWordFor(seg.auxType, whoText, WHO_WORDS);
-                return fills[i] ?? '';
-              }).join(' ').replace(/\s+([.!?])/g, '$1');
-              // Grammar check — direct teacher instruction: "a check
-              // notification... check for tenses, accuracy, plurals,
-              // etc. and give a notice if it is a correct sentence or
-              // if it needs improvement. tell exactly what needs to
-              // improve." Checks each typed/picked word against the
-              // same tense-and-plural-aware word bank the dropdown
-              // itself offers (wordBankFor/actionWordsFor) — the exact
-              // data already driving "correct" choices, not a new or
-              // fabricated grammar judgment.
-              const checkResults = isComplete ? formula.segments.map((seg, i) => {
-                if (seg.kind !== 'slot') return null;
-                const typed = (fills[i] ?? '').trim();
-                if (!typed) return null;
-                const bank = seg.slot === 'action' ? actionWordsForTense(whoVerbForm, seg.verbFormOverride, tense) : wordBankFor(seg.slot, 'general', whoVerbForm);
-                const ok = bank.some((o) => o.text.toLowerCase() === typed.toLowerCase());
-                return { label: SLOT_LABELS[seg.slot], typed, ok, suggestions: bank.slice(0, 4).map((o) => o.text) };
-              }).filter((r): r is { label: string; typed: string; ok: boolean; suggestions: string[] } => r !== null) : [];
-              // Capitalization check — direct follow-up instruction:
-              // "sentence formulas must check and prompt
-              // capitalization." Two honest, well-established rules
-              // (not a general grammar judgment): the sentence's own
-              // first fillable word must start with a capital letter,
-              // and "I" is always capitalized wherever it appears.
-              const capIssues: string[] = [];
-              if (isComplete) {
-                if (formula.segments[0]?.kind === 'slot') {
-                  const first = (fills[0] ?? '').trim();
-                  if (first && first[0] !== first[0].toUpperCase()) {
-                    capIssues.push('Start your sentence with a capital letter.');
-                  }
-                }
-                formula.segments.forEach((seg, i) => {
-                  if (seg.kind === 'slot' && (fills[i] ?? '').trim() === 'i') {
-                    capIssues.push('The word "I" is always capitalized, even in the middle of a sentence.');
-                  }
-                });
-                if (whoIdx >= 0) {
-                  const whoTyped = (fills[whoIdx] ?? '').trim();
-                  const properMatch = PROPER_NOUNS.find((p) => p.text.toLowerCase() === whoTyped.toLowerCase());
-                  if (properMatch && whoTyped && whoTyped !== properMatch.text) {
-                    capIssues.push(`"${whoTyped}" names a person, so it should be written "${properMatch.text}" with a capital letter.`);
-                  }
-                }
-              }
-              const wordIssues = checkResults.filter((r) => !r.ok);
-              const hasCheck = checkResults.length > 0 || capIssues.length > 0;
-              const allOk = wordIssues.length === 0 && capIssues.length === 0;
-              const checkSpeech = !hasCheck ? '' : [
-                allOk ? 'This sentence looks correct!' : 'Here is a check for your sentence.',
-                ...wordIssues.map((r) => `For ${r.label}, you wrote ${r.typed}. Words that usually fit here are ${r.suggestions.join(', ')}.`),
-                ...capIssues,
-              ].join(' ');
-              // Direct teacher instruction: "when a correct sentence is
-              // made using formulas, it should appear in a text field
-              // (completed sentence with punctuation, capitalization)."
-              const displaySentenceText = sentenceText ? sentenceText.charAt(0).toUpperCase() + sentenceText.slice(1) : sentenceText;
-              return (
-                <div
-                  key={item.instanceId}
-                  ref={(el) => { if (el) formulaCardRefs.current.set(item.instanceId, el); else formulaCardRefs.current.delete(item.instanceId); }}
-                  className={`chrome-frame${formulaGlowIds.has(item.instanceId) ? ' lm-formula-glow' : ''}`}
-                  style={{ position: 'absolute', left: item.x, top: item.y, padding: 12, maxWidth: 640, zIndex: 4 }}
-                >
-                  {/* A small connector shows this card is stacked into a
-                      paragraph with the one above it. */}
-                  {item.joinedToId && <div style={{ textAlign: 'center', fontSize: 12, marginBottom: 4, opacity: 0.6 }} aria-hidden="true">🔗 joined</div>}
-                  <div className="space-between" style={{ marginBottom: 8, alignItems: 'center' }}>
-                    {/* Direct follow-up instruction: "sentence formulas can
-                        be moved around the whiteboard." Only the title
-                        text is the drag handle, so the blanks/buttons
-                        below never fight canvas-drag pointer handling. */}
-                    <strong
-                      style={{ fontSize: '0.85rem', cursor: 'grab', touchAction: 'none' }}
-                      onPointerDown={startDragPlaced(item.instanceId)}
-                      onPointerMove={onDragMove}
-                      onPointerUp={onDragEnd}
-                    >
-                      {formula.name}
-                    </strong>
-                    {/* Direct teacher instruction: settings (tense) and
-                        duplicate buttons to the left of the x, "all three
-                        buttons... small, but the same size. slighly
-                        smaller than the current x button." */}
-                    <div className="lm-item-controls" style={{ display: 'flex', gap: 4, alignItems: 'center', position: 'relative' }}>
-                      <button
-                        className="btn btn-sm"
-                        style={{ width: 30, height: 30, minHeight: 30, minWidth: 30, padding: 0, fontSize: '0.85rem' }}
-                        onClick={() => setOpenFormulaSettings((v) => (v === item.instanceId ? null : item.instanceId))}
-                        aria-label="Sentence Formula settings"
-                        title="Settings"
-                      >
-                        ⚙️
-                      </button>
-                      <button
-                        className="btn btn-sm"
-                        style={{ width: 30, height: 30, minHeight: 30, minWidth: 30, padding: 0, fontSize: '0.85rem' }}
-                        onClick={() => duplicateFormula(item.instanceId)}
-                        aria-label="Duplicate this Sentence Formula"
-                        title="Duplicate"
-                      >
-                        ⧉
-                      </button>
-                      <button
-                        className="btn btn-sm"
-                        style={{ width: 30, height: 30, minHeight: 30, minWidth: 30, padding: 0, fontSize: '0.85rem' }}
-                        onClick={() => removePlacedItem(item.instanceId)}
-                        aria-label="Remove this Sentence Formula"
-                      >
-                        ✕
-                      </button>
-                      {openFormulaSettings === item.instanceId && (
-                        <div className="chrome-frame" style={{ position: 'absolute', top: '110%', right: 0, zIndex: 12, padding: 8, width: 160 }}>
-                          <div style={{ fontSize: '0.72rem', fontWeight: 700, marginBottom: 6, opacity: 0.7 }}>Tense</div>
-                          <div className="row-wrap" style={{ gap: 4 }}>
-                            {(Object.keys(TENSE_LABELS) as FormulaTense[]).map((t) => (
-                              <button
-                                key={t}
-                                className={`btn btn-sm ${tense === t ? 'btn-primary' : ''}`}
-                                style={{ fontSize: '0.75rem', padding: '3px 8px' }}
-                                onClick={() => { setFormulaTense(item.instanceId, t); setOpenFormulaSettings(null); }}
-                              >
-                                {TENSE_LABELS[t]}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="row-wrap" style={{ gap: 6, alignItems: 'center' }}>
-                    {formula.segments.map((seg, i) => {
-                      if (seg.kind === 'fixed') return <span key={i} style={{ fontWeight: 700 }}>{seg.text}</span>;
-                      if (seg.kind === 'aux') return <span key={i} style={{ fontWeight: 700, fontStyle: 'italic', opacity: 0.75 }}>{auxWordFor(seg.auxType, whoText, WHO_WORDS)}</span>;
-                      const montClass = SLOT_MONTESSORI_CLASS[seg.slot];
-                      const color = montClass ? MONTESSORI_WORD_CLASS_INFO[montClass].color : 'var(--content-border)';
-                      const bank = seg.slot === 'action' ? actionWordsForTense(whoVerbForm, seg.verbFormOverride, tense) : wordBankFor(seg.slot, 'general', whoVerbForm);
-                      const pickerKey = `${item.instanceId}:${i}`;
-                      return (
-                        <FormulaBlankField
-                          key={i}
-                          value={fills[i] ?? ''}
-                          onType={(v) => setFrameFill(item.instanceId, i, v)}
-                          onPick={(text) => { setFrameFill(item.instanceId, i, text); setOpenFramePicker(null); }}
-                          placeholder={SLOT_LABELS[seg.slot]}
-                          color={color}
-                          bank={bank}
-                          open={openFramePicker === pickerKey}
-                          onToggleOpen={() => setOpenFramePicker((v) => (v === pickerKey ? null : pickerKey))}
-                        />
-                      );
-                    })}
-                  </div>
-                  {isComplete && (
-                    <div style={{ marginTop: 10 }}>
-                      {/* A23-ROADMAP Phase 1: was a read-only <input>, now a
-                          styled div so the synced-TTS word highlight can
-                          render inside it while a voice button below reads
-                          it aloud (an <input>'s value can't hold markup). */}
-                      <div
-                        role="textbox"
-                        aria-readonly="true"
-                        aria-label="Completed sentence"
-                        style={{ width: '100%', boxSizing: 'border-box', fontWeight: 700, fontFamily: "'Baloo 2', sans-serif", fontSize: '0.9rem', border: '2px solid var(--ink)', borderRadius: 6, padding: '6px 8px', background: 'white' }}
-                      >
-                        <HighlightedText text={displaySentenceText} active={tts.activeId === `sf-${item.instanceId}`} wordIndex={tts.wordIndex} />
-                      </div>
-                      <div className="row-wrap" style={{ gap: 6, marginTop: 6, alignItems: 'center' }}>
-                        <button className="btn btn-sm" onClick={() => tts.speakSynced(`sf-${item.instanceId}`, sentenceText, ttsSettings)}>🔈 Read it</button>
-                        <button className="btn btn-sm" onClick={() => pasteSentenceToTextBox(displaySentenceText)} title="Add this sentence to your paragraph text box">📋 Add to paragraph</button>
-                      </div>
-                    </div>
-                  )}
-                  {/* Grammar + capitalization check — direct teacher
-                      instruction, calm SEL framing (never "wrong",
-                      just what to check), always has a 🔈 to hear the
-                      notice either way. */}
-                  {hasCheck && (
-                    <div className="chrome-frame" style={{ marginTop: 10, padding: 8, fontSize: '0.75rem', background: allOk ? '#f0fdf4' : '#fffbeb' }}>
-                      <div className="space-between" style={{ alignItems: 'center', marginBottom: allOk ? 0 : 4 }}>
-                        <strong>{allOk ? '✅ Looks correct!' : '💡 A few things to check'}</strong>
-                        {/* A23-ROADMAP Phase 1: shared synced-TTS engine.
-                            No word-highlight rendered against the bullet
-                            list below, since its wording is reformatted
-                            for scanning (not the same string as
-                            checkSpeech) — highlighting against mismatched
-                            text would mislead more than help, a deliberate
-                            scope call rather than an oversight. */}
-                        <SyncedSpeakButton id={`check-${item.instanceId}`} text={checkSpeech} tts={tts} settings={ttsSettings} style={{ padding: '2px 8px', minHeight: 26 }} ariaLabel="Hear the check" />
-                      </div>
-                      {!allOk && (
-                        <ul style={{ margin: 0, paddingLeft: 16 }}>
-                          {wordIssues.map((r, i) => (
-                            <li key={`w${i}`}>
-                              <strong>{r.label}:</strong> "{r.typed}" — words that usually fit here: {r.suggestions.join(', ')}
-                            </li>
-                          ))}
-                          {capIssues.map((msg, i) => (
-                            <li key={`c${i}`}>{msg}</li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
             {placed.filter((p) => p.kind === 'textbox').map((item) => (
               <TextBoxWidget
                 key={item.instanceId}
@@ -2421,86 +1809,23 @@ export default function LiteracyManipulatives() {
                 onActivate={() => setActiveTextBoxId(item.instanceId)}
               />
             ))}
-            {placed.filter((p) => p.kind === 'syllableTapper').map((item) => (
-              <SyllableTapperWidget
-                key={item.instanceId}
-                item={item}
-                onPointerDown={startDragPlaced(item.instanceId)}
-                onPointerMove={onDragMove}
-                onPointerUp={onDragEnd}
-                onWordChange={(v) => setSyllableWord(item.instanceId, v)}
-                onTapCountChange={(c) => setSyllableTapCount(item.instanceId, c)}
-                onRemove={() => removePlacedItem(item.instanceId)}
-              />
-            ))}
-            {placed.filter((p) => p.kind === 'dictation').map((item) => (
-              <DictationWidget
-                key={item.instanceId}
-                item={item}
-                wordOptions={dictationWordOptions}
-                onPointerDown={startDragPlaced(item.instanceId)}
-                onPointerMove={onDragMove}
-                onPointerUp={onDragEnd}
-                onPromptChange={(v) => setDictationPrompt(item.instanceId, v)}
-                onAnswerChange={(v) => setDictationAnswer(item.instanceId, v)}
-                onRemove={() => removePlacedItem(item.instanceId)}
-                tts={tts}
-                settings={ttsSettings}
-              />
-            ))}
-            {placed.filter((p) => p.kind === 'wordMatrix').map((item) => (
-              <WordMatrixWidget
-                key={item.instanceId}
-                item={item}
-                onPointerDown={startDragPlaced(item.instanceId)}
-                onPointerMove={onDragMove}
-                onPointerUp={onDragEnd}
-                onRootChange={(rootId) => setMatrixRoot(item.instanceId, rootId)}
-                onRemove={() => removePlacedItem(item.instanceId)}
-              />
-            ))}
-            {/* Reverse Morphology prompt cards — same "title text is the
-                drag handle" pattern Sentence Formula cards established,
-                so the 🔈/✕ buttons in the body never fight canvas-drag. */}
-            {placed.filter((p) => p.kind === 'reverseMorphPrompt').map((item) => {
-              const word = item.reverseMorphWord ?? '';
-              const speakId = `revmorph-${item.instanceId}`;
-              const promptText = `Can you build "${word}" using morpheme pieces? Look for a root and one or more prefixes or suffixes that combine to make this word.`;
-              return (
-                <div
-                  key={item.instanceId}
-                  className="chrome-frame"
-                  style={{ position: 'absolute', left: item.x, top: item.y, width: 220, padding: 8, fontSize: '0.72rem', zIndex: 4 }}
-                >
-                  <div className="space-between" style={{ alignItems: 'center', marginBottom: 4 }}>
-                    <strong style={{ cursor: 'grab', touchAction: 'none', fontSize: '0.78rem' }} onPointerDown={startDragPlaced(item.instanceId)} onPointerMove={onDragMove} onPointerUp={onDragEnd}>
-                      🔁 Build "{word}"
-                    </strong>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <SyncedSpeakButton id={speakId} text={promptText} tts={tts} settings={ttsSettings} style={{ padding: '2px 6px', minHeight: 22 }} />
-                      <button type="button" className="btn btn-sm" style={{ padding: '2px 6px', minHeight: 22 }} onClick={() => removePlacedItem(item.instanceId)} aria-label="Remove this prompt">✕</button>
-                    </div>
-                  </div>
-                  <div>
-                    <HighlightedText text={promptText} active={tts.activeId === speakId} wordIndex={tts.wordIndex} />
-                  </div>
-                </div>
-              );
-            })}
-            {/* Writing Scaffolds — reuses the existing frameFills/
-                setFrameFill (already built for Sentence Formulas) and
-                pasteSentenceToTextBox (already built for "Add to
-                paragraph"), so a Writing Frame's assembled text can join
-                the same running paragraph Sentence Formulas already
-                build into. */}
+            {/* Writing Scaffolds. Each line is also a drop zone (her request 2026-10-15): drop Grammar Symbols,
+                Symbol Sentences, punctuation, or a whole snapped row onto a line and they move into it, shown as
+                symbols with their word bubbles (still editable, ✕ to take one out). "Add to paragraph" sends the
+                finished text to the active Text Box. */}
             {placed.filter((p) => p.kind === 'writingFrame').map((item) => {
               const frame = WRITING_FRAMES.find((f) => f.id === item.writingFrameId);
               if (!frame) return null;
               const fills = item.frameFills ?? {};
-              const assembled = frame.lines.map((line, i) => `${line}${fills[i] ?? ''}`).join(' ').trim();
+              const lineText = (i: number) => {
+                const tokens = item.lineTokens?.[i] ?? [];
+                const fromSymbols = tokens.reduce((acc, t) => (t.type === 'punct' ? `${acc}${t.mark}` : `${acc}${acc ? ' ' : ''}${t.word}`), '');
+                return `${frame.lines[i]}${[fromSymbols, fills[i] ?? ''].filter(Boolean).join(' ')}`;
+              };
+              const assembled = frame.lines.map((_, i) => lineText(i)).join(' ').replace(/\s+/g, ' ').trim();
               const speakId = `wf-${item.instanceId}`;
               return (
-                <div key={item.instanceId} className="chrome-frame" style={{ position: 'absolute', left: item.x, top: item.y, padding: 10, width: 280, zIndex: 4 }}>
+                <div key={item.instanceId} ref={setItemRef(item.instanceId)} className="chrome-frame" style={{ position: 'absolute', left: item.x, top: item.y, padding: 10, minWidth: 300, maxWidth: 720, zIndex: 4 }}>
                   <div className="space-between" style={{ alignItems: 'center', marginBottom: 6 }}>
                     <strong style={{ cursor: 'grab', touchAction: 'none', fontSize: '0.8rem' }} onPointerDown={startDragPlaced(item.instanceId)} onPointerMove={onDragMove} onPointerUp={onDragEnd}>
                       📝 {frame.title}
@@ -2508,16 +1833,41 @@ export default function LiteracyManipulatives() {
                     <button type="button" className="btn btn-sm" onClick={() => removePlacedItem(item.instanceId)} aria-label={`Remove ${frame.title}`}>✕</button>
                   </div>
                   <div className="stack" style={{ gap: 6 }}>
-                    {frame.lines.map((line, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <span style={{ fontWeight: 700, fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{line}</span>
-                        <input
-                          value={fills[i] ?? ''}
-                          onChange={(e) => setFrameFill(item.instanceId, i, e.target.value)}
-                          style={{ flex: 1, border: '2px solid var(--content-border)', borderRadius: 6, padding: '4px 6px', fontSize: '0.8rem', minWidth: 0 }}
-                        />
-                      </div>
-                    ))}
+                    {frame.lines.map((line, i) => {
+                      const tokens = item.lineTokens?.[i] ?? [];
+                      return (
+                        <div key={i} className={`lm-wf-line${tokens.length ? ' has-symbols' : ''}`} data-wf-frame={item.instanceId} data-wf-line={i}>
+                          <span style={{ fontWeight: 700, fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{line}</span>
+                          {tokens.length > 0 && (
+                            <div className="lm-wf-tokens">
+                              {tokens.map((t, ti) => (t.type === 'punct' ? (
+                                <span key={ti} className="lm-wf-punct" title="Tap to remove" onClick={() => setLineToken(item.instanceId, i, ti, null)}>{t.mark}</span>
+                              ) : (
+                                <span key={ti} className="lm-wf-token">
+                                  <img src={MONTESSORI_WORD_CLASS_INFO[t.wordClass].imageUrl} alt={MONTESSORI_WORD_CLASS_INFO[t.wordClass].name} draggable={false} />
+                                  <input
+                                    value={t.word}
+                                    placeholder={MONTESSORI_WORD_CLASS_INFO[t.wordClass].name.toLowerCase()}
+                                    size={Math.max(3, (t.word || MONTESSORI_WORD_CLASS_INFO[t.wordClass].name).length)}
+                                    aria-label={`${MONTESSORI_WORD_CLASS_INFO[t.wordClass].name} word`}
+                                    onChange={(e) => setLineToken(item.instanceId, i, ti, stripPunctuation(e.target.value))}
+                                    style={{ borderColor: MONTESSORI_WORD_CLASS_INFO[t.wordClass].color, color: BUBBLE_BLACK, background: BUBBLE_WHITE }}
+                                  />
+                                  <button type="button" className="lm-ctl" style={{ width: 22, height: 22, fontSize: 10 }} onClick={() => setLineToken(item.instanceId, i, ti, null)} aria-label="Take this word out">✕</button>
+                                </span>
+                              )))}
+                            </div>
+                          )}
+                          <input
+                            value={fills[i] ?? ''}
+                            onChange={(e) => setFrameFill(item.instanceId, i, e.target.value)}
+                            placeholder={tokens.length ? '' : 'Type, or drop symbols here'}
+                            aria-label={`${line.trim()} line`}
+                            style={{ flex: 1, border: '2px solid var(--content-border)', borderRadius: 6, padding: '4px 6px', fontSize: '0.8rem', minWidth: 80 }}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                   <div className="row-wrap" style={{ gap: 6, marginTop: 8, alignItems: 'center' }}>
                     {assembled && (
@@ -2525,61 +1875,6 @@ export default function LiteracyManipulatives() {
                     )}
                     <button type="button" className="btn btn-sm" onClick={() => pasteSentenceToTextBox(assembled)} disabled={!assembled} title="Add this to your paragraph text box">📋 Add to paragraph</button>
                   </div>
-                </div>
-              );
-            })}
-            {/* Heart Words, placed as one unit — the student taps each
-                letter of the word to toggle a heart marker over it
-                themselves (self-directed, see heartWordContent.ts). */}
-            {placed.filter((p) => p.kind === 'heartWord').map((item) => {
-              const def = HEART_WORDS.find((h) => h.id === item.heartWordId);
-              if (!def) return null;
-              const hearts = new Set(item.heartIndices ?? []);
-              const selected = selectedId === item.instanceId;
-              return (
-                <div key={item.instanceId} style={{ position: 'absolute', left: item.x, top: item.y, zIndex: 2 }}>
-                  <Draggable
-                    label={def.word}
-                    onPointerDown={startDragPlaced(item.instanceId)}
-                    onPointerMove={onDragMove}
-                    onPointerUp={onDragEnd}
-                    style={selected ? { boxShadow: '0 0 0 3px rgba(124,58,237,0.35)', borderRadius: 10, padding: 2 } : { padding: 2 }}
-                  >
-                    <div style={{ display: 'flex', gap: 2 }}>
-                      {def.word.split('').map((ch, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => toggleHeartIndex(item.instanceId, i)}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          aria-label={hearts.has(i) ? `Letter ${ch}, marked as a heart letter, tap to unmark` : `Letter ${ch}, tap to mark as a heart letter`}
-                          style={{
-                            position: 'relative', width: 28, height: 34, border: '2px solid var(--ink)', borderRadius: 6, background: 'white',
-                            fontWeight: 800, fontFamily: "'Baloo 2', sans-serif", fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
-                          }}
-                        >
-                          {ch}
-                          {hearts.has(i) && <span style={{ position: 'absolute', top: -12, fontSize: '0.85rem', color: LM_HEART_COLOR }} aria-hidden="true">❤️</span>}
-                        </button>
-                      ))}
-                    </div>
-                  </Draggable>
-                  {selected && (
-                    <button
-                      type="button"
-                      className="lm-item-controls"
-                      onClick={() => removePlacedItem(item.instanceId)}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      aria-label="Remove this Heart Word"
-                      style={{
-                        position: 'absolute', top: -10, right: -10, width: 20, height: 20, borderRadius: '50%',
-                        border: '2px solid var(--ink)', background: '#fee2e2', color: '#991b1b', fontSize: 11, fontWeight: 900,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, lineHeight: 1, zIndex: 3,
-                      }}
-                    >
-                      ✕
-                    </button>
-                  )}
                 </div>
               );
             })}

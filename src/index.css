@@ -430,3 +430,29 @@ button {
 .lm-bubble-toggle button.on { border-color: var(--ink, #1f1147); background: #ede9fe; }
 .lm-bubble-swatch { width: 22px; height: 12px; border-radius: 999px; border: 3px solid #d02028; display: inline-block; }
 .lm-bubble-swatch.solid { background: #d02028; }
+
+/* Movable pop-ups (FloatingCard.tsx): always an ✕, drag the title bar to move. */
+.lm-float { position: absolute; z-index: 20; background: #fff; border: 3px solid var(--ink); border-radius: 12px; box-shadow: 0 6px 16px rgba(31, 17, 71, 0.18); font-size: 0.85rem; }
+.lm-float-bar { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 8px; background: #f1edff; border-bottom: 2px solid var(--ink); border-radius: 9px 9px 0 0; cursor: grab; touch-action: none; user-select: none; }
+.lm-float-bar:active { cursor: grabbing; }
+.lm-float-grip { opacity: 0.5; font-size: 0.9rem; }
+.lm-float-title { flex: 1; font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 0.95rem; }
+.lm-float-x { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--ink); background: #fee2e2; color: #991b1b; font-weight: 900; cursor: pointer; flex-shrink: 0; }
+.lm-float-body { padding: 10px 12px; line-height: 1.4; }
+.lm-float-kind { display: inline-block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 1px 8px; border-radius: 999px; background: #ede9fe; margin-bottom: 4px; }
+.lm-float-parts { margin: 6px 0 0; padding-left: 18px; }
+
+/* Morpheme tray search */
+.lm-tray-search { width: 100%; box-sizing: border-box; border: 2px solid var(--content-border); border-radius: 8px; padding: 6px 8px; font-size: 0.85rem; min-height: 40px; }
+
+/* Sound box resize handle */
+.lm-resize-handle { position: absolute; right: -12px; bottom: -12px; width: 26px; height: 26px; border-radius: 6px; border: 2px solid var(--ink); background: #fff; cursor: nwse-resize; touch-action: none; display: flex; align-items: center; justify-content: center; font-size: 13px; z-index: 3; }
+
+/* Writing scaffold lines that hold dropped grammar symbols */
+.lm-wf-line { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 4px; border-radius: 8px; border: 2px dashed transparent; }
+.lm-wf-line.has-symbols { border-color: var(--content-border); }
+.lm-wf-tokens { display: flex; align-items: flex-end; gap: 4px; flex-wrap: wrap; }
+.lm-wf-token { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.lm-wf-token img { width: 30px; height: 30px; object-fit: contain; }
+.lm-wf-token input { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 0.8rem; text-align: center; border: 3px solid; border-radius: 999px; padding: 0 6px; height: 28px; min-width: 40px; }
+.lm-wf-punct { font-family: 'Baloo 2', sans-serif; font-weight: 900; font-size: 1.2rem; background: #b3b3b3; border-radius: 999px; width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; }
