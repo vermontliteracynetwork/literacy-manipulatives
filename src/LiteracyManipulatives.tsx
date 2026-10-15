@@ -1864,7 +1864,7 @@ export default function LiteracyManipulatives() {
             <button className="btn btn-sm" onClick={() => setConfirmClear(true)} disabled={placed.length === 0}>Clear</button>
             <span className="lm-toolbar-divider" />
             <button className="btn btn-sm" onClick={zoomOut} disabled={zoom <= 0.5} aria-label="Zoom out">−</button>
-            <button className="btn btn-sm" onClick={zoomReset} aria-label="Reset zoom">{Math.round(zoom * 100)}%</button>
+            <button className="btn btn-sm" onDoubleClick={zoomReset} aria-label="Double click to go back to the start view" title="Double click to go back to the start view">{Math.round(zoom * 100)}%</button>
             <button className="btn btn-sm" onClick={zoomIn} disabled={zoom >= 2} aria-label="Zoom in">+</button>
             <span className="lm-toolbar-divider" />
             {/* Share replaces Print and Projector Mode (her request 2026-10-15). */}
