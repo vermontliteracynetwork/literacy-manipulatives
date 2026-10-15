@@ -54,7 +54,6 @@ export const LM_HEART_COLOR = '#e11d48';
 export const LM_WORD_CHAIN_COLOR = '#a7f3d0';
 
 // Writing Scaffolds (Phase 3).
-export const LM_WRITING_SCAFFOLD_COLOR = '#e0e7ff';
 
 // Phonological Awareness (Phase 3).
 export const LM_PHONO_COLOR = '#fce7f3';

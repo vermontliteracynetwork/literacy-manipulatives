@@ -46,6 +46,14 @@ export function randomWordFor(cls: MontessoriWordClass): string {
   return pick(SANDBOX_VERBS).text;
 }
 
+// A random word placed in a sentence: capitalized when it starts the sentence, when it's a proper noun, and
+// for the word I (her request 2026-10-15).
+export function randomWordInSentence(cls: MontessoriWordClass, first: boolean): string {
+  const w = randomWordFor(cls);
+  if (first || cls === 'propernoun' || w.toLowerCase() === 'i') return w.charAt(0).toUpperCase() + w.slice(1);
+  return w;
+}
+
 // A Symbol Sentence as icons in order: one per word, plus a separate punctuation icon wherever the real
 // sentence has a mark (the comma after "Softly", the period at the end). Every sentence ends with one.
 export type SentenceToken = { type: 'word'; index: number } | { type: 'punct'; slot: number; mark: string };

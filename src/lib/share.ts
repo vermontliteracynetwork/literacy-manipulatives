@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type React from 'react';
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
 
 // Live sharing (her request 2026-10-15): the teacher presses Share and gets a 4-digit code; students open the
@@ -26,7 +27,7 @@ function getClient(): SupabaseClient | null {
 
 export type Access = 'view' | 'edit';
 export interface SharedStudent { id: string; name: string }
-export interface Snapshot<P, S> { placed: P[]; strokes: S[]; access: Record<string, Access> }
+export interface Snapshot<P, S> { placed: P[]; strokes: S[]; access: Record<string, Access>; font?: string }
 // A student's edits, sent as changes against the last board they saw so two students moving different pieces
 // at once never undo each other.
 export interface Ops<P, S> { from: string; upserts: P[]; removes: string[]; strokeAdds: S[]; strokeRemoves: string[] }
@@ -37,6 +38,53 @@ const channelName = (code: string) => `lm-board-${code}`;
 // pointing finger, 'mouse' an arrow. null means the teacher's pointer left the board.
 export type TeacherPointer = { x: number; y: number; kind: 'mouse' | 'touch' } | null;
 const POINTER_EVERY_MS = 50;
+
+// What each person on a shared board has selected or is moving (her request 2026-10-15), shown on everyone
+// else's screen as an outline in that person's color. Each person gets a random color when they join.
+export interface RemoteFocus { from: string; name: string; color: string; ids: string[] }
+const FOCUS_COLORS = ['#E5484D', '#F76B15', '#E2A500', '#30A46C', '#12A594', '#0090FF', '#3E63DD', '#8E4EC6', '#D6409F', '#AD7F58'];
+export const myColor = (() => {
+  try {
+    const existing = sessionStorage.getItem('lm-color');
+    if (existing) return existing;
+    const c = FOCUS_COLORS[Math.floor(Math.random() * FOCUS_COLORS.length)];
+    sessionStorage.setItem('lm-color', c);
+    return c;
+  } catch {
+    return FOCUS_COLORS[Math.floor(Math.random() * FOCUS_COLORS.length)];
+  }
+})();
+const FOCUS_RESEND_MS = 3000;
+
+// Listens for everyone else's focus on a channel, forgetting people who leave.
+function useFocusChannel() {
+  const [remote, setRemote] = useState<Record<string, RemoteFocus>>({});
+  const listen = useCallback((ch: RealtimeChannel) => {
+    ch.on('broadcast', { event: 'focus' }, ({ payload }) => {
+      const f = payload as RemoteFocus;
+      setRemote((m) => ({ ...m, [f.from]: f }));
+    });
+  }, []);
+  const prune = useCallback((keys: string[]) => {
+    setRemote((m) => {
+      const keep = Object.fromEntries(Object.entries(m).filter(([k]) => keys.includes(k)));
+      return Object.keys(keep).length === Object.keys(m).length ? m : keep;
+    });
+  }, []);
+  return { remote, listen, prune, clear: () => setRemote({}) };
+}
+
+// Sends this person's focus whenever it changes, and every few seconds so people who join later see it too.
+function useSendFocus(channelRef: React.MutableRefObject<RealtimeChannel | null>, live: boolean, from: string | null, name: string, ids: string[]) {
+  const key = ids.join(',');
+  useEffect(() => {
+    if (!live || !from) return;
+    const send = () => { void channelRef.current?.send({ type: 'broadcast', event: 'focus', payload: { from, name, color: myColor, ids: key ? key.split(',') : [] } satisfies RemoteFocus }); };
+    send();
+    const t = window.setInterval(send, FOCUS_RESEND_MS);
+    return () => window.clearInterval(t);
+  }, [live, from, name, key, channelRef]);
+}
 
 // Joins a channel and waits until Supabase confirms it (or says why not), instead of waiting forever.
 // Resolves to null when joined, or a short reason a teacher can act on.
@@ -64,8 +112,9 @@ const BROADCAST_EVERY_MS = 80;
 
 // ---------- Teacher ----------
 export function useHostSession<P extends { instanceId: string }, S extends { id: string }>(
-  placed: P[], strokes: S[], applyOps: (ops: Ops<P, S>) => void,
+  placed: P[], strokes: S[], applyOps: (ops: Ops<P, S>) => void, font?: string, focusIds: string[] = [],
 ) {
+  const focus = useFocusChannel();
   const [code, setCode] = useState<string | null>(null);
   const [students, setStudents] = useState<SharedStudent[]>([]);
   const [access, setAccess] = useState<Record<string, Access>>({});
@@ -73,8 +122,8 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
   const channelRef = useRef<RealtimeChannel | null>(null);
   const accessRef = useRef(access);
   const applyRef = useRef(applyOps);
-  const latest = useRef({ placed, strokes, access });
-  useEffect(() => { accessRef.current = access; applyRef.current = applyOps; latest.current = { placed, strokes, access }; });
+  const latest = useRef<Snapshot<P, S>>({ placed, strokes, access, font });
+  useEffect(() => { accessRef.current = access; applyRef.current = applyOps; latest.current = { placed, strokes, access, font }; });
 
   const sendSnapshot = useCallback(() => {
     const ch = channelRef.current;
@@ -104,8 +153,10 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
           if (meta?.role === 'student') list.push({ id: key, name: meta.name || 'Student' });
         }
         setStudents(list);
+        focus.prune(Object.keys(ch.presenceState()));
       });
       ch.on('broadcast', { event: 'hello' }, () => sendSnapshot());
+      focus.listen(ch);
       ch.on('broadcast', { event: 'ops' }, ({ payload }) => {
         const ops = payload as Ops<P, S>;
         if (accessRef.current[ops.from] === 'edit') applyRef.current(ops);
@@ -122,7 +173,7 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
     }
     setError('Every code tried was busy. Press Share again.');
     setStatus('error');
-  }, [sendSnapshot]);
+  }, [sendSnapshot, focus.listen, focus.prune]);
 
   const stop = useCallback(async () => {
     const ch = channelRef.current;
@@ -131,6 +182,7 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
     setStudents([]);
     setAccess({});
     setStatus('off');
+    focus.clear();
     if (ch) {
       await ch.send({ type: 'broadcast', event: 'ended', payload: {} });
       await getClient()?.removeChannel(ch);
@@ -142,7 +194,7 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
     if (status !== 'live') return;
     const t = window.setTimeout(sendSnapshot, BROADCAST_EVERY_MS);
     return () => window.clearTimeout(t);
-  }, [placed, strokes, access, students, status, sendSnapshot]);
+  }, [placed, strokes, access, students, status, font, sendSnapshot]);
 
   useEffect(() => () => { const ch = channelRef.current; if (ch) void getClient()?.removeChannel(ch); }, []);
 
@@ -167,8 +219,10 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
     else pendingPointer.current = window.setTimeout(go, wait);
   }, []);
 
+  useSendFocus(channelRef, status === 'live', code ? `teacher-${code}` : null, 'Teacher', focusIds);
+
   const setStudentAccess = (id: string, a: Access) => setAccess((m) => ({ ...m, [id]: a }));
-  return { code, students, access, status, error, start, stop, setStudentAccess, sendPointer };
+  return { code, students, access, status, error, start, stop, setStudentAccess, sendPointer, remoteFocus: focus.remote };
 }
 
 // ---------- Student ----------
@@ -185,8 +239,9 @@ export const studentId = (() => {
 })();
 
 export function useStudentSession<P extends { instanceId: string }, S extends { id: string }>(
-  onSnapshot: (snap: Snapshot<P, S>) => void,
+  onSnapshot: (snap: Snapshot<P, S>) => void, focusIds: string[] = [],
 ) {
+  const focus = useFocusChannel();
   const [status, setStatus] = useState<'idle' | 'checking' | 'joined' | 'not-found' | 'ended' | 'error'>('idle');
   const [access, setAccess] = useState<Access>('view');
   const [name, setName] = useState('');
@@ -209,6 +264,7 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
     let teacherHere = false;
     ch.on('presence', { event: 'sync' }, () => {
       teacherHere = Object.keys(ch.presenceState()).some((k) => k.startsWith('teacher-'));
+      focus.prune(Object.keys(ch.presenceState()));
       // Once joined, a teacher gone for a few seconds (tab closed, computer asleep) means the board is closed.
       if (goneTimer.current) { window.clearTimeout(goneTimer.current); goneTimer.current = null; }
       if (!teacherHere && joinedRef.current) {
@@ -221,6 +277,7 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
       snapRef.current(snap);
     });
     ch.on('broadcast', { event: 'ended' }, () => setStatus('ended'));
+    focus.listen(ch);
     ch.on('broadcast', { event: 'pointer' }, ({ payload }) => setTeacherPointer((payload as { p: TeacherPointer }).p ?? null));
     const problem = await joinChannel(ch);
     if (problem) { await supa.removeChannel(ch); setError(problem); setStatus('error'); return false; }
@@ -229,7 +286,7 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
     channelRef.current = ch;
     setStatus('idle');
     return true;
-  }, []);
+  }, [focus.listen, focus.prune]);
 
   // Step 2: show up in the teacher's list by name and ask for the board.
   const join = useCallback(async (studentName: string) => {
@@ -248,7 +305,9 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
 
   useEffect(() => () => { const ch = channelRef.current; if (ch) void getClient()?.removeChannel(ch); }, []);
 
-  return { status, access, name, error, checkCode, join, sendOps, teacherPointer };
+  useSendFocus(channelRef, status === 'joined' && access === 'edit', studentId, name, focusIds);
+
+  return { status, access, name, error, checkCode, join, sendOps, teacherPointer, remoteFocus: focus.remote };
 }
 
 // Changes from `before` to `after`, by id. Positions of pieces that are snapped into a row or a Sound Box are
