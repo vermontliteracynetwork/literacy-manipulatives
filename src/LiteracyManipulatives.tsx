@@ -15,7 +15,7 @@ import { isFontChoice, useFontChoice, type FontChoice } from './lib/fontChoice';
 import { diffItems, isJoinRoute, shareConfigured, studentId as myStudentId, useHostSession, useStudentSession, type Ops, type Snapshot } from './lib/share';
 import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from './lib/montessoriGrammar';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
-import { searchSymbolSentences, symbolsForWords, type PatternWord } from './lib/sentenceSearch';
+import { searchSymbolSentences, symbolsForWords, wordMismatch, type PatternWord } from './lib/sentenceSearch';
 import { PUNCTUATION_MARKS } from './lib/punctuationContent';
 import { BUBBLE_BLACK, BUBBLE_WHITE, nextPunct, randomWordInSentence, sentenceTokens, stripPunctuation, textOn, type BubbleStyle } from './lib/wordBubbles';
 import {
@@ -497,9 +497,11 @@ function Category({ label, color, open, onToggle, children }: {
 // The word bubble attached under a Grammar Symbol (her picture, 2026-10-15): a pill in the symbol's own color,
 // outlined or solid, that a student taps and types into. Typing never starts a drag, and punctuation is kept
 // out (it gets its own icon).
-function WordBubble({ value, placeholder, color, bubbleStyle, onChange, label, owner, idx = 0 }: {
+// A word that doesn't fit its symbol (her request 2026-10-15) shows faded, with bold red text.
+const fade = (hex: string) => (/^#[0-9a-f]{6}$/i.test(hex) ? `${hex}66` : hex);
+function WordBubble({ value, placeholder, color, bubbleStyle, onChange, label, owner, idx = 0, wrong = false }: {
   value: string; placeholder: string; color: string; bubbleStyle: BubbleStyle; onChange: (v: string) => void; label: string;
-  owner?: string; idx?: number;
+  owner?: string; idx?: number; wrong?: boolean;
 }) {
   const solid = bubbleStyle === 'solid';
   const shown = value || placeholder;
@@ -514,7 +516,10 @@ function WordBubble({ value, placeholder, color, bubbleStyle, onChange, label, o
       size={Math.max(4, shown.length + 1)}
       onPointerDown={(e) => e.stopPropagation()}
       onChange={(e) => onChange(stripPunctuation(e.target.value))}
-      style={{ borderColor: color, background: solid ? color : BUBBLE_WHITE, color: solid ? textOn(color) : BUBBLE_BLACK }}
+      aria-invalid={wrong || undefined}
+      style={wrong
+        ? { borderColor: fade(color), background: solid ? fade(color) : BUBBLE_WHITE, color: '#D2222E', fontWeight: 900 }
+        : { borderColor: color, background: solid ? color : BUBBLE_WHITE, color: solid ? textOn(color) : BUBBLE_BLACK }}
     />
   );
 }
@@ -1116,6 +1121,32 @@ export default function LiteracyManipulatives() {
   // double tap) opens a little toolbar with what that piece can do: random words, outline or solid bubbles,
   // group or ungroup, and so on. Grouped pieces share one gear and one toolbar until they're ungrouped.
   const [toolsFor, setToolsFor] = useState<string | null>(null);
+  const placedNow = useRef(placed);
+  useEffect(() => { placedNow.current = placed; });
+  // The gear and X only show after a double tap (her request 2026-10-15); a tap or drag just moves and selects.
+  const [badgesFor, setBadgesFor] = useState<string | null>(null);
+  const showBadges = (id: string) => { setSelectedId(id); setBadgesFor(id); };
+  useEffect(() => {
+    if (badgesFor && selectedId !== badgesFor) {
+      const unit = unitOf(badgesFor);
+      if (!unit.some((pp) => pp.instanceId === selectedId)) { setBadgesFor(null); setToolsFor(null); }
+      else setBadgesFor(selectedId);
+    }
+  }, [selectedId, badgesFor]);
+  // A typed word that doesn't fit its symbol gets a small movable note (her request 2026-10-15), shown once the
+  // typing pauses. Closing it hides it for that word.
+  const [wordAlert, setWordAlert] = useState<{ key: string; owner: string; word: string; cls: MontessoriWordClass; looks: MontessoriWordClass; dx: number; dy: number } | null>(null);
+  const dismissedAlerts = useRef(new Set<string>());
+  const alertTimer = useRef<number | null>(null);
+  const checkTyped = (owner: string, idx: number, word: string, cls: MontessoriWordClass) => {
+    if (alertTimer.current) window.clearTimeout(alertTimer.current);
+    alertTimer.current = window.setTimeout(() => {
+      const looks = wordMismatch(word, cls);
+      const key = `${owner}:${idx}:${word.trim().toLowerCase()}`;
+      if (looks && !dismissedAlerts.current.has(key)) setWordAlert((a) => ({ key, owner, word: word.trim(), cls, looks, dx: a?.owner === owner ? a.dx : 0, dy: a?.owner === owner ? a.dy : 0 }));
+      else setWordAlert((a) => (a && a.key.startsWith(`${owner}:${idx}:`) ? null : a));
+    }, 600);
+  };
   // A student switched to view only (her request 2026-10-15): nothing stays selected or half-dragged.
   useEffect(() => {
     if (!studentViewOnly) return;
@@ -1322,12 +1353,12 @@ export default function LiteracyManipulatives() {
         return off ? { ...pp, x: anchorX + off.dx, y: anchorY + off.dy } : pp;
       }));
     };
-    const up = () => {
+    const up = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       dragInstanceRef.current = null;
       const anchorId = spawned[spawned.length - 1].instanceId;
-      handleDrop(anchorId, kind);
+      handleDrop(anchorId, kind, ev.clientX, ev.clientY);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -1380,6 +1411,18 @@ export default function LiteracyManipulatives() {
     const sentence = card && ALL_SYMBOL_SENTENCES.find((ss) => ss.id === card.symbolSentenceId);
     if (!card || !sentence) return;
     pushHistory();
+    const pieces = piecesFromCard(card, sentence);
+    if (!pieces.length) return;
+    const lastId = pieces[pieces.length - 1].instanceId;
+    setPlaced((p) => [
+      ...p.filter((pp) => pp.instanceId !== instanceId).map((pp) => (pp.snapLeftId === instanceId ? { ...pp, snapLeftId: lastId } : pp)),
+      ...pieces,
+    ]);
+    setSelectedId(null);
+    setToolsFor(null);
+  };
+  // A card's words and end mark as separate symbols, chained left to right.
+  const piecesFromCard = (card: PlacedItem, sentence: SymbolSentence): PlacedItem[] => {
     const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const pieces: PlacedItem[] = [];
     for (const t of sentenceTokens(sentence)) {
@@ -1395,14 +1438,44 @@ export default function LiteracyManipulatives() {
         pieces.push({ instanceId: id, kind: 'shape', wordClass: w.wordClass, bubbleWord: card.wordFills?.[t.index] ?? w.word, bubbleStyle: card.bubbleStyle, snapLeftId: left, x: card.x + pieces.length * 120, y: card.y, groupId: card.groupId, addedBy: card.addedBy });
       }
     }
-    if (!pieces.length) return;
-    const lastId = pieces[pieces.length - 1].instanceId;
+    return pieces;
+  };
+  // Dropping a symbol (or a punctuation tile, or a snapped row of them) onto a Symbol Sentence card puts it in
+  // the sentence where it was dropped (her request 2026-10-15): the card opens up into separate symbols with the
+  // new one snapped in between, just like dropping between snapped symbols.
+  const tryInsertIntoSentence = (id: string, clientX: number, clientY: number): boolean => {
+    // A drag from the tray finishes in a listener made before the new piece existed, so read the latest board.
+    const placed = placedNow.current;
+    const moving = rowFrom(placed, id);
+    if (!moving.length || !moving.every((pp) => pp.kind === 'shape' || pp.kind === 'punctuation')) return false;
+    const movingIds = new Set(moving.map((pp) => pp.instanceId));
+    const card = placed.find((pp) => {
+      if (pp.kind !== 'symbolSentence' || movingIds.has(pp.instanceId)) return false;
+      const r = itemRefs.current.get(pp.instanceId)?.getBoundingClientRect();
+      return !!r && clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+    });
+    const sentence = card && ALL_SYMBOL_SENTENCES.find((ss) => ss.id === card.symbolSentenceId);
+    const el = card && itemRefs.current.get(card.instanceId);
+    if (!card || !sentence || !el) return false;
+    const pieces = piecesFromCard(card, sentence);
+    const centers = [...el.querySelectorAll('.lm-sentence-col')].map((c) => { const r = c.getBoundingClientRect(); return r.left + r.width / 2; });
+    if (centers.length !== pieces.length) return false;
+    const at = centers.filter((cx) => cx < clientX).length;
+    const ordered = [...pieces.slice(0, at), ...moving, ...pieces.slice(at)];
+    const chain = new Map(ordered.map((pp, i) => [pp.instanceId, i ? ordered[i - 1].instanceId : card.snapLeftId]));
+    const lastId = ordered[ordered.length - 1].instanceId;
     setPlaced((p) => [
-      ...p.filter((pp) => pp.instanceId !== instanceId).map((pp) => (pp.snapLeftId === instanceId ? { ...pp, snapLeftId: lastId } : pp)),
-      ...pieces,
+      ...p.filter((pp) => pp.instanceId !== card.instanceId).map((pp) => {
+        if (movingIds.has(pp.instanceId)) return { ...pp, snapLeftId: chain.get(pp.instanceId), groupId: card.groupId };
+        if (pp.snapLeftId === card.instanceId) return { ...pp, snapLeftId: lastId };
+        return pp;
+      }),
+      ...pieces.map((pp) => ({ ...pp, snapLeftId: chain.get(pp.instanceId) })),
     ]);
-    setSelectedId(null);
-    setToolsFor(null);
+    if (glowTimerRef.current) window.clearTimeout(glowTimerRef.current);
+    setGlowIds(new Set(moving.map((pp) => pp.instanceId)));
+    glowTimerRef.current = window.setTimeout(() => setGlowIds(new Set()), 900);
+    return true;
   };
 
   const startDragNewSymbolSentence = (sentence: SymbolSentence) => startDragNewItem(() => ({
@@ -1615,7 +1688,8 @@ export default function LiteracyManipulatives() {
   };
 
   // One place every drop (from the tray or on the board) ends up.
-  const handleDrop = (id: string, kind: PlacedKind) => {
+  const handleDrop = (id: string, kind: PlacedKind, clientX: number, clientY: number) => {
+    if ((kind === 'shape' || kind === 'punctuation') && tryInsertIntoSentence(id, clientX, clientY)) return;
     if (kind === 'grammar') runSnapCheck(id);
     if (kind === 'morpheme' || SENTENCE_KINDS.includes(kind)) runRowSnap(id);
     if (kind === 'letter' || kind === 'soundChip' || kind === 'divider') runSoundBoxSnap(id);
@@ -1660,7 +1734,7 @@ export default function LiteracyManipulatives() {
     const tapped = !!dragStartRef.current && !dragStartRef.current.moved;
     if (item?.kind === 'morpheme' && tapped) openMorphemeCard(item);
     dragStartRef.current = null;
-    if (item && !tapped) handleDrop(id, item.kind);
+    if (item && !tapped) handleDrop(id, item.kind, e.clientX, e.clientY);
   };
 
   // Clearing the whole board asks first (her request 2026-10-15). Undo still brings it back.
@@ -2179,10 +2253,11 @@ export default function LiteracyManipulatives() {
                   onPointerDown={startDragPlaced(p.instanceId)}
                   onPointerMove={onDragMove}
                   onPointerUp={onDragEnd}
-                  onDoubleClick={p.kind === 'letter' ? () => toggleLetterCase(p.instanceId)
-                    : p.kind === 'soundChip' ? () => { setSelectedId(p.instanceId); setChipMenuFor((cur) => (cur === p.instanceId ? null : p.instanceId)); }
-                    : p.kind === 'frame' ? () => { setSelectedId(p.instanceId); setBoxInsertFor((cur) => (cur === p.instanceId ? null : p.instanceId)); }
-                    : undefined}
+                  onDoubleClick={() => {
+                    showBadges(p.instanceId);
+                    if (p.kind === 'soundChip') setChipMenuFor((cur) => (cur === p.instanceId ? null : p.instanceId));
+                    if (p.kind === 'frame') setBoxInsertFor((cur) => (cur === p.instanceId ? null : p.instanceId));
+                  }}
                   style={multiSel.has(p.instanceId) ? { outline: '3px dashed var(--brand-blue)', outlineOffset: 3, borderRadius: 10 } : selectedId === p.instanceId && !p.groupId ? { boxShadow: '0 0 0 3px rgba(25,104,171,0.35)', borderRadius: 10 } : undefined}
                 >
                   <ItemVisual
@@ -2204,8 +2279,9 @@ export default function LiteracyManipulatives() {
                       color={MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].color}
                       bubbleStyle={p.bubbleStyle ?? bubbleDefault}
                       label={`${MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].name} word`}
-                      onChange={(v) => setPlacedField(p.instanceId, { bubbleWord: v })}
+                      onChange={(v) => { setPlacedField(p.instanceId, { bubbleWord: v }); checkTyped(p.instanceId, 0, v, p.wordClass ?? 'noun'); }}
                       owner={p.instanceId}
+                      wrong={!!wordMismatch(p.bubbleWord, p.wordClass ?? 'noun')}
                     />
                     {toolsOpenFor(p.instanceId) && (
                       <button type="button" className="lm-ctl lm-item-controls" style={{ position: 'absolute', top: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)' }} onPointerDown={(e) => e.stopPropagation()} onClick={() => randomizeWords(new Set([p.instanceId]))} aria-label={`Random ${MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].name.toLowerCase()}`} title="Random word"><Icon name="dice" size={16} /></button>
@@ -2335,7 +2411,9 @@ export default function LiteracyManipulatives() {
               const canGroupRow = !sel.groupId && row.length > 1;
               const loneSentence = unit.length === 1 && sel.kind === 'symbolSentence';
               const loneFrame = unit.length === 1 && sel.kind === 'frame';
-              const hasTools = worded.length > 0 || !!sel.groupId || canGroupRow || loneFrame;
+              const loneLetter = unit.length === 1 && sel.kind === 'letter';
+              const hasTools = worded.length > 0 || !!sel.groupId || canGroupRow || loneFrame || loneLetter;
+              const badges = badgesFor === sel.instanceId;
               const stop = (e: React.PointerEvent) => e.stopPropagation();
               // A group gets one outline around all of its pieces, like a Symbol Sentence card.
               const left = Math.min(...unit.map((pp) => pp.x));
@@ -2343,7 +2421,7 @@ export default function LiteracyManipulatives() {
               return (
                 <>
                 {unit.length > 1 && <div className="lm-group-outline" style={{ left: left - 8, top: top - 8, width: right - left + 16, height: bottom - top + 16 }} aria-hidden="true" />}
-                <div className="lm-unit-controls lm-item-controls" style={{ left: right + 12, top: top - 22 }} onPointerDown={stop}>
+                {badges && <div className="lm-unit-controls lm-item-controls" style={{ left: right + 12, top: top - 22 }} onPointerDown={stop}>
                   {open && hasTools && (
                     <div className="lm-unit-tools" role="toolbar" aria-label={sel.groupId ? 'Group settings' : 'Settings'}>
                       {worded.length > 0 && (
@@ -2356,6 +2434,7 @@ export default function LiteracyManipulatives() {
                       )}
                       {loneSentence && <button type="button" className="lm-tool-btn" onClick={() => setPlacedField(sel.instanceId, { wordFills: {}, punctFills: {} })} title="Put the sentence's own words back">Reset words</button>}
                       {loneSentence && <button type="button" className="lm-tool-btn" onClick={() => splitSymbolSentence(sel.instanceId)} title="Break the sentence into separate symbols">Ungroup</button>}
+                      {loneLetter && <button type="button" className="lm-tool-btn" onClick={() => toggleLetterCase(sel.instanceId)} title="Switch between capital and small letter">Aa</button>}
                       {loneFrame && (
                         <>
                           <button type="button" className="lm-tool-btn" onClick={() => adjustFrameBoxCount(sel.instanceId, -1)} disabled={(sel.boxCount ?? 3) <= 1} aria-label="Remove a box">− Box</button>
@@ -2372,8 +2451,30 @@ export default function LiteracyManipulatives() {
                     )}
                     <button type="button" className="lm-ctl lm-ctl-x" onClick={() => removeUnit(ids)} aria-label={unit.length > 1 ? 'Remove this group' : 'Remove'}>×</button>
                   </div>
-                </div>
+                </div>}
                 </>
+              );
+            })()}
+            {/* The "check this word" note, under the symbol whose word doesn't fit. */}
+            {wordAlert && (() => {
+              const owner = placed.find((pp) => pp.instanceId === wordAlert.owner);
+              if (!owner) return null;
+              const baseY = owner.y + measured(owner).h + 14;
+              const name = (c: MontessoriWordClass) => MONTESSORI_WORD_CLASS_INFO[c].name.toLowerCase();
+              const withA = (c: MontessoriWordClass) => `${/^[aeiou]/.test(name(c)) ? 'an' : 'a'} ${name(c)}`;
+              return (
+                <FloatingCard
+                  x={owner.x + wordAlert.dx}
+                  y={baseY + wordAlert.dy}
+                  width={250}
+                  zoom={zoom}
+                  title="Check this word"
+                  tone="nonsense"
+                  onMove={(x, y) => setWordAlert((a) => (a ? { ...a, dx: x - owner.x, dy: y - baseY } : a))}
+                  onClose={() => { dismissedAlerts.current.add(wordAlert.key); setWordAlert(null); }}
+                >
+                  <p style={{ margin: 0 }}>"{wordAlert.word}" isn't {withA(wordAlert.cls)}. It looks like {withA(wordAlert.looks)}. Check again.</p>
+                </FloatingCard>
               );
             })()}
             {/* A word built from snapped morpheme pieces gets a movable card (× to close, drag to move) that says
@@ -2455,6 +2556,7 @@ export default function LiteracyManipulatives() {
                   <Draggable
                     label={sentence.sentence}
                     glowing={glowIds.has(item.instanceId)}
+                    onDoubleClick={() => showBadges(item.instanceId)}
                     onPointerDown={startDragPlaced(item.instanceId)}
                     onPointerMove={onDragMove}
                     onPointerUp={onDragEnd}
@@ -2474,8 +2576,8 @@ export default function LiteracyManipulatives() {
                               <img src={info.imageUrl} alt={info.name} draggable={false} />
                             </ReferencePopover>
                             <WordBubble value={fills[t.index] ?? w.word} placeholder={info.name.toLowerCase()} color={info.color} bubbleStyle={item.bubbleStyle ?? bubbleDefault}
-                              label={`${info.name} word ${t.index + 1}`} onChange={(v) => setSymbolSentenceWordFill(item.instanceId, t.index, v)}
-                              owner={item.instanceId} idx={t.index} />
+                              label={`${info.name} word ${t.index + 1}`} onChange={(v) => { setSymbolSentenceWordFill(item.instanceId, t.index, v); checkTyped(item.instanceId, t.index, v, w.wordClass); }}
+                              owner={item.instanceId} idx={t.index} wrong={!!wordMismatch(fills[t.index] ?? w.word, w.wordClass)} />
                             {/* A random-word die for each word, shown once the card's settings are open. */}
                             {toolsOpenFor(item.instanceId) && (
                               <button type="button" className="lm-ctl lm-item-controls" onPointerDown={(e) => e.stopPropagation()} onClick={() => setSymbolSentenceWordFill(item.instanceId, t.index, randomWordInSentence(w.wordClass, t.index === 0 && startsSentence(placed, item)))} aria-label={`Random ${info.name.toLowerCase()}`} title={`Random ${info.name.toLowerCase()}`}><Icon name="dice" size={16} /></button>

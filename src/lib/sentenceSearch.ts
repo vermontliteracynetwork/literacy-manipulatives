@@ -36,11 +36,16 @@ function parseClassNames(q: string): MontessoriWordClass[] | null {
 
 // Every word the board already knows the job of: the symbol sentence deck itself, then the word banks.
 const LEXICON = new Map<string, MontessoriWordClass>();
+// Every job each known word can do (some words, like "fish", can be more than one).
+const JOBS = new Map<string, Set<MontessoriWordClass>>();
 const learn = (list: { text: string }[], cls: MontessoriWordClass) => {
   if (!(cls in MONTESSORI_WORD_CLASS_INFO)) return;
   for (const { text } of list) {
     const key = text.toLowerCase().replace(/[^a-z' ]/g, '').trim();
-    if (key && !LEXICON.has(key)) LEXICON.set(key, cls);
+    if (!key) continue;
+    if (!LEXICON.has(key)) LEXICON.set(key, cls);
+    if (!JOBS.has(key)) JOBS.set(key, new Set());
+    JOBS.get(key)!.add(cls);
   }
 };
 for (const s of ALL_SYMBOL_SENTENCES) for (const w of s.words) learn([{ text: w.word }], w.wordClass);
@@ -126,4 +131,28 @@ export function searchSymbolSentences(query: string): { pattern: PatternWord[] |
 export function symbolsForWords(query: string): PatternWord[] {
   const raw = query.trim().match(/[A-Za-z']+/g) ?? [];
   return raw.map((w) => ({ wordClass: tagWord(w, false), word: w }));
+}
+
+
+// Checking a typed word against its symbol (her request 2026-10-15): "cat" typed into a verb bubble gets
+// flagged. Only words the board knows are checked, so a new or unusual word is never marked wrong. Returns the
+// job the word looks like it does when that isn't the symbol's job, or null when it fits or is unknown.
+const BASE_VERBS = new Set(VERB_BASES.split(/\s+/));
+export function wordMismatch(raw: string | undefined, cls: MontessoriWordClass): MontessoriWordClass | null {
+  const word = (raw ?? '').trim();
+  const key = word.toLowerCase().replace(/[^a-z' ]/g, '').trim();
+  if (!key || key.includes(' ')) return null;
+  const jobs = new Set(JOBS.get(key) ?? []);
+  if (VERBS.has(key)) jobs.add('verb');
+  if (cls === 'propernoun') {
+    if (/^[A-Z]/.test(word)) return null;
+    return jobs.size ? (jobs.has('noun') ? 'noun' : [...jobs][0]) : null;
+  }
+  if (!jobs.size || jobs.has(cls)) return null;
+  // Names are nouns too, and an action word can name a thing ("a jump", "a swim").
+  if (cls === 'noun' && (jobs.has('propernoun') || BASE_VERBS.has(key))) return null;
+  for (const pref of ['noun', 'verb', 'adjective', 'adverb', 'pronoun', 'article', 'preposition', 'conjunction', 'interjection', 'propernoun'] as MontessoriWordClass[]) {
+    if (jobs.has(pref)) return pref;
+  }
+  return null;
 }
