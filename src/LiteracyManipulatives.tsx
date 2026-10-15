@@ -45,6 +45,30 @@ const TILE_H = 58;
 const SNAP_GAP = 14;
 const SNAP_THRESHOLD = 160;
 const HISTORY_LIMIT = 20;
+export interface Stroke { id: string; mode: 'pen' | 'highlight'; color: string; points: [number, number][] }
+const strokeWidth = (st: Stroke) => (st.mode === 'highlight' ? 22 : 6);
+function paintStroke(ctx: CanvasRenderingContext2D, st: Stroke) {
+  if (st.points.length === 0) return;
+  ctx.globalAlpha = st.mode === 'highlight' ? 0.35 : 1;
+  ctx.lineWidth = strokeWidth(st);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = st.color;
+  ctx.beginPath();
+  ctx.moveTo(st.points[0][0], st.points[0][1]);
+  for (const [x, y] of st.points.slice(1)) ctx.lineTo(x, y);
+  if (st.points.length === 1) ctx.lineTo(st.points[0][0] + 0.1, st.points[0][1]);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+// Distance from point p to segment ab, for the eraser's hit test.
+function distToSegment(p: [number, number], a: [number, number], b: [number, number]) {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  const t = len2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2)) : 0;
+  return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+}
+const ERASER_RADIUS = 14;
 const SENTENCE_GAP = 8; // space between snapped sentence pieces
 const LINE_SNAP = 70; // how close (px) a dropped piece must be to snap into a row
 // Pieces that snap into a sentence row: Grammar Symbols, Symbol Sentences, punctuation tiles.
@@ -681,7 +705,11 @@ export default function LiteracyManipulatives() {
   // (same technique the old Mark toggle used); Pen and Highlight are two
   // stroke styles of the same tool, not separate tools.
   const [drawOn, setDrawOn] = useState(false);
-  const [drawMode, setDrawMode] = useState<'pen' | 'highlight'>('pen');
+  const [drawMode, setDrawMode] = useState<'pen' | 'highlight' | 'eraser'>('pen');
+  // Every pen/highlighter mark is kept as its own stroke so the eraser can remove one mark at a time (her
+  // request 2026-10-15). Points are in the draw canvas's own 1400x900 space.
+  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const liveStroke = useRef<Stroke | null>(null);
   const [drawColor, setDrawColor] = useState(BASE_PEN_COLORS[0]);
   const drawCanvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
@@ -1286,48 +1314,67 @@ export default function LiteracyManipulatives() {
     return { x: ((e.clientX - rect.left) / rect.width) * canvas.width, y: ((e.clientY - rect.top) / rect.height) * canvas.height };
   };
 
+  // The eraser removes any whole mark it touches.
+  const eraseAt = (pt: [number, number]) => {
+    setStrokes((list) => {
+      const keep = list.filter((st) => {
+        const reach = ERASER_RADIUS + strokeWidth(st) / 2;
+        if (st.points.length === 1) return Math.hypot(pt[0] - st.points[0][0], pt[1] - st.points[0][1]) > reach;
+        for (let i = 1; i < st.points.length; i++) if (distToSegment(pt, st.points[i - 1], st.points[i]) <= reach) return false;
+        return true;
+      });
+      return keep.length === list.length ? list : keep;
+    });
+  };
+
   const drawStart = (e: React.PointerEvent<HTMLCanvasElement>) => {
     drawing.current = true;
-    drawLast.current = drawPosFor(e);
+    const p = drawPosFor(e);
+    if (drawMode === 'eraser') { eraseAt([p.x, p.y]); return; }
+    liveStroke.current = { id: `st-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, mode: drawMode, color: drawColor, points: [[p.x, p.y]] };
+    drawLast.current = p;
   };
 
   const drawMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawing.current) return;
-    const ctx = drawCanvasRef.current?.getContext('2d');
-    if (!ctx || !drawLast.current) return;
     const p = drawPosFor(e);
-    ctx.globalAlpha = drawMode === 'highlight' ? 0.35 : 1;
-    ctx.lineWidth = drawMode === 'highlight' ? 22 : 6;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = drawColor;
-    ctx.beginPath();
-    ctx.moveTo(drawLast.current.x, drawLast.current.y);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
+    if (drawMode === 'eraser') { eraseAt([p.x, p.y]); return; }
+    const ctx = drawCanvasRef.current?.getContext('2d');
+    const st = liveStroke.current;
+    if (!ctx || !st || !drawLast.current) return;
+    st.points.push([p.x, p.y]);
+    paintStroke(ctx, { ...st, points: [[drawLast.current.x, drawLast.current.y], [p.x, p.y]] });
     drawLast.current = p;
   };
 
   const drawEnd = () => {
     drawing.current = false;
     drawLast.current = null;
+    const st = liveStroke.current;
+    liveStroke.current = null;
+    if (st) setStrokes((list) => [...list, st]);
   };
 
-  const clearDrawing = () => {
+  const clearDrawing = () => setStrokes([]);
+
+  // Repaint every kept mark whenever the list changes (a mark finished, erased, cleared, or arrived from a
+  // shared board).
+  useEffect(() => {
     const canvas = drawCanvasRef.current;
     const ctx = canvas?.getContext('2d');
-    if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-  };
+    if (!canvas || !ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const st of strokes) paintStroke(ctx, st);
+  }, [strokes]);
 
   // No accounts, no marketplace: everyone gets the full base pen/
   // highlight color set — the dashboard's version adds purchased colors
   // on top of these same base arrays, which doesn't apply here.
-  const activePalette = drawMode === 'pen' ? BASE_PEN_COLORS : BASE_HIGHLIGHT_COLORS;
+  const activePalette = drawMode === 'highlight' ? BASE_HIGHLIGHT_COLORS : BASE_PEN_COLORS;
 
-  const setDrawModeAndColor = (mode: 'pen' | 'highlight') => {
+  const setDrawModeAndColor = (mode: 'pen' | 'highlight' | 'eraser') => {
     setDrawMode(mode);
-    setDrawColor(mode === 'pen' ? BASE_PEN_COLORS[0] : BASE_HIGHLIGHT_COLORS[0]);
+    if (mode !== 'eraser') setDrawColor(mode === 'pen' ? BASE_PEN_COLORS[0] : BASE_HIGHLIGHT_COLORS[0]);
   };
 
   return (
@@ -1372,8 +1419,9 @@ export default function LiteracyManipulatives() {
         <div className="lm-toolbar" style={{ flex: '0 0 auto', paddingTop: 0 }}>
           <button className={`btn btn-sm ${drawMode === 'pen' ? 'btn-primary' : ''}`} onClick={() => setDrawModeAndColor('pen')}>✏️ Pen</button>
           <button className={`btn btn-sm ${drawMode === 'highlight' ? 'btn-primary' : ''}`} onClick={() => setDrawModeAndColor('highlight')}>🖊️ Highlight</button>
+          <button className={`btn btn-sm ${drawMode === 'eraser' ? 'btn-primary' : ''}`} onClick={() => setDrawModeAndColor('eraser')} title="Erase one mark at a time">🧽 Eraser</button>
           <span className="lm-toolbar-divider" />
-          {activePalette.map((hex, i) => (
+          {drawMode !== 'eraser' && activePalette.map((hex, i) => (
             <button
               key={`${hex}-${i}`}
               onClick={() => setDrawColor(hex)}
@@ -1382,7 +1430,7 @@ export default function LiteracyManipulatives() {
             />
           ))}
           <span className="lm-toolbar-divider" />
-          <button className="btn btn-sm" onClick={clearDrawing}>🗑️ Clear marks</button>
+          <button className="btn btn-sm" onClick={clearDrawing} disabled={strokes.length === 0}>🗑️ Clear marks</button>
         </div>
       )}
 
@@ -1894,7 +1942,7 @@ export default function LiteracyManipulatives() {
             style={{
               position: 'absolute', inset: 0, width: '100%', height: '100%',
               pointerEvents: drawOn ? 'auto' : 'none',
-              touchAction: 'none', cursor: drawOn ? 'crosshair' : 'default',
+              touchAction: 'none', cursor: drawOn ? (drawMode === 'eraser' ? 'cell' : 'crosshair') : 'default',
               transform: `scale(${zoom})`, transformOrigin: '0 0',
             }}
             onPointerDown={drawOn ? drawStart : undefined}
