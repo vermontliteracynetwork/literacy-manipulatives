@@ -15,7 +15,7 @@ import { isFontChoice, useFontChoice, type FontChoice } from './lib/fontChoice';
 import { diffItems, isJoinRoute, shareConfigured, studentId as myStudentId, useHostSession, useStudentSession, type Ops, type Snapshot } from './lib/share';
 import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from './lib/montessoriGrammar';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
-import { isKnownWord, searchSymbolSentences, symbolsForWords, wordMismatch, type PatternWord } from './lib/sentenceSearch';
+import { agreeWords, isKnownWord, searchSymbolSentences, symbolsForWords, wordMismatch, type PatternWord } from './lib/sentenceSearch';
 import { PUNCTUATION_MARKS } from './lib/punctuationContent';
 import { BUBBLE_BLACK, BUBBLE_WHITE, nextPunct, randomWordInSentence, sentenceTokens, stripPunctuation, textOn, type BubbleStyle } from './lib/wordBubbles';
 import {
@@ -460,12 +460,12 @@ function Category({ label, color, open, onToggle, children }: {
 // out (it gets its own icon).
 // A word that doesn't fit its symbol (her request 2026-10-15) shows faded, with bold red text.
 // Word bubbles are lowercase (her request 2026-10-15) except a proper noun, the word I, and the first word of
-// a sentence, which keeps the capital the student gave it.
+// a sentence, which all get their capital automatically.
 function caseWord(word: string, cls: MontessoriWordClass | undefined, first: boolean): string {
   if (!word) return word;
   if (cls === 'propernoun') return word.charAt(0).toUpperCase() + word.slice(1);
   if (/^i(['’].*)?$/i.test(word)) return 'I' + word.slice(1);
-  return first ? word : word.toLowerCase();
+  return first ? word.charAt(0).toUpperCase() + word.slice(1) : word.toLowerCase();
 }
 const fade = (hex: string) => (/^#[0-9a-f]{6}$/i.test(hex) ? `${hex}66` : hex);
 // The dictionary's names for parts of speech, as the board's symbols.
@@ -1187,7 +1187,8 @@ export default function LiteracyManipulatives() {
       if (pp.kind === 'symbolSentence') {
         const sentence = ALL_SYMBOL_SENTENCES.find((ss) => ss.id === pp.symbolSentenceId);
         if (!sentence) return pp;
-        return { ...pp, wordFills: fixArticles(sentence.words.map((w, i) => randomWordInSentence(w.wordClass, first && i === 0))) };
+        const picked = sentence.words.map((w, i) => randomWordInSentence(w.wordClass, first && i === 0));
+        return { ...pp, wordFills: fixArticles(agreeWords(sentence.words.map((w, i) => ({ word: picked[i], cls: w.wordClass })))) };
       }
       return pp;
     }).map((pp, _i, all) => {
@@ -1197,6 +1198,36 @@ export default function LiteracyManipulatives() {
       if (!next?.bubbleWord || (!ids.has(pp.instanceId) && !ids.has(next.instanceId))) return pp;
       return { ...pp, bubbleWord: fixArticles([pp.bubbleWord!, next.bubbleWord])[0] };
     }));
+    // Verbs in a snapped row agree with the subject before them.
+    setPlaced((p) => {
+      const byId = new Map(p.map((pp) => [pp.instanceId, pp]));
+      const heads = new Set<string>();
+      for (const id of ids) {
+        let cur = byId.get(id);
+        const seen = new Set<string>();
+        while (cur?.snapLeftId && byId.has(cur.snapLeftId) && !seen.has(cur.instanceId)) { seen.add(cur.instanceId); cur = byId.get(cur.snapLeftId); }
+        if (cur) heads.add(cur.instanceId);
+      }
+      const fixed = new Map<string, string>();
+      for (const h of heads) {
+        const row: PlacedItem[] = [];
+        let cur = byId.get(h);
+        while (cur && row.length < 50) { row.push(cur); const nextId: string = cur.instanceId; cur = p.find((q) => q.snapLeftId === nextId); }
+        const shapes = row.filter((pp) => pp.kind === 'shape');
+        const agreed = agreeWords(shapes.map((pp) => ({ word: pp.bubbleWord ?? '', cls: pp.wordClass ?? 'noun' })));
+        shapes.forEach((pp, i) => { if ((pp.bubbleWord ?? '') !== agreed[i]) fixed.set(pp.instanceId, agreed[i]); });
+      }
+      return fixed.size ? p.map((pp) => (fixed.has(pp.instanceId) ? { ...pp, bubbleWord: fixed.get(pp.instanceId) } : pp)) : p;
+    });
+  };
+  // One word of a Symbol Sentence card, randomized, with the card's verbs still agreeing.
+  const randomCardWord = (item: PlacedItem, index: number) => {
+    const sentence = ALL_SYMBOL_SENTENCES.find((ss) => ss.id === item.symbolSentenceId);
+    if (!sentence) return;
+    const words = sentence.words.map((w, i) => (i === index
+      ? randomWordInSentence(w.wordClass, i === 0 && startsSentence(placed, item))
+      : item.wordFills?.[i] ?? w.word));
+    setPlacedField(item.instanceId, { wordFills: fixArticles(agreeWords(sentence.words.map((w, i) => ({ word: words[i], cls: w.wordClass })))) });
   };
   const setUnitBubbles = (ids: Set<string>, style: BubbleStyle) => setPlaced((p) => p.map((pp) => (ids.has(pp.instanceId) && (pp.kind === 'shape' || pp.kind === 'symbolSentence' || pp.kind === 'textbox') ? { ...pp, bubbleStyle: style } : pp)));
   const setGroup = (ids: Set<string>, gid: string | undefined) => { pushHistory(); setPlaced((p) => p.map((pp) => (ids.has(pp.instanceId) ? { ...pp, groupId: gid } : pp))); };
@@ -2774,7 +2805,7 @@ export default function LiteracyManipulatives() {
                               owner={item.instanceId} idx={t.index} wrong={!!wordProblem(fills[t.index] ?? w.word, w.wordClass)} />
                             {/* A random-word die for each word, shown once the card's settings are open. */}
                             {toolsOpenFor(item.instanceId) && (
-                              <button type="button" className="lm-ctl lm-item-controls" onPointerDown={(e) => e.stopPropagation()} onClick={() => setSymbolSentenceWordFill(item.instanceId, t.index, randomWordInSentence(w.wordClass, t.index === 0 && startsSentence(placed, item)))} aria-label={`Random ${info.name.toLowerCase()}`} title={`Random ${info.name.toLowerCase()}`}><Icon name="dice" size={16} /></button>
+                              <button type="button" className="lm-ctl lm-item-controls" onPointerDown={(e) => e.stopPropagation()} onClick={() => randomCardWord(item, t.index)} aria-label={`Random ${info.name.toLowerCase()}`} title={`Random ${info.name.toLowerCase()}`}><Icon name="dice" size={16} /></button>
                             )}
                           </div>
                         );

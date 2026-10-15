@@ -160,3 +160,49 @@ export function wordMismatch(raw: string | undefined, cls: MontessoriWordClass):
   }
   return null;
 }
+
+// Subject-verb agreement for random words (her request 2026-10-15): "The dog run" becomes "The dog runs" and
+// "They runs" becomes "They run". Past-tense verbs fit any subject; forms of "be" follow the subject too.
+const SINGULAR_PRONOUNS = new Set(['he', 'she', 'it', 'this', 'that', 'someone', 'somebody', 'everyone', 'everybody', 'nobody', 'anyone', 'each']);
+const PLURAL_PRONOUNS = new Set(['we', 'they', 'you', 'these', 'those', 'i']);
+const isPastForm = (v: string) => /ed$/.test(v) || (NO_ENDINGS.has(v) && !['be', 'am', 'is', 'are', 'has', 'does'].includes(v));
+const thirdPerson = (base: string) => (base === 'have' ? 'has' : base === 'do' ? 'does' : base === 'go' ? 'goes'
+  : base.endsWith('y') && !/[aeiou]y$/.test(base) ? `${base.slice(0, -1)}ies` : /(s|sh|ch|x|z|o)$/.test(base) ? `${base}es` : `${base}s`);
+function baseOf(v: string): string | null {
+  if (BASE_VERBS.has(v)) return v;
+  for (const b of [v.replace(/ies$/, 'y'), v.replace(/es$/, ''), v.replace(/s$/, '')]) if (b !== v && BASE_VERBS.has(b)) return b;
+  if (v === 'has') return 'have';
+  if (v === 'does') return 'do';
+  // A verb the board doesn't list: read its ending.
+  if (/ies$/.test(v)) return `${v.slice(0, -3)}y`;
+  if (/(ss|sh|ch|x|z|o)es$/.test(v)) return v.slice(0, -2);
+  if (/[^s]s$/.test(v)) return v.slice(0, -1);
+  return /^[a-z]+$/.test(v) ? v : null;
+}
+function subjectNumber(word: string, cls: MontessoriWordClass): 'one' | 'many' | 'i' | null {
+  const w = word.toLowerCase();
+  if (cls === 'pronoun') return w === 'i' ? 'i' : SINGULAR_PRONOUNS.has(w) ? 'one' : PLURAL_PRONOUNS.has(w) ? 'many' : null;
+  if (cls === 'propernoun') return 'one';
+  if (cls === 'noun') return /[^s]s$/.test(w) && !/(ss|us|is)$/.test(w) ? 'many' : 'one';
+  return null;
+}
+function agreeVerb(verb: string, n: 'one' | 'many' | 'i'): string {
+  const v = verb.toLowerCase();
+  const keepCap = (out: string) => (verb[0] === verb[0].toUpperCase() ? out.charAt(0).toUpperCase() + out.slice(1) : out);
+  if (['is', 'are', 'am', 'be'].includes(v)) return keepCap(n === 'i' ? 'am' : n === 'one' ? 'is' : 'are');
+  if (['was', 'were'].includes(v)) return keepCap(n === 'many' ? 'were' : 'was');
+  if (isPastForm(v) || /ing$/.test(v)) return verb;
+  const base = baseOf(v);
+  if (!base) return verb;
+  return keepCap(n === 'one' ? thirdPerson(base) : base);
+}
+export function agreeWords(words: { word: string; cls: MontessoriWordClass }[]): string[] {
+  let subject: 'one' | 'many' | 'i' | null = null;
+  return words.map(({ word, cls }) => {
+    if (!word) return word;
+    if (cls === 'verb') return subject ? agreeVerb(word, subject) : word;
+    const n = subjectNumber(word, cls);
+    if (n) subject = n;
+    return word;
+  });
+}
