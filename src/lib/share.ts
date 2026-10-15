@@ -33,6 +33,11 @@ export interface Ops<P, S> { from: string; upserts: P[]; removes: string[]; stro
 
 const channelName = (code: string) => `lm-board-${code}`;
 
+// Where the teacher is pointing, in board coordinates, so view-only students can follow along. 'touch' shows a
+// pointing finger, 'mouse' an arrow. null means the teacher's pointer left the board.
+export type TeacherPointer = { x: number; y: number; kind: 'mouse' | 'touch' } | null;
+const POINTER_EVERY_MS = 50;
+
 // Joins a channel and waits until Supabase confirms it (or says why not), instead of waiting forever.
 // Resolves to null when joined, or a short reason a teacher can act on.
 function joinChannel(ch: RealtimeChannel, waitMs = 10000): Promise<string | null> {
@@ -141,8 +146,29 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
 
   useEffect(() => () => { const ch = channelRef.current; if (ch) void getClient()?.removeChannel(ch); }, []);
 
+  // Closing the tab tells students the board is closed (if the message can't get out in time, students notice
+  // the teacher is gone from the channel instead).
+  useEffect(() => {
+    const bye = () => { const ch = channelRef.current; if (ch) void ch.send({ type: 'broadcast', event: 'ended', payload: {} }); };
+    window.addEventListener('pagehide', bye);
+    return () => window.removeEventListener('pagehide', bye);
+  }, []);
+
+  // The teacher's pointer goes out a few times a second at most, and always when it leaves the board.
+  const lastPointerAt = useRef(0);
+  const pendingPointer = useRef<number | null>(null);
+  const sendPointer = useCallback((p: TeacherPointer) => {
+    const ch = channelRef.current;
+    if (!ch) return;
+    const go = () => { lastPointerAt.current = Date.now(); pendingPointer.current = null; void ch.send({ type: 'broadcast', event: 'pointer', payload: { p } }); };
+    if (pendingPointer.current) window.clearTimeout(pendingPointer.current);
+    const wait = POINTER_EVERY_MS - (Date.now() - lastPointerAt.current);
+    if (p === null || wait <= 0) go();
+    else pendingPointer.current = window.setTimeout(go, wait);
+  }, []);
+
   const setStudentAccess = (id: string, a: Access) => setAccess((m) => ({ ...m, [id]: a }));
-  return { code, students, access, status, error, start, stop, setStudentAccess };
+  return { code, students, access, status, error, start, stop, setStudentAccess, sendPointer };
 }
 
 // ---------- Student ----------
@@ -164,7 +190,10 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
   const [status, setStatus] = useState<'idle' | 'checking' | 'joined' | 'not-found' | 'ended' | 'error'>('idle');
   const [access, setAccess] = useState<Access>('view');
   const [name, setName] = useState('');
+  const [teacherPointer, setTeacherPointer] = useState<TeacherPointer>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const joinedRef = useRef(false);
+  const goneTimer = useRef<number | null>(null);
   const snapRef = useRef(onSnapshot);
   useEffect(() => { snapRef.current = onSnapshot; });
 
@@ -180,6 +209,11 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
     let teacherHere = false;
     ch.on('presence', { event: 'sync' }, () => {
       teacherHere = Object.keys(ch.presenceState()).some((k) => k.startsWith('teacher-'));
+      // Once joined, a teacher gone for a few seconds (tab closed, computer asleep) means the board is closed.
+      if (goneTimer.current) { window.clearTimeout(goneTimer.current); goneTimer.current = null; }
+      if (!teacherHere && joinedRef.current) {
+        goneTimer.current = window.setTimeout(() => { if (joinedRef.current) setStatus('ended'); }, 5000);
+      }
     });
     ch.on('broadcast', { event: 'state' }, ({ payload }) => {
       const snap = payload as Snapshot<P, S>;
@@ -187,6 +221,7 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
       snapRef.current(snap);
     });
     ch.on('broadcast', { event: 'ended' }, () => setStatus('ended'));
+    ch.on('broadcast', { event: 'pointer' }, ({ payload }) => setTeacherPointer((payload as { p: TeacherPointer }).p ?? null));
     const problem = await joinChannel(ch);
     if (problem) { await supa.removeChannel(ch); setError(problem); setStatus('error'); return false; }
     for (let i = 0; i < 20 && !teacherHere; i++) await pause(150);
@@ -202,6 +237,7 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
     if (!ch) return;
     setName(studentName);
     setStatus('joined');
+    joinedRef.current = true;
     await ch.track({ role: 'student', name: studentName });
     await ch.send({ type: 'broadcast', event: 'hello', payload: {} });
   }, []);
@@ -212,7 +248,7 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
 
   useEffect(() => () => { const ch = channelRef.current; if (ch) void getClient()?.removeChannel(ch); }, []);
 
-  return { status, access, name, error, checkCode, join, sendOps };
+  return { status, access, name, error, checkCode, join, sendOps, teacherPointer };
 }
 
 // Changes from `before` to `after`, by id. Positions of pieces that are snapped into a row or a Sound Box are

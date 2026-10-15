@@ -963,9 +963,6 @@ export default function LiteracyManipulatives() {
   const setPlacedField = (instanceId: string, patch: Partial<PlacedItem>) => {
     setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, ...patch } : pp)));
   };
-  const flipBubbleStyle = (instanceId: string) => {
-    setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, bubbleStyle: (pp.bubbleStyle ?? bubbleDefault) === 'solid' ? 'outline' : 'solid' } : pp)));
-  };
   const setAllBubbles = (style: BubbleStyle) => {
     setBubbleDefault(style);
     setPlaced((p) => p.map((pp) => (pp.kind === 'shape' || pp.kind === 'symbolSentence' ? { ...pp, bubbleStyle: style } : pp)));
@@ -1132,6 +1129,54 @@ export default function LiteracyManipulatives() {
       return p.map((pp) => (pp.groupId && gids.has(pp.groupId) ? { ...pp, groupId: undefined } : pp));
     });
   };
+  // Settings for a selected piece (her request 2026-10-15): a tap shows a small gear (and the X); the gear (or a
+  // double tap) opens a little toolbar with what that piece can do: random words, outline or solid bubbles,
+  // group or ungroup, and so on. Grouped pieces share one gear and one toolbar until they're ungrouped.
+  const [toolsFor, setToolsFor] = useState<string | null>(null);
+  // A student switched to view only (her request 2026-10-15): nothing stays selected or half-dragged.
+  useEffect(() => {
+    if (!studentViewOnly) return;
+    setSelectedId(null);
+    setMultiSel(new Set());
+    setToolsFor(null);
+    setMarquee(null);
+    dragInstanceRef.current = null;
+    (document.activeElement as HTMLElement | null)?.blur?.();
+  }, [studentViewOnly]);
+  const unitOf = (id: string | null) => {
+    const it = placed.find((pp) => pp.instanceId === id);
+    if (!it) return [];
+    return it.groupId ? placed.filter((pp) => pp.groupId === it.groupId) : [it];
+  };
+  const toolsOpenFor = (id: string) => !!toolsFor && toolsFor === selectedId && unitOf(selectedId).some((pp) => pp.instanceId === id);
+  const rowMembers = (id: string) => {
+    let head = placed.find((pp) => pp.instanceId === id);
+    const seen = new Set<string>();
+    while (head?.snapLeftId && !seen.has(head.instanceId)) { seen.add(head.instanceId); const l = placed.find((pp) => pp.instanceId === head!.snapLeftId); if (!l) break; head = l; }
+    return head ? rowFrom(placed, head.instanceId) : [];
+  };
+  const randomizeWords = (ids: Set<string>) => {
+    pushHistory();
+    setPlaced((p) => p.map((pp) => {
+      if (!ids.has(pp.instanceId)) return pp;
+      if (pp.kind === 'shape') return { ...pp, bubbleWord: randomWordFor(pp.wordClass ?? 'noun') };
+      if (pp.kind === 'symbolSentence') {
+        const sentence = ALL_SYMBOL_SENTENCES.find((ss) => ss.id === pp.symbolSentenceId);
+        if (!sentence) return pp;
+        return { ...pp, wordFills: Object.fromEntries(sentence.words.map((w, i) => [i, randomWordFor(w.wordClass)])) };
+      }
+      return pp;
+    }));
+  };
+  const setUnitBubbles = (ids: Set<string>, style: BubbleStyle) => setPlaced((p) => p.map((pp) => (ids.has(pp.instanceId) && (pp.kind === 'shape' || pp.kind === 'symbolSentence') ? { ...pp, bubbleStyle: style } : pp)));
+  const setGroup = (ids: Set<string>, gid: string | undefined) => { pushHistory(); setPlaced((p) => p.map((pp) => (ids.has(pp.instanceId) ? { ...pp, groupId: gid } : pp))); };
+  const removeUnit = (ids: Set<string>) => {
+    pushHistory();
+    for (const id of ids) removePlacedItem(id);
+    setSelectedId(null);
+    setToolsFor(null);
+  };
+
   // Line pieces up on each other's middles (side by side) or centers (stacked), or spread them in a neat row.
   const alignSelected = (how: 'middle' | 'center' | 'row') => {
     const items = placed.filter((pp) => multiSel.has(pp.instanceId) && !pp.snapLeftId && !pp.inFrameId);
@@ -1196,6 +1241,25 @@ export default function LiteracyManipulatives() {
     // x/y live in.
     return { x: (clientX - rect.left) / zoom, y: (clientY - rect.top) / zoom };
   };
+
+  // While sharing, the teacher's pointer is sent along so watching students see where the teacher points.
+  const canvasRelativeRef = useRef(canvasRelative);
+  useEffect(() => { canvasRelativeRef.current = canvasRelative; });
+  const sendPointer = host.sendPointer;
+  useEffect(() => {
+    if (host.status !== 'live') return;
+    const board = boardRef.current;
+    if (!board) return;
+    const move = (e: PointerEvent) => {
+      const { x, y } = canvasRelativeRef.current(e.clientX, e.clientY);
+      sendPointer({ x, y, kind: e.pointerType === 'mouse' ? 'mouse' : 'touch' });
+    };
+    const leave = () => sendPointer(null);
+    board.addEventListener('pointermove', move);
+    board.addEventListener('pointerdown', move);
+    board.addEventListener('pointerleave', leave);
+    return () => { board.removeEventListener('pointermove', move); board.removeEventListener('pointerdown', move); board.removeEventListener('pointerleave', leave); leave(); };
+  }, [host.status, sendPointer]);
 
   // Snap check, the one structural rule left: a dropped/moved grammar
   // tile looks for the nearest OTHER grammar tile of the opposite word
@@ -1568,9 +1632,27 @@ export default function LiteracyManipulatives() {
     // left of the canvas, so releasing to the left of the canvas's own
     // screen edge (in real screen pixels, not the zoomed logical
     // space) is "dropped back on the tray."
+    // Everything that was moving with it goes too (her request 2026-10-15): its group, the pieces snapped after
+    // it, the rest of a multi-selection, and letters sitting in a Sound Box being dragged.
     const canvasLeft = boardRef.current?.getBoundingClientRect().left ?? 0;
     if (e.clientX < canvasLeft) {
-      removePlacedItem(id);
+      const gone = new Set<string>([id]);
+      if (multiSel.has(id)) multiSel.forEach((m) => gone.add(m));
+      let grew = true;
+      while (grew) {
+        grew = false;
+        const groups = new Set(placed.filter((pp) => gone.has(pp.instanceId) && pp.groupId).map((pp) => pp.groupId));
+        for (const pp of placed) {
+          if (gone.has(pp.instanceId)) continue;
+          if ((pp.groupId && groups.has(pp.groupId)) || (pp.snapLeftId && gone.has(pp.snapLeftId)) || (pp.inFrameId && gone.has(pp.inFrameId))) { gone.add(pp.instanceId); grew = true; }
+        }
+      }
+      setPlaced((cur) => cur
+        .filter((pp) => !gone.has(pp.instanceId))
+        .map((pp) => (pp.snapLeftId && gone.has(pp.snapLeftId) ? { ...pp, snapLeftId: undefined } : pp)));
+      setSelectedId(null);
+      setMultiSel(new Set());
+      dragStartRef.current = null;
       return;
     }
     const item = placed.find((p) => p.instanceId === id);
@@ -1722,7 +1804,9 @@ export default function LiteracyManipulatives() {
   };
 
   if (joinMode && student.status === 'ended') {
-    return <div className="lm-join"><div className="lm-join-center"><h1 className="lm-join-title">Join a Board</h1><p className="lm-join-msg">Your teacher stopped sharing this board. Thanks for joining!</p></div></div>;
+    // The teacher stopped sharing or closed their tab (her request 2026-10-15): the welcome screen, saying so,
+    // with the same two ways forward.
+    return <WelcomeChoice title="This board has been closed." onStart={() => window.location.assign('/?welcome=0')} />;
   }
   if (joinMode && student.status !== 'joined') {
     return <JoinScreen status={student.status} error={student.error} onCheckCode={student.checkCode} onJoin={(n) => { void student.join(n); }} />;
@@ -1789,9 +1873,11 @@ export default function LiteracyManipulatives() {
             ) : (
               <button
                 className={`btn btn-sm ${host.status === 'live' ? 'btn-primary' : ''}`}
-                onClick={() => { setShareOpen(true); if (shareConfigured && host.status === 'off') void host.start(); }}
+                onClick={() => { if (shareOpen) { setShareOpen(false); return; } setShareOpen(true); if (shareConfigured && host.status === 'off') void host.start(); }}
+                aria-expanded={shareOpen}
+                aria-label={host.status === 'live' && host.code ? `Sharing, code ${host.code}` : 'Share'}
               >
-                {host.status === 'live' && host.code ? `Sharing ${host.code} (${host.students.length})` : 'Share'}
+                {host.status === 'live' && host.code ? host.code : 'Share'}
               </button>
             )}
             {!joinMode && <button className={`btn btn-sm ${settingsOpen ? 'btn-primary' : ''}`} onClick={() => setSettingsOpen((o) => !o)}>Settings</button>}
@@ -2097,7 +2183,7 @@ export default function LiteracyManipulatives() {
                   onPointerDown={startDragPlaced(p.instanceId)}
                   onPointerMove={onDragMove}
                   onPointerUp={onDragEnd}
-                  onDoubleClick={p.kind === 'letter' ? () => toggleLetterCase(p.instanceId) : undefined}
+                  onDoubleClick={p.kind === 'letter' ? () => toggleLetterCase(p.instanceId) : () => { setSelectedId(p.instanceId); setToolsFor(p.instanceId); }}
                   style={multiSel.has(p.instanceId) ? { outline: '3px dashed var(--brand-blue)', outlineOffset: 3, borderRadius: 10 } : selectedId === p.instanceId ? { boxShadow: '0 0 0 3px rgba(25,104,171,0.35)', borderRadius: 10 } : undefined}
                 >
                   <ItemVisual
@@ -2137,61 +2223,64 @@ export default function LiteracyManipulatives() {
                 {selectedId === p.instanceId && p.kind === 'frame' && (
                   <div className="lm-resize-handle lm-item-controls" onPointerDown={startFrameResize(p.instanceId)} role="slider" aria-label="Resize sound boxes" aria-valuenow={p.cellSize ?? DEFAULT_CELL} aria-valuemin={36} aria-valuemax={140} title="Drag to resize">⤡</div>
                 )}
-                {selectedId === p.instanceId && (
-                  <div className="lm-item-controls" style={{ position: 'absolute', top: -10, right: -10, display: 'flex', gap: 4, zIndex: 3 }}>
-                    {/* A23-ROADMAP Phase 3: Elkonin-boxes-v2 flexible
-                        count, a selected Sound Box frame can grow/shrink
-                        live instead of only ever being the fixed size it
-                        was dragged out at. */}
-                    {p.kind === 'frame' && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => adjustFrameBoxCount(p.instanceId, -1)}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          aria-label="Remove a box"
-                          title="Remove a box"
-                          disabled={(p.boxCount ?? 3) <= 1}
-                          style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid var(--ink)', background: 'white', fontSize: 12, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, lineHeight: 1 }}
-                        >
-                          −
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => adjustFrameBoxCount(p.instanceId, 1)}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          aria-label="Add a box"
-                          title="Add a box"
-                          disabled={(p.boxCount ?? 3) >= 8}
-                          style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid var(--ink)', background: 'white', fontSize: 12, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, lineHeight: 1 }}
-                        >
-                          +
-                        </button>
-                      </>
-                    )}
-                    {p.kind === 'shape' && (
-                      <>
-                        <button type="button" className="lm-ctl" onClick={() => setPlacedField(p.instanceId, { bubbleWord: randomWordFor(p.wordClass ?? 'noun') })} onPointerDown={(e) => e.stopPropagation()} aria-label="Random word" title="Random word"><Icon name="dice" size={16} /></button>
-                        <button type="button" className="lm-ctl" onClick={() => flipBubbleStyle(p.instanceId)} onPointerDown={(e) => e.stopPropagation()} aria-label="Solid or outline bubble" title="Solid or outline"><BubbleSwatch solid={(p.bubbleStyle ?? bubbleDefault) !== 'solid'} /></button>
-                      </>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => removePlacedItem(p.instanceId)}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      aria-label="Remove"
-                      style={{
-                        width: 20, height: 20, borderRadius: '50%',
-                        border: '2px solid var(--ink)', background: '#fee2e2', color: '#991b1b', fontSize: 11, fontWeight: 900,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, lineHeight: 1,
-                      }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                )}
               </div>
             ))}
+            {/* A watching student sees where the teacher is pointing: an arrow for a mouse, a finger for touch. */}
+            {studentViewOnly && student.teacherPointer && (
+              <div className={`lm-teacher-pointer ${student.teacherPointer.kind}`} style={{ left: student.teacherPointer.x, top: student.teacherPointer.y }} aria-hidden="true">
+                <Icon name={student.teacherPointer.kind === 'touch' ? 'finger' : 'arrow'} size={student.teacherPointer.kind === 'touch' ? 56 : 44} />
+              </div>
+            )}
+            {/* The selected piece's (or group's) gear and X, and its settings toolbar when open. */}
+            {(() => {
+              const sel = placed.find((pp) => pp.instanceId === selectedId);
+              if (!sel || sel.kind === 'textbox' || sel.kind === 'writingFrame' || multiSel.size > 1 || studentViewOnly) return null;
+              const unit = unitOf(sel.instanceId);
+              const ids = new Set(unit.map((pp) => pp.instanceId));
+              const right = Math.max(...unit.map((pp) => pp.x + measured(pp).w));
+              const top = Math.min(...unit.map((pp) => pp.y));
+              const open = toolsFor === sel.instanceId;
+              const worded = unit.filter((pp) => pp.kind === 'shape' || pp.kind === 'symbolSentence');
+              const style = worded[0]?.bubbleStyle ?? bubbleDefault;
+              const row = rowMembers(sel.instanceId);
+              const canGroupRow = !sel.groupId && row.length > 1;
+              const loneSentence = unit.length === 1 && sel.kind === 'symbolSentence';
+              const loneFrame = unit.length === 1 && sel.kind === 'frame';
+              const hasTools = worded.length > 0 || !!sel.groupId || canGroupRow || loneFrame;
+              const stop = (e: React.PointerEvent) => e.stopPropagation();
+              return (
+                <div className="lm-unit-controls lm-item-controls" style={{ left: right + 12, top: top - 22 }} onPointerDown={stop}>
+                  {open && hasTools && (
+                    <div className="lm-unit-tools" role="toolbar" aria-label={sel.groupId ? 'Group settings' : 'Settings'}>
+                      {worded.length > 0 && (
+                        <>
+                          <button type="button" className="lm-tool-btn" onClick={() => randomizeWords(ids)} title="Random words"><Icon name="dice" size={16} /> Random</button>
+                          <span className="lm-tool-pair" role="radiogroup" aria-label="Word bubbles">
+                            <button type="button" role="radio" aria-checked={style !== 'solid'} className={`lm-tool-btn${style !== 'solid' ? ' on' : ''}`} onClick={() => setUnitBubbles(ids, 'outline')} aria-label="Outline bubbles"><BubbleSwatch solid={false} /></button>
+                            <button type="button" role="radio" aria-checked={style === 'solid'} className={`lm-tool-btn${style === 'solid' ? ' on' : ''}`} onClick={() => setUnitBubbles(ids, 'solid')} aria-label="Solid bubbles"><BubbleSwatch solid /></button>
+                          </span>
+                        </>
+                      )}
+                      {loneSentence && <button type="button" className="lm-tool-btn" onClick={() => setPlacedField(sel.instanceId, { wordFills: {}, punctFills: {} })} title="Put the sentence's own words back">Reset words</button>}
+                      {loneFrame && (
+                        <>
+                          <button type="button" className="lm-tool-btn" onClick={() => adjustFrameBoxCount(sel.instanceId, -1)} disabled={(sel.boxCount ?? 3) <= 1} aria-label="Remove a box">− Box</button>
+                          <button type="button" className="lm-tool-btn" onClick={() => adjustFrameBoxCount(sel.instanceId, 1)} disabled={(sel.boxCount ?? 3) >= 8} aria-label="Add a box">+ Box</button>
+                        </>
+                      )}
+                      {sel.groupId && <button type="button" className="lm-tool-btn" onClick={() => setGroup(ids, undefined)}>Ungroup</button>}
+                      {canGroupRow && <button type="button" className="lm-tool-btn" onClick={() => setGroup(new Set(row.map((pp) => pp.instanceId)), `g-${Date.now()}`)}>Group</button>}
+                    </div>
+                  )}
+                  <div className="lm-unit-badges">
+                    {hasTools && (
+                      <button type="button" className={`lm-ctl${open ? ' on' : ''}`} onClick={() => setToolsFor(open ? null : sel.instanceId)} aria-label={open ? 'Close settings' : 'Settings'} aria-expanded={open} title="Settings"><Icon name="gear" size={16} /></button>
+                    )}
+                    <button type="button" className="lm-ctl lm-ctl-x" onClick={() => removeUnit(ids)} aria-label={unit.length > 1 ? 'Remove this group' : 'Remove'}>×</button>
+                  </div>
+                </div>
+              );
+            })()}
             {/* A word built from snapped morpheme pieces gets a movable card (× to close, drag to move) that says
                 whether it's a real word and what each part means. A made-up word from real parts is welcome too. */}
             {morphemeWords.map((w) => {
@@ -2275,6 +2364,7 @@ export default function LiteracyManipulatives() {
                   <Draggable
                     label={sentence.sentence}
                     glowing={glowIds.has(item.instanceId)}
+                    onDoubleClick={() => { setSelectedId(item.instanceId); setToolsFor(item.instanceId); }}
                     onPointerDown={startDragPlaced(item.instanceId)}
                     onPointerMove={onDragMove}
                     onPointerUp={onDragEnd}
@@ -2294,8 +2384,8 @@ export default function LiteracyManipulatives() {
                             <WordBubble value={fills[t.index] ?? w.word} placeholder={info.name.toLowerCase()} color={info.color} bubbleStyle={item.bubbleStyle ?? bubbleDefault}
                               label={`${info.name} word ${t.index + 1}`} onChange={(v) => setSymbolSentenceWordFill(item.instanceId, t.index, v)}
                               owner={item.instanceId} idx={t.index} />
-                            {/* Her request 2026-10-15: a random-word die for each word, even inside a whole sentence. */}
-                            {selected && (
+                            {/* A random-word die for each word, shown once the card's settings are open. */}
+                            {toolsOpenFor(item.instanceId) && (
                               <button type="button" className="lm-ctl lm-item-controls" onPointerDown={(e) => e.stopPropagation()} onClick={() => setSymbolSentenceWordFill(item.instanceId, t.index, randomWordFor(w.wordClass))} aria-label={`Random ${info.name.toLowerCase()}`} title={`Random ${info.name.toLowerCase()}`}><Icon name="dice" size={16} /></button>
                             )}
                           </div>
@@ -2303,30 +2393,6 @@ export default function LiteracyManipulatives() {
                       })}
                     </div>
                   </Draggable>
-                  {selected && (
-                    <div className="lm-item-controls" style={{ position: 'absolute', top: -12, right: -12, display: 'flex', gap: 4, zIndex: 3 }}>
-                      <button
-                        type="button"
-                        className="lm-ctl"
-                        onClick={() => setPlacedField(item.instanceId, { wordFills: {}, punctFills: {} })}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        aria-label="Put the sentence's own words back"
-                        title="Original words"
-                      >
-                        ↺
-                      </button>
-                      <button type="button" className="lm-ctl" onClick={() => flipBubbleStyle(item.instanceId)} onPointerDown={(e) => e.stopPropagation()} aria-label="Solid or outline bubbles" title="Solid or outline"><BubbleSwatch solid={(item.bubbleStyle ?? bubbleDefault) !== 'solid'} /></button>
-                      <button
-                        type="button"
-                        onClick={() => removePlacedItem(item.instanceId)}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        aria-label="Remove this Symbol Sentence"
-                        style={{ width: 22, height: 22, borderRadius: '50%', border: '2px solid var(--ink)', background: '#fee2e2', color: '#991b1b', fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, lineHeight: 1 }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  )}
                 </div>
               );
             })}
