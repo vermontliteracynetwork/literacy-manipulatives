@@ -848,15 +848,12 @@ export default function LiteracyManipulatives() {
   const [shareOpen, setShareOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const fontChoice = useFontChoice();
-  // First visit: welcome pop-up with "Start a whiteboard" or "Join a board". Remembered per browser; a page
-  // that embeds the board (the dashboard's iframe) can pass ?welcome=0 to skip it.
+  // Every launch opens on the welcome pop-up, "Start a whiteboard" or "Join a board" (her request 2026-10-15).
+  // A page that embeds the board (the dashboard's iframe) can pass ?welcome=0 to skip it.
   const [welcomeOpen, setWelcomeOpen] = useState(() => {
-    try {
-      if (new URLSearchParams(window.location.search).get('welcome') === '0') return false;
-      return window.localStorage.getItem('lm-welcomed') !== '1';
-    } catch { return true; }
+    try { return new URLSearchParams(window.location.search).get('welcome') !== '0'; } catch { return true; }
   });
-  const closeWelcome = () => { setWelcomeOpen(false); try { window.localStorage.setItem('lm-welcomed', '1'); } catch { /* storage blocked */ } };
+  const closeWelcome = () => setWelcomeOpen(false);
   const fromTeacher = useRef(false);
   const lastSynced = useRef<{ placed: PlacedItem[]; strokes: Stroke[] }>({ placed: [], strokes: [] });
   const student = useStudentSession<PlacedItem, Stroke>((snap: Snapshot<PlacedItem, Stroke>) => {
