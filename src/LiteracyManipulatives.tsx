@@ -1164,9 +1164,9 @@ export default function LiteracyManipulatives() {
       return pp;
     }).map((pp, _i, all) => {
       // In a snapped row of symbols, a random "a" or "an" matches the word after it too.
-      if (pp.kind !== 'shape' || !ids.has(pp.instanceId) || !/^an?$/i.test(pp.bubbleWord ?? '')) return pp;
+      if (pp.kind !== 'shape' || !/^an?$/i.test(pp.bubbleWord ?? '')) return pp;
       const next = all.find((q) => q.snapLeftId === pp.instanceId && q.kind === 'shape');
-      if (!next?.bubbleWord) return pp;
+      if (!next?.bubbleWord || (!ids.has(pp.instanceId) && !ids.has(next.instanceId))) return pp;
       return { ...pp, bubbleWord: fixArticles([pp.bubbleWord!, next.bubbleWord])[0] };
     }));
   };
@@ -1371,6 +1371,38 @@ export default function LiteracyManipulatives() {
     setPlaced((p) => [...p, ...items]);
     dragInstanceRef.current = items[0].instanceId;
     bindGlobalDragTracking([items[0]], { x: items[0].x, y: items[0].y }, size, 'shape');
+  };
+
+  // Ungroup a Symbol Sentence card (her request 2026-10-15): it becomes separate symbols, still snapped in a
+  // row in the same order with the same words, bubble style and end mark, so each can be pulled out on its own.
+  const splitSymbolSentence = (instanceId: string) => {
+    const card = placed.find((pp) => pp.instanceId === instanceId);
+    const sentence = card && ALL_SYMBOL_SENTENCES.find((ss) => ss.id === card.symbolSentenceId);
+    if (!card || !sentence) return;
+    pushHistory();
+    const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const pieces: PlacedItem[] = [];
+    for (const t of sentenceTokens(sentence)) {
+      const id = `split-${stamp}-${pieces.length}`;
+      const left = pieces.length ? pieces[pieces.length - 1].instanceId : card.snapLeftId;
+      if (t.type === 'punct') {
+        const mark = card.punctFills?.[t.slot] ?? t.mark;
+        const punctId = PUNCTUATION_MARKS.find((m) => m.mark === mark)?.id;
+        if (!punctId) continue;
+        pieces.push({ instanceId: id, kind: 'punctuation', punctId, snapLeftId: left, x: card.x + pieces.length * 120, y: card.y, groupId: card.groupId, addedBy: card.addedBy });
+      } else {
+        const w = sentence.words[t.index];
+        pieces.push({ instanceId: id, kind: 'shape', wordClass: w.wordClass, bubbleWord: card.wordFills?.[t.index] ?? w.word, bubbleStyle: card.bubbleStyle, snapLeftId: left, x: card.x + pieces.length * 120, y: card.y, groupId: card.groupId, addedBy: card.addedBy });
+      }
+    }
+    if (!pieces.length) return;
+    const lastId = pieces[pieces.length - 1].instanceId;
+    setPlaced((p) => [
+      ...p.filter((pp) => pp.instanceId !== instanceId).map((pp) => (pp.snapLeftId === instanceId ? { ...pp, snapLeftId: lastId } : pp)),
+      ...pieces,
+    ]);
+    setSelectedId(null);
+    setToolsFor(null);
   };
 
   const startDragNewSymbolSentence = (sentence: SymbolSentence) => startDragNewItem(() => ({
@@ -2180,6 +2212,9 @@ export default function LiteracyManipulatives() {
                       onChange={(v) => setPlacedField(p.instanceId, { bubbleWord: v })}
                       owner={p.instanceId}
                     />
+                    {toolsOpenFor(p.instanceId) && (
+                      <button type="button" className="lm-ctl lm-item-controls" style={{ position: 'absolute', top: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)' }} onPointerDown={(e) => e.stopPropagation()} onClick={() => randomizeWords(new Set([p.instanceId]))} aria-label={`Random ${MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].name.toLowerCase()}`} title="Random word"><Icon name="dice" size={16} /></button>
+                    )}
                   </div>
                 )}
                 {/* Delete (+ Settings for a single Grammar Symbol) -
@@ -2274,7 +2309,6 @@ export default function LiteracyManipulatives() {
                     <div className="lm-unit-tools" role="toolbar" aria-label={sel.groupId ? 'Group settings' : 'Settings'}>
                       {worded.length > 0 && (
                         <>
-                          <button type="button" className="lm-tool-btn" onClick={() => randomizeWords(ids)} title="Random words"><Icon name="dice" size={16} /> Random</button>
                           <span className="lm-tool-pair" role="radiogroup" aria-label="Word bubbles">
                             <button type="button" role="radio" aria-checked={style !== 'solid'} className={`lm-tool-btn${style !== 'solid' ? ' on' : ''}`} onClick={() => setUnitBubbles(ids, 'outline')} aria-label="Outline bubbles"><BubbleSwatch solid={false} /></button>
                             <button type="button" role="radio" aria-checked={style === 'solid'} className={`lm-tool-btn${style === 'solid' ? ' on' : ''}`} onClick={() => setUnitBubbles(ids, 'solid')} aria-label="Solid bubbles"><BubbleSwatch solid /></button>
@@ -2282,6 +2316,7 @@ export default function LiteracyManipulatives() {
                         </>
                       )}
                       {loneSentence && <button type="button" className="lm-tool-btn" onClick={() => setPlacedField(sel.instanceId, { wordFills: {}, punctFills: {} })} title="Put the sentence's own words back">Reset words</button>}
+                      {loneSentence && <button type="button" className="lm-tool-btn" onClick={() => splitSymbolSentence(sel.instanceId)} title="Break the sentence into separate symbols">Ungroup</button>}
                       {loneFrame && (
                         <>
                           <button type="button" className="lm-tool-btn" onClick={() => adjustFrameBoxCount(sel.instanceId, -1)} disabled={(sel.boxCount ?? 3) <= 1} aria-label="Remove a box">− Box</button>
