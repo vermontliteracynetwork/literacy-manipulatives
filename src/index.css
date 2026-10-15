@@ -413,3 +413,19 @@ button {
   .lm-symbol-tip { display: none !important; }
 }
 
+
+/* Word bubbles under Grammar Symbols and Symbol Sentence words (2026-10-15). */
+.lm-bubble-row { display: flex; justify-content: center; margin-top: -6px; }
+.lm-bubble { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 1.05rem; text-align: center; min-width: 76px; height: 44px; padding: 0 14px; border: 4px solid; border-radius: 999px; outline: none; touch-action: manipulation; }
+.lm-bubble::placeholder { color: inherit; opacity: 0.45; font-weight: 700; }
+.lm-bubble:focus { box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.35); }
+.lm-sentence { display: flex; align-items: flex-end; gap: 10px; padding: 4px; }
+.lm-sentence-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.lm-sentence-col img { width: 72px; height: 72px; object-fit: contain; pointer-events: none; }
+.lm-punct-icon { width: 44px; height: 52px; border-radius: 999px; border: none; background: #b3b3b3; color: #1f1147; font-family: 'Baloo 2', sans-serif; font-weight: 900; font-size: 1.6rem; line-height: 1; cursor: pointer; touch-action: manipulation; }
+.lm-ctl { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--ink); background: #fff; font-size: 14px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; line-height: 1; }
+.lm-bubble-toggle { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 8px; font-size: 0.75rem; font-weight: 700; }
+.lm-bubble-toggle button { display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 2px 10px; border-radius: 999px; border: 2px solid var(--content-border, #ccc); background: #fff; font: inherit; cursor: pointer; }
+.lm-bubble-toggle button.on { border-color: var(--ink, #1f1147); background: #ede9fe; }
+.lm-bubble-swatch { width: 22px; height: 12px; border-radius: 999px; border: 3px solid #d02028; display: inline-block; }
+.lm-bubble-swatch.solid { background: #d02028; }

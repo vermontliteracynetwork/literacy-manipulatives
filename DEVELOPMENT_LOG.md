@@ -301,3 +301,27 @@ Teacher request (verbatim): "lets update the literacy manipulatives whiteboard w
   existing Symbol Sentences pages, so those stay. Cards 34 to 43 are new and use the proper noun crown;
   they are a new 👑 Proper Nouns page, with ordinary example sentences written to fit each card's symbol
   pattern (the deck itself shows symbols only).
+
+---
+
+## 2026-10-15: Word bubbles attached to the symbols
+
+Teacher request (verbatim), with a picture of "He tied his skates in his stinky locker room ." built from
+the symbols with a colored word pill under each icon: "claudia, give me a view like this in literacy
+manipulatives. i want the text bubble to be attatched to the icon itself. solid and outline options should be
+available. always have punctiuation as a separete icon. should be able to type words in bubbles, even
+replacing default/random words"
+
+- **Symbol Sentences on the board** now look like her picture: each symbol with its word bubble attached right
+  under it, in the symbol's own color, and the sentence's punctuation as its own gray icon (the comma after
+  "Softly" too, not only the period at the end). The bubbles start with the card's own words; tap any bubble
+  and type to replace it. Tap a punctuation icon to switch it between . ? ! and ,. A selected sentence has ↺
+  (its own words back) and a solid/outline switch. This replaces the old ⚙️ "Type each word" pop-up.
+- **Single Grammar Symbols** get the same attached bubble (empty, with the part of speech as a hint). A
+  selected one has 🎲 (a random word for that part of speech, which can then be typed over) and the
+  solid/outline switch. This replaces the old ⚙️ "Add a text field" (the separate Text Box tool is unchanged).
+- **Solid or outline:** a "Word bubbles: Outline / Solid" switch at the top of the Grammar Symbols and Symbol
+  Sentences trays sets every bubble on the board at once and the style of new ones.
+- **Punctuation always stays its own icon:** marks typed into a word bubble are left out.
+- Code: `src/lib/wordBubbles.ts` (sentence tokens, random words, text color), `WordBubble`, `PunctIcon` and
+  `BubbleToggle` in `src/LiteracyManipulatives.tsx`, styles at the end of `src/index.css`.

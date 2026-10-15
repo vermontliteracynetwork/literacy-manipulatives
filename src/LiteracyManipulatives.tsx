@@ -6,6 +6,7 @@ import { MORPHEME_ROOTS, MORPHEME_PREFIXES, MORPHEME_SUFFIXES, MORPHEME_AFFIXES,
 import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass, PROPER_NOUNS } from './lib/montessoriGrammar';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
 import { PUNCTUATION_MARKS } from './lib/punctuationContent';
+import { nextPunct, randomWordFor, sentenceTokens, stripPunctuation, textOn, type BubbleStyle } from './lib/wordBubbles';
 import { WORD_CHAINS } from './lib/wordChainContent';
 import { HEART_WORDS } from './lib/heartWordContent';
 import { SPELLING_RULES } from './lib/spellingRuleContent';
@@ -177,7 +178,10 @@ interface PlacedItem {
   textValue?: string; // textbox
   fontSize?: number; // textbox
   symbolSentenceId?: string; // symbolSentence — id into ALL_SYMBOL_SENTENCES
-  wordFills?: Record<number, string>; // symbolSentence — optional typed word per symbol, from its settings popup
+  wordFills?: Record<number, string>; // symbolSentence — typed word per symbol, shown in that symbol's word bubble (replaces the default word)
+  punctFills?: Record<number, string>; // symbolSentence — punctuation icon after word N, when changed from the sentence's own mark
+  bubbleStyle?: BubbleStyle; // shape + symbolSentence — word bubbles drawn as an outline (default) or solid
+  bubbleWord?: string; // shape — the word typed (or 🎲 picked) in a single Grammar Symbol's bubble
   punctId?: string; // punctuation — id into PUNCTUATION_MARKS
   tapCount?: number; // syllableTapper — how many claps the student has tapped so far
   heartWordId?: string; // heartWord — id into HEART_WORDS
@@ -196,8 +200,8 @@ function sizeFor(kind: PlacedKind, boxCount?: number): { w: number; h: number } 
   if (kind === 'morpheme') return { w: 96, h: 64 };
   if (kind === 'frame') { const n = boxCount ?? 3; return { w: n * 44 + (n - 1) * 4, h: 44 }; }
   if (kind === 'textbox') return { w: 160, h: 56 };
-  if (kind === 'shape') return { w: 96, h: 96 };
-  if (kind === 'symbolSentence') { const n = boxCount ?? 3; return { w: n * 48 + (n - 1) * 4, h: 56 }; }
+  if (kind === 'shape') return { w: 130, h: 150 };
+  if (kind === 'symbolSentence') { const n = boxCount ?? 3; return { w: n * 110 + 60, h: 130 }; }
   if (kind === 'soundChip') return { w: 36, h: 36 };
   if (kind === 'divider') return { w: 10, h: 70 };
   if (kind === 'syllableTapper') return { w: 220, h: 110 };
@@ -513,6 +517,50 @@ function WordListRow({ word, rowId, onDragStart, tts }: {
 // with the example reference sentences saved in that original doc" —
 // hovering/focusing the tray card reveals its real sentence text,
 // reusing the same tooltip pattern the Grammar Symbol tiles already use.
+// The word bubble attached under a Grammar Symbol (her picture, 2026-10-15): a pill in the symbol's own color,
+// outlined or solid, that a student taps and types into. Typing never starts a drag, and punctuation is kept
+// out (it gets its own icon).
+function WordBubble({ value, placeholder, color, bubbleStyle, onChange, label }: {
+  value: string; placeholder: string; color: string; bubbleStyle: BubbleStyle; onChange: (v: string) => void; label: string;
+}) {
+  const solid = bubbleStyle === 'solid';
+  const shown = value || placeholder;
+  return (
+    <input
+      className="lm-bubble"
+      value={value}
+      placeholder={placeholder}
+      aria-label={label}
+      size={Math.max(4, shown.length + 1)}
+      onPointerDown={(e) => e.stopPropagation()}
+      onChange={(e) => onChange(stripPunctuation(e.target.value))}
+      style={{ borderColor: color, background: solid ? color : '#ffffff', color: solid ? textOn(color) : '#1f1147' }}
+    />
+  );
+}
+
+// Punctuation is always its own small gray icon (never typed into a word). Tapping it steps . ? ! ,
+function PunctIcon({ mark, onTap }: { mark: string; onTap?: () => void }) {
+  return (
+    <button type="button" className="lm-punct-icon" aria-label={`Punctuation ${mark}. Tap to change it`} onPointerDown={(e) => e.stopPropagation()} onClick={onTap}>
+      {mark}
+    </button>
+  );
+}
+
+function BubbleToggle({ value, onChange }: { value: BubbleStyle; onChange: (v: BubbleStyle) => void }) {
+  return (
+    <div className="lm-bubble-toggle" role="radiogroup" aria-label="Word bubbles">
+      <span>Word bubbles:</span>
+      {(['outline', 'solid'] as const).map((v) => (
+        <button key={v} type="button" role="radio" aria-checked={value === v} className={value === v ? 'on' : ''} onClick={() => onChange(v)}>
+          <i className={`lm-bubble-swatch ${v}`} aria-hidden="true" />{v === 'outline' ? 'Outline' : 'Solid'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function SymbolSentenceCard({ sentence, onPointerDown }: {
   sentence: SymbolSentence; onPointerDown: (e: React.PointerEvent) => void;
 }) {
@@ -849,13 +897,9 @@ export default function LiteracyManipulatives() {
   // stays visible through the whole move, and a plain tap selects it
   // on touch. Tapping empty canvas clears the selection.
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Symbol Sentences settings popup (per-word text inputs) — direct
-  // follow-up instruction, same toggle pattern as openFormulaSettings.
-  const [openSymbolSentenceSettings, setOpenSymbolSentenceSettings] = useState<string | null>(null);
-  // Direct follow-up instruction: "have the same setting button appear
-  // for single grammar symbols... the same text box feature should
-  // appear with single grammar symbols." Same toggle pattern again.
-  const [openShapeSettings, setOpenShapeSettings] = useState<string | null>(null);
+  // Word bubbles for newly placed symbols start as an outline or solid (the toggle in the Grammar Symbols and
+  // Symbol Sentences trays, which also switches every bubble already on the board).
+  const [bubbleDefault, setBubbleDefault] = useState<BubbleStyle>('outline');
   // Sentence Formulas joined into a paragraph chain — direct
   // instruction: "sentence formulas can be joined together (a
   // connection animation) to stack them into a paragraph form."
@@ -1009,22 +1053,18 @@ export default function LiteracyManipulatives() {
     setActiveTextBoxId(instanceId);
   };
 
-  // Direct follow-up instruction: "have the same setting button appear
-  // for single grammar symbols, however when settings appear, if you
-  // click to add a text field, it should appear and stay, same as
-  // adding a text box... the same text box feature should appear with
-  // single grammar symbols." Rather than a new lightweight input, this
-  // spawns a real, independent Text Box item right next to the symbol —
-  // literally the same persistent, double-tap-to-edit, resizable,
-  // STT-capable tool the sidebar's Text Box already is.
-  const addTextFieldNearShape = (shapeInstanceId: string) => {
-    const shape = placed.find((p) => p.instanceId === shapeInstanceId);
-    if (!shape) return;
-    pushHistory();
-    const instanceId = `tb-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    setPlaced((p) => [...p, { instanceId, kind: 'textbox', textValue: '', fontSize: 16, x: shape.x, y: shape.y + 108 }]);
-    setActiveTextBoxId(instanceId);
-    setOpenShapeSettings(null);
+  const setPlacedField = (instanceId: string, patch: Partial<PlacedItem>) => {
+    setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, ...patch } : pp)));
+  };
+  const flipBubbleStyle = (instanceId: string) => {
+    setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, bubbleStyle: (pp.bubbleStyle ?? bubbleDefault) === 'solid' ? 'outline' : 'solid' } : pp)));
+  };
+  const setAllBubbles = (style: BubbleStyle) => {
+    setBubbleDefault(style);
+    setPlaced((p) => p.map((pp) => (pp.kind === 'shape' || pp.kind === 'symbolSentence' ? { ...pp, bubbleStyle: style } : pp)));
+  };
+  const setSymbolSentencePunct = (instanceId: string, slot: number, mark: string) => {
+    setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, punctFills: { ...(pp.punctFills ?? {}), [slot]: mark } } : pp)));
   };
 
   const setFrameFill = (instanceId: string, segIndex: number, value: string) => {
@@ -1618,6 +1658,7 @@ export default function LiteracyManipulatives() {
       {sidebarOpen ? (
         <aside className="lm-sidebar">
           <Category label="🔺 Grammar Symbols" color="#e9d5ff" open={openCategories.shapes} onToggle={() => toggleCategory('shapes')}>
+            <BubbleToggle value={bubbleDefault} onChange={setAllBubbles} />
             <div className="row-wrap" style={{ gap: 8 }}>
               {(Object.keys(MONTESSORI_WORD_CLASS_INFO) as MontessoriWordClass[]).map((cls) => {
                 const info = MONTESSORI_WORD_CLASS_INFO[cls];
@@ -1631,7 +1672,8 @@ export default function LiteracyManipulatives() {
           </Category>
 
           <Category label="📜 Symbol Sentences" color="#ddd6fe" open={openCategories.symbolSentences} onToggle={() => toggleCategory('symbolSentences')}>
-            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Drag a whole sentence onto the board, symbols only!</p>
+            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Drag a whole sentence onto the board. Tap any word bubble to type your own word.</p>
+            <BubbleToggle value={bubbleDefault} onChange={setAllBubbles} />
             {SYMBOL_SENTENCE_PAGES.map((page) => (
               <SubcategoryRow key={page.id} id={page.id} label={`${page.icon} ${page.label}`} open={openSubcategories[page.id]} onToggle={() => toggleSubcategory(page.id)}>
                 <div className="stack" style={{ gap: 8 }}>
@@ -1928,6 +1970,20 @@ export default function LiteracyManipulatives() {
                 >
                   <ItemVisual kind={p.kind} pieceId={p.pieceId} wordClass={p.wordClass} letter={p.letter} boxCount={p.boxCount} morphText={p.morphText} morphType={p.morphType} punctId={p.punctId} vowelConsonantColors={vowelConsonantColors} ruleId={p.ruleId} />
                 </Draggable>
+                {/* The word bubble is part of the symbol (her picture, 2026-10-15): it sits right under the icon and
+                    moves with it. Tap it to type a word. */}
+                {p.kind === 'shape' && (
+                  <div className="lm-bubble-row">
+                    <WordBubble
+                      value={p.bubbleWord ?? ''}
+                      placeholder={MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].name.toLowerCase()}
+                      color={MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].color}
+                      bubbleStyle={p.bubbleStyle ?? bubbleDefault}
+                      label={`${MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].name} word`}
+                      onChange={(v) => setPlacedField(p.instanceId, { bubbleWord: v })}
+                    />
+                  </div>
+                )}
                 {/* Delete (+ Settings for a single Grammar Symbol) —
                     direct teacher instruction: "ensure that after i drag
                     and drop, the x is not shown on the assets on the
@@ -1972,16 +2028,10 @@ export default function LiteracyManipulatives() {
                       </>
                     )}
                     {p.kind === 'shape' && (
-                      <button
-                        type="button"
-                        onClick={() => setOpenShapeSettings((v) => (v === p.instanceId ? null : p.instanceId))}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        aria-label="Grammar Symbol settings"
-                        title="Settings"
-                        style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid var(--ink)', background: 'white', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, lineHeight: 1 }}
-                      >
-                        ⚙️
-                      </button>
+                      <>
+                        <button type="button" className="lm-ctl" onClick={() => setPlacedField(p.instanceId, { bubbleWord: randomWordFor(p.wordClass ?? 'noun') })} onPointerDown={(e) => e.stopPropagation()} aria-label="Random word" title="Random word">🎲</button>
+                        <button type="button" className="lm-ctl" onClick={() => flipBubbleStyle(p.instanceId)} onPointerDown={(e) => e.stopPropagation()} aria-label="Solid or outline bubble" title="Solid or outline">{(p.bubbleStyle ?? bubbleDefault) === 'solid' ? '⬭' : '⬬'}</button>
+                      </>
                     )}
                     <button
                       type="button"
@@ -1995,23 +2045,6 @@ export default function LiteracyManipulatives() {
                       }}
                     >
                       ✕
-                    </button>
-                  </div>
-                )}
-                {/* Direct follow-up instruction: "when settings appear, if
-                    you click to add a text field, it should appear and
-                    stay, same as adding a text box... same text box
-                    feature should appear with single grammar symbols."
-                    Rather than a new lightweight widget, this spawns a
-                    real, independent Text Box item next to the symbol —
-                    the exact same persistent, double-tap-to-edit,
-                    resizable, STT-capable tool the sidebar's own Text Box
-                    already is, so "add a text field" really is "add a
-                    text box." */}
-                {p.kind === 'shape' && selectedId === p.instanceId && openShapeSettings === p.instanceId && (
-                  <div className="chrome-frame" style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 12, padding: 8, width: 170 }} onPointerDown={(e) => e.stopPropagation()}>
-                    <button type="button" className="btn btn-sm" style={{ width: '100%', fontSize: '0.75rem' }} onClick={() => addTextFieldNearShape(p.instanceId)}>
-                      ⌨️ Add a text field
                     </button>
                   </div>
                 )}
@@ -2102,27 +2135,37 @@ export default function LiteracyManipulatives() {
                     onPointerUp={onDragEnd}
                     style={selected ? { boxShadow: '0 0 0 3px rgba(124,58,237,0.35)', borderRadius: 10, padding: 2 } : { padding: 2 }}
                   >
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      {sentence.words.map((w, i) => (
-                        <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, width: 44 }}>
-                          <img src={MONTESSORI_WORD_CLASS_INFO[w.wordClass].imageUrl} alt={w.word} draggable={false} style={{ width: 40, height: 40, objectFit: 'contain', pointerEvents: 'none' }} />
-                          {fills[i] && <span style={{ fontSize: '0.62rem', fontWeight: 700, textAlign: 'center' }}>{fills[i]}</span>}
-                        </div>
-                      ))}
+                    <div className="lm-sentence">
+                      {sentenceTokens(sentence).map((t) => {
+                        if (t.type === 'punct') {
+                          const mark = item.punctFills?.[t.slot] ?? t.mark;
+                          return <div key={`p${t.slot}`} className="lm-sentence-col punct"><PunctIcon mark={mark} onTap={() => setSymbolSentencePunct(item.instanceId, t.slot, nextPunct(mark))} /></div>;
+                        }
+                        const w = sentence.words[t.index];
+                        const info = MONTESSORI_WORD_CLASS_INFO[w.wordClass];
+                        return (
+                          <div key={t.index} className="lm-sentence-col">
+                            <img src={info.imageUrl} alt={info.name} draggable={false} />
+                            <WordBubble value={fills[t.index] ?? w.word} placeholder={info.name.toLowerCase()} color={info.color} bubbleStyle={item.bubbleStyle ?? bubbleDefault}
+                              label={`${info.name} word ${t.index + 1}`} onChange={(v) => setSymbolSentenceWordFill(item.instanceId, t.index, v)} />
+                          </div>
+                        );
+                      })}
                     </div>
                   </Draggable>
                   {selected && (
                     <div className="lm-item-controls" style={{ position: 'absolute', top: -12, right: -12, display: 'flex', gap: 4, zIndex: 3 }}>
                       <button
                         type="button"
-                        onClick={() => setOpenSymbolSentenceSettings((v) => (v === item.instanceId ? null : item.instanceId))}
+                        className="lm-ctl"
+                        onClick={() => setPlacedField(item.instanceId, { wordFills: {}, punctFills: {} })}
                         onPointerDown={(e) => e.stopPropagation()}
-                        aria-label="Symbol Sentence settings"
-                        title="Settings"
-                        style={{ width: 22, height: 22, borderRadius: '50%', border: '2px solid var(--ink)', background: 'white', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, lineHeight: 1 }}
+                        aria-label="Put the sentence's own words back"
+                        title="Original words"
                       >
-                        ⚙️
+                        ↺
                       </button>
+                      <button type="button" className="lm-ctl" onClick={() => flipBubbleStyle(item.instanceId)} onPointerDown={(e) => e.stopPropagation()} aria-label="Solid or outline bubbles" title="Solid or outline">{(item.bubbleStyle ?? bubbleDefault) === 'solid' ? '⬭' : '⬬'}</button>
                       <button
                         type="button"
                         onClick={() => removePlacedItem(item.instanceId)}
@@ -2132,22 +2175,6 @@ export default function LiteracyManipulatives() {
                       >
                         ✕
                       </button>
-                    </div>
-                  )}
-                  {selected && openSymbolSentenceSettings === item.instanceId && (
-                    <div className="chrome-frame" style={{ position: 'absolute', top: '110%', left: 0, zIndex: 12, padding: 8, width: Math.max(220, sentence.words.length * 60) }} onPointerDown={(e) => e.stopPropagation()}>
-                      <div style={{ fontSize: '0.72rem', fontWeight: 700, marginBottom: 6, opacity: 0.7 }}>Type each word</div>
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                        {sentence.words.map((w, i) => (
-                          <input
-                            key={i}
-                            value={fills[i] ?? ''}
-                            onChange={(e) => setSymbolSentenceWordFill(item.instanceId, i, e.target.value)}
-                            placeholder={w.word}
-                            style={{ width: 52, border: '2px solid var(--content-border)', borderRadius: 6, padding: '4px 4px', fontSize: '0.75rem', textAlign: 'center' }}
-                          />
-                        ))}
-                      </div>
                     </div>
                   )}
                 </div>
