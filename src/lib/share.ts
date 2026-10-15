@@ -11,7 +11,9 @@ import { createClient, type RealtimeChannel, type SupabaseClient } from '@supaba
 // Share button explains that setup isn't finished. Nothing is saved anywhere: a shared board lives only as
 // long as the teacher's tab does, same as the unshared board.
 
-const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+// Accepts the full Project URL or just the project ID (e.g. "qjjbaxfjmwawcmtigeba"), since both get pasted.
+const rawUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
+const url = rawUrl && !rawUrl.includes('://') ? `https://${rawUrl.replace(/\.supabase\.co\/?$/, '')}.supabase.co` : rawUrl;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 export const shareConfigured = !!(url && anonKey);
 
