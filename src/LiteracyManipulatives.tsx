@@ -2153,15 +2153,10 @@ export default function LiteracyManipulatives() {
               setMultiSel(new Set(placed.filter((pp) => hit.includes(pp) || (pp.groupId && groups.has(pp.groupId))).map((pp) => pp.instanceId)));
             }}
           >
-          {(selectMode || multiSel.size > 0) && (
-            <div className="lm-select-bar" role="toolbar" aria-label="Selected pieces">
-              <strong>{multiSel.size ? `${multiSel.size} selected` : 'Tap pieces, or drag a box around them'}</strong>
-              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={groupSelected}>Group</button>
-              <button className="btn btn-sm" disabled={!placed.some((pp) => multiSel.has(pp.instanceId) && pp.groupId)} onClick={ungroupSelected}>Ungroup</button>
-              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('middle')} title="Line up their middles side by side">Align middles</button>
-              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('center')} title="Line up their centers in a column">Align centers</button>
-              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('row')} title="Even row, middles lined up">Line up</button>
-              <button className="btn btn-sm" onClick={() => { setSelectMode(false); setMultiSel(new Set()); }}>Done</button>
+          {selectMode && multiSel.size === 0 && (
+            <div className="lm-select-bar" role="toolbar" aria-label="Select pieces">
+              <strong>Tap pieces, or drag a box around them</strong>
+              <button className="lm-tool-btn" onClick={() => setSelectMode(false)}>Done</button>
             </div>
           )}
           <div
@@ -2267,6 +2262,45 @@ export default function LiteracyManipulatives() {
                 )}
               </div>
             ))}
+            {/* A multi-selection gets a box around it and a small toolbar right under it (like Canva). */}
+            {multiSel.size > 0 && !studentViewOnly && (() => {
+              const sel = placed.filter((pp) => multiSel.has(pp.instanceId));
+              if (!sel.length) return null;
+              const boxes = sel.map((pp) => ({ pp, sz: measured(pp) }));
+              const minX = Math.min(...boxes.map((b) => b.pp.x)), maxX = Math.max(...boxes.map((b) => b.pp.x + b.sz.w));
+              const minY = Math.min(...boxes.map((b) => b.pp.y)), maxY = Math.max(...boxes.map((b) => b.pp.y + b.sz.h));
+              const gids = new Set(sel.map((pp) => pp.groupId));
+              const oneGroup = gids.size === 1 && !!sel[0].groupId;
+              const anyGrouped = sel.some((pp) => pp.groupId);
+              const removeSelected = () => {
+                pushHistory();
+                setPlaced((p) => p.filter((pp) => !multiSel.has(pp.instanceId)).map((pp) => (pp.snapLeftId && multiSel.has(pp.snapLeftId) ? { ...pp, snapLeftId: undefined } : pp.inFrameId && multiSel.has(pp.inFrameId) ? { ...pp, inFrameId: undefined, cellIndex: undefined } : pp)));
+                setMultiSel(new Set());
+              };
+              return (
+                <>
+                  <div className="lm-sel-bounds" style={{ left: minX - 8, top: minY - 8, width: maxX - minX + 16, height: maxY - minY + 16 }} aria-hidden="true" />
+                  <div className="lm-sel-tools lm-item-controls" role="toolbar" aria-label={`${sel.length} selected`} style={{ left: (minX + maxX) / 2, top: maxY + 16 }} onPointerDown={(e) => e.stopPropagation()}>
+                    <span className="lm-sel-count">{sel.length}</span>
+                    {oneGroup
+                      ? <button type="button" className="lm-tool-btn" onClick={ungroupSelected}>Ungroup</button>
+                      : <>
+                          <button type="button" className="lm-tool-btn" disabled={sel.length < 2} onClick={groupSelected}>Group</button>
+                          {anyGrouped && <button type="button" className="lm-tool-btn" onClick={ungroupSelected}>Ungroup</button>}
+                        </>}
+                    {sel.length > 1 && (
+                      <>
+                        <button type="button" className="lm-tool-btn" onClick={() => alignSelected('middle')} title="Line up their middles side by side">Align middles</button>
+                        <button type="button" className="lm-tool-btn" onClick={() => alignSelected('center')} title="Line up their centers in a column">Align centers</button>
+                        <button type="button" className="lm-tool-btn" onClick={() => alignSelected('row')} title="Even row, middles lined up">Line up</button>
+                      </>
+                    )}
+                    <button type="button" className="lm-tool-btn icon" onClick={removeSelected} aria-label="Remove selected" title="Remove"><Icon name="trash" size={16} /></button>
+                    <button type="button" className="lm-tool-btn" onClick={() => { setSelectMode(false); setMultiSel(new Set()); }}>Done</button>
+                  </div>
+                </>
+              );
+            })()}
             {/* Everyone else's selection on a shared board, outlined in their color with their name. */}
             {Object.values(joinMode ? student.remoteFocus : host.remoteFocus).map((f) => {
               const items = f.ids.map((id) => placed.find((pp) => pp.instanceId === id)).filter((pp): pp is PlacedItem => !!pp);
@@ -2430,7 +2464,9 @@ export default function LiteracyManipulatives() {
                         const info = MONTESSORI_WORD_CLASS_INFO[w.wordClass];
                         return (
                           <div key={t.index} className="lm-sentence-col">
-                            <img src={info.imageUrl} alt={info.name} draggable={false} />
+                            <ReferencePopover mode="hover" title={info.name} body={info.label}>
+                              <img src={info.imageUrl} alt={info.name} draggable={false} />
+                            </ReferencePopover>
                             <WordBubble value={fills[t.index] ?? w.word} placeholder={info.name.toLowerCase()} color={info.color} bubbleStyle={item.bubbleStyle ?? bubbleDefault}
                               label={`${info.name} word ${t.index + 1}`} onChange={(v) => setSymbolSentenceWordFill(item.instanceId, t.index, v)}
                               owner={item.instanceId} idx={t.index} />
