@@ -21,7 +21,6 @@ import { BUBBLE_BLACK, BUBBLE_WHITE, nextPunct, randomWordInSentence, sentenceTo
 import {
   LM_PUNCTUATION_COLOR, LM_PUNCTUATION_TEXT_COLOR, LM_PHONO_COLOR,
 } from './lib/literacyDesignTokens';
-import { playListeningStartChime, playListeningStopChime } from './lib/audioCues';
 import { GRAMMAR_WORD_CLASS_COLORS, GRAMMAR_WORD_CLASS_TEXT_COLORS } from './types';
 import type { GrammarPiece, TTSSettings } from './types';
 
@@ -80,62 +79,8 @@ const ERASER_RADIUS = 14;
 const SENTENCE_GAP = 8; // space between snapped sentence pieces
 const LINE_SNAP = 70; // how close (px) a dropped piece must be to snap into a row
 // Pieces that snap into a sentence row: Grammar Symbols, Symbol Sentences, punctuation tiles.
-const SENTENCE_KINDS: PlacedKind[] = ['shape', 'symbolSentence', 'punctuation'];
+const SENTENCE_KINDS: PlacedKind[] = ['shape', 'symbolSentence', 'punctuation', 'textbox'];
 
-// Speech-to-text for the Text Box tool, direct teacher instruction
-// ("SST option" on the new typeable fields). The browser's own Web
-// Speech API, feature-detected once at module scope, same pattern this
-// project used before speech-to-text was removed app-wide (2026-09-22,
-// "remove STT, but allow TTS for the items or things highlighted by
-// the student", that removal was about ArticleReader specifically;
-// this is a new, separate, explicit request for this one tool).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const SpeechRecognitionCtor: any = typeof window !== 'undefined' ? (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition : null;
-const voiceToTextSupported = !!SpeechRecognitionCtor;
-
-function useTextBoxVoiceToText(onFinalText: (text: string) => void) {
-  const [listening, setListening] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recognitionRef = useRef<any>(null);
-  const onFinalTextRef = useRef(onFinalText);
-  onFinalTextRef.current = onFinalText;
-
-  useEffect(() => () => { recognitionRef.current?.stop(); }, []);
-
-  const stop = () => {
-    recognitionRef.current?.stop();
-    setListening(false);
-  };
-
-  // A23-ROADMAP Phase 2: "STT listening cue (chime/TTS + visual state)."
-  // The visual state (listening ? ... : ...) already existed at every
-  // call site of this hook; this adds the paired audio chime so a
-  // student who isn't looking at the button still gets a cue that
-  // listening actually started/stopped, a real accessibility gap for a
-  // population that benefits from more than one sensory channel per cue.
-  const toggle = () => {
-    if (listening) { stop(); playListeningStopChime(); return; }
-    if (!SpeechRecognitionCtor) return;
-    const rec = new SpeechRecognitionCtor();
-    rec.lang = 'en-US';
-    rec.continuous = true;
-    rec.interimResults = false;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    rec.onresult = (e: any) => {
-      let added = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) added += e.results[i][0].transcript;
-      if (added.trim()) onFinalTextRef.current(added.trim());
-    };
-    rec.onerror = () => setListening(false);
-    rec.onend = () => setListening(false);
-    rec.start();
-    recognitionRef.current = rec;
-    setListening(true);
-    playListeningStartChime();
-  };
-
-  return { listening, toggle, supported: voiceToTextSupported };
-}
 
 const LETTERS = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i));
 const FRAME_SIZES = [2, 3, 4, 5];
@@ -601,69 +546,57 @@ function SymbolSentenceCard({ sentence, onPointerDown }: {
 // textarea, focused automatically), and while editing a student can
 // type, speak (🎤, browser speech-to-text), or grow/shrink the text
 // with A-/A+.
-function TextBoxWidget({ item, onPointerDown, onPointerMove, onPointerUp, onTextChange, onFontSizeChange, onRemove }: {
+// Text boxes (her request 2026-10-15) look like word bubbles in medium gray, hold as many words as needed, and
+// snap into a sentence row like a symbol. Press to move; double tap to type; Enter or tapping away finishes.
+const TEXT_GRAY = '#8A9099';
+function TextBoxWidget({ item, bubbleStyle, setRef, editing, onEditDone, onPointerDown, onPointerMove, onPointerUp, onDoubleClick, onTextChange, selected }: {
   item: PlacedItem;
+  bubbleStyle: BubbleStyle;
+  setRef: (el: HTMLDivElement | null) => void;
+  editing: boolean;
+  onEditDone: () => void;
   onPointerDown: (e: React.PointerEvent) => void;
   onPointerMove: (e: React.PointerEvent) => void;
   onPointerUp: (e: React.PointerEvent) => void;
+  onDoubleClick: () => void;
   onTextChange: (value: string) => void;
-  onFontSizeChange: (delta: number) => void;
-  onRemove: () => void;
+  selected: boolean;
 }) {
-  const [editing, setEditing] = useState(false);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const fontSize = item.fontSize ?? 20;
-  const stt = useTextBoxVoiceToText((text) => onTextChange(`${item.textValue ?? ''} ${text}`.trim()));
-
-  useEffect(() => {
-    if (editing) inputRef.current?.focus();
-  }, [editing]);
-
-  if (editing) {
-    return (
-      <div className="chrome-frame" style={{ position: 'absolute', left: item.x, top: item.y, padding: 10, zIndex: 5, minWidth: 200 }}>
-        <textarea
-          ref={inputRef}
-          value={item.textValue ?? ''}
-          onChange={(e) => onTextChange(e.target.value)}
-          placeholder="Type here..."
-          style={{
-            width: 220, minHeight: 70, fontFamily: 'var(--lm-font)', fontSize,
-            border: '2px solid var(--ink)', borderRadius: 8, padding: 6, resize: 'both',
-          }}
-        />
-        <div className="row-wrap" style={{ gap: 4, marginTop: 6, alignItems: 'center' }}>
-          <button type="button" className="btn btn-sm" style={{ minWidth: 34, padding: '2px 8px' }} onClick={() => onFontSizeChange(-2)} aria-label="Smaller text">A-</button>
-          <button type="button" className="btn btn-sm" style={{ minWidth: 34, padding: '2px 8px' }} onClick={() => onFontSizeChange(2)} aria-label="Bigger text">A+</button>
-          {stt.supported && (
-            <button type="button" className={`btn btn-sm ${stt.listening ? 'btn-primary' : ''}`} onClick={stt.toggle}>
-              {stt.listening ? 'Listening...' : 'Speak'}
-            </button>
-          )}
-          <button type="button" className="btn btn-sm" onClick={() => setEditing(false)}>Done</button>
-          <button type="button" className="btn btn-sm" onClick={onRemove} aria-label="Remove text box">Delete</button>
-        </div>
-      </div>
-    );
-  }
-
+  const solid = bubbleStyle === 'solid';
+  const text = item.textValue ?? '';
+  const look: CSSProperties = { borderColor: TEXT_GRAY, background: solid ? TEXT_GRAY : BUBBLE_WHITE, color: solid ? textOn(TEXT_GRAY) : BUBBLE_BLACK };
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={item.textValue?.trim() ? item.textValue : 'Empty text box, double-tap to type'}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onDoubleClick={() => setEditing(true)}
-      style={{
-        position: 'absolute', left: item.x, top: item.y, zIndex: 5,
-        touchAction: 'none', userSelect: 'none', cursor: 'grab', minWidth: 120, minHeight: 44,
-        padding: '8px 12px', border: '2px dashed var(--content-border)', borderRadius: 8, background: 'white',
-        fontFamily: 'var(--lm-font)', fontSize, whiteSpace: 'pre-wrap', maxWidth: 320,
-      }}
-    >
-      {item.textValue?.trim() ? item.textValue : <span style={{ opacity: 0.45 }}>Double-tap to type</span>}
+    <div ref={setRef} style={{ position: 'absolute', left: item.x, top: item.y, zIndex: 2 }}>
+      {editing ? (
+        <input
+          className="lm-bubble lm-text-pill"
+          autoFocus
+          value={text}
+          placeholder="text"
+          aria-label="Text box"
+          size={Math.max(6, text.length + 1)}
+          onPointerDown={(e) => e.stopPropagation()}
+          onChange={(e) => onTextChange(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur(); }}
+          onBlur={onEditDone}
+          style={look}
+        />
+      ) : (
+        <div
+          role="button"
+          tabIndex={0}
+          className="lm-bubble lm-text-pill"
+          aria-label={text.trim() ? `Text box: ${text}` : 'Empty text box, double tap to type'}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onDoubleClick={onDoubleClick}
+          style={{ ...look, boxShadow: selected ? '0 0 0 3px rgba(25,104,171,0.35)' : undefined }}
+        >
+          {text.trim() ? text : <span style={{ opacity: 0.5 }}>text</span>}
+        </div>
+      )}
     </div>
   );
 }
@@ -983,7 +916,7 @@ export default function LiteracyManipulatives() {
   };
   const setAllBubbles = (style: BubbleStyle) => {
     setBubbleDefault(style);
-    setPlaced((p) => p.map((pp) => (pp.kind === 'shape' || pp.kind === 'symbolSentence' ? { ...pp, bubbleStyle: style } : pp)));
+    setPlaced((p) => p.map((pp) => (pp.kind === 'shape' || pp.kind === 'symbolSentence' || pp.kind === 'textbox' ? { ...pp, bubbleStyle: style } : pp)));
   };
   const setSymbolSentencePunct = (instanceId: string, slot: number, mark: string) => {
     setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, punctFills: { ...(pp.punctFills ?? {}), [slot]: mark } } : pp)));
@@ -1000,9 +933,6 @@ export default function LiteracyManipulatives() {
 
   const setTextBoxValue = (instanceId: string, value: string) => {
     setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, textValue: value } : pp)));
-  };
-  const setTextBoxFontSize = (instanceId: string, delta: number) => {
-    setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, fontSize: Math.min(48, Math.max(12, (pp.fontSize ?? 20) + delta)) } : pp)));
   };
   // A23-ROADMAP Phase 3: Elkonin-boxes-v2's "flexible count", a placed
   // Sound Box frame's boxCount can now grow/shrink live via +/- controls
@@ -1260,10 +1190,76 @@ export default function LiteracyManipulatives() {
       return { ...pp, bubbleWord: fixArticles([pp.bubbleWord!, next.bubbleWord])[0] };
     }));
   };
-  const setUnitBubbles = (ids: Set<string>, style: BubbleStyle) => setPlaced((p) => p.map((pp) => (ids.has(pp.instanceId) && (pp.kind === 'shape' || pp.kind === 'symbolSentence') ? { ...pp, bubbleStyle: style } : pp)));
+  const setUnitBubbles = (ids: Set<string>, style: BubbleStyle) => setPlaced((p) => p.map((pp) => (ids.has(pp.instanceId) && (pp.kind === 'shape' || pp.kind === 'symbolSentence' || pp.kind === 'textbox') ? { ...pp, bubbleStyle: style } : pp)));
   const setGroup = (ids: Set<string>, gid: string | undefined) => { pushHistory(); setPlaced((p) => p.map((pp) => (ids.has(pp.instanceId) ? { ...pp, groupId: gid } : pp))); };
   // Duplicate (her request 2026-10-15): a copy of the piece or group, a little down and to the right, with
   // its own snaps, Sound Box letters and grouping kept together inside the copy.
+  // Turning built symbols into one text box (her request 2026-10-15). The "T" in settings only works for a
+  // real sentence: a capital letter to start, correct grammar, and end punctuation. Otherwise a "?" shows
+  // which of the three are still missing.
+  const sentencePieces = (id: string): PlacedItem[] => {
+    const ids = new Set<string>();
+    const addRow = (rid: string) => { for (const r of rowMembers(rid)) ids.add(r.instanceId); };
+    addRow(id);
+    for (const pid of [...ids, id]) {
+      const g = placed.find((pp) => pp.instanceId === pid)?.groupId;
+      if (g) for (const pp of placed) if (pp.groupId === g) { ids.add(pp.instanceId); addRow(pp.instanceId); }
+    }
+    const items = placed.filter((pp) => ids.has(pp.instanceId) && SENTENCE_KINDS.includes(pp.kind));
+    const band = (pp: PlacedItem) => Math.round((pp.y + measured(pp).h) / 60);
+    return items.sort((a, b) => band(a) - band(b) || a.x - b.x);
+  };
+  type SentencePart = { word: string; cls: MontessoriWordClass | null } | { punct: string };
+  const sentenceParts = (items: PlacedItem[]): SentencePart[] => items.flatMap((pp): SentencePart[] => {
+    if (pp.kind === 'shape') return [{ word: (pp.bubbleWord ?? '').trim(), cls: pp.wordClass ?? 'noun' }];
+    if (pp.kind === 'punctuation') { const m = PUNCTUATION_MARKS.find((pm) => pm.id === pp.punctId); return m ? [{ punct: m.mark }] : []; }
+    if (pp.kind === 'symbolSentence') {
+      const sentence = ALL_SYMBOL_SENTENCES.find((ss) => ss.id === pp.symbolSentenceId);
+      if (!sentence) return [];
+      return sentenceTokens(sentence).map((t): SentencePart => (t.type === 'punct'
+        ? { punct: pp.punctFills?.[t.slot] ?? t.mark }
+        : { word: (pp.wordFills?.[t.index] ?? sentence.words[t.index].word).trim(), cls: sentence.words[t.index].wordClass }));
+    }
+    if (pp.kind === 'textbox') {
+      return (pp.textValue ?? '').match(/[A-Za-z'-]+|[.,!?;:]/g)?.map((tok): SentencePart => (/^[.,!?;:]$/.test(tok) ? { punct: tok } : { word: tok, cls: null })) ?? [];
+    }
+    return [];
+  });
+  const checkSentence = (parts: SentencePart[]) => {
+    const words = parts.filter((pt): pt is { word: string; cls: MontessoriWordClass | null } => 'word' in pt);
+    const text = parts.map((pt, i) => ('punct' in pt ? pt.punct : `${i ? ' ' : ''}${pt.word}`)).join('').trim();
+    const capital = /^[A-Z]/.test(words[0]?.word ?? '');
+    const last = parts[parts.length - 1];
+    const punctuation = !!last && 'punct' in last && /[.?!]/.test(last.punct);
+    const classes = words.map((w) => w.cls ?? symbolsForWords(w.word)[0]?.wordClass ?? 'noun');
+    const filled = words.length > 0 && words.every((w) => w.word);
+    const fits = words.every((w) => !w.cls || !wordProblem(w.word, w.cls));
+    const hasVerb = classes.includes('verb');
+    const hasSubject = classes.some((c) => c === 'noun' || c === 'pronoun' || c === 'propernoun') || classes[0] === 'verb';
+    const articles = words.every((w, i) => !/^an?$/i.test(w.word) || !words[i + 1]?.word || (/^an$/i.test(w.word) === /^[aeiou]/i.test(words[i + 1].word)));
+    return { text, capital, punctuation, grammar: filled && fits && hasVerb && hasSubject && articles };
+  };
+  const [checklistFor, setChecklistFor] = useState<string | null>(null);
+  const [checklistPos, setChecklistPos] = useState({ dx: 0, dy: 0 });
+  useEffect(() => { if (checklistFor && selectedId !== checklistFor) setChecklistFor(null); }, [selectedId, checklistFor]);
+  const sentenceToTextBox = (id: string) => {
+    const items = sentencePieces(id);
+    const check = checkSentence(sentenceParts(items));
+    if (!items.length || !check.capital || !check.grammar || !check.punctuation) return;
+    pushHistory();
+    const ids = new Set(items.map((pp) => pp.instanceId));
+    const newId = `tb-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const minX = Math.min(...items.map((pp) => pp.x));
+    const bottom = Math.max(...items.map((pp) => pp.y + measured(pp).h));
+    const outsideLeft = items.find((pp) => pp.snapLeftId && !ids.has(pp.snapLeftId))?.snapLeftId;
+    setPlaced((p) => [
+      ...p.filter((pp) => !ids.has(pp.instanceId)).map((pp) => (pp.snapLeftId && ids.has(pp.snapLeftId) ? { ...pp, snapLeftId: newId } : pp)),
+      { instanceId: newId, kind: 'textbox', textValue: check.text, x: minX, y: bottom - 44, snapLeftId: outsideLeft, bubbleStyle: items[0].bubbleStyle, addedBy: joinMode ? myStudentId : undefined },
+    ]);
+    setSelectedId(newId);
+    setToolsFor(null);
+  };
+
   const duplicateUnit = (ids: Set<string>) => {
     pushHistory();
     const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -1598,7 +1594,8 @@ export default function LiteracyManipulatives() {
     const start = dragStartRef.current;
     if (start && !start.moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6) {
       start.moved = true;
-      if (multiSel.size > 1 && multiSel.has(id)) { /* moving a whole selection: keep rows and boxes intact */ } else
+      // A whole selection or a group moves as one: its rows and boxes stay intact (her request 2026-10-15).
+      if ((multiSel.size > 1 && multiSel.has(id)) || placed.find((pp) => pp.instanceId === id)?.groupId) { /* keep rows intact */ } else
       // Once a piece really starts moving (a plain tap only selects it): a piece in the middle or end of a
       // snapped row lifts out on its own and the row closes the gap; the first piece takes the whole row
       // along. A letter lifted out of a Sound Box leaves it.
@@ -2308,14 +2305,12 @@ export default function LiteracyManipulatives() {
           </Category>
 
           <Category label="Text Box" color="#C0D6F5" open={openCategories.textbox} onToggle={() => toggleCategory('textbox')}>
-            <Draggable label="Add a text box" onPointerDown={startDragNewItem(() => ({ kind: 'textbox', textValue: '', fontSize: 20 }))} style={{ width: '100%' }}>
-              <div style={{
-                width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                border: '2px dashed var(--ink)', borderRadius: 8, background: 'white', fontFamily: 'var(--lm-font)', fontWeight: 700, fontSize: '0.85rem', padding: '6px 10px',
-              }}>
-                Add a text box
+            <Draggable label="Add a text box" onPointerDown={startDragNewItem(() => ({ kind: 'textbox', textValue: '' }))}>
+              <div className="lm-bubble lm-text-pill" style={{ borderColor: TEXT_GRAY, background: BUBBLE_WHITE, color: BUBBLE_BLACK, display: 'flex', alignItems: 'center' }}>
+                <span style={{ opacity: 0.6 }}>text</span>
               </div>
             </Draggable>
+            <p style={{ margin: '6px 0 0', fontSize: '0.75rem', opacity: 0.75 }}>Drag one out, then double tap it to type. It snaps into sentences like a symbol.</p>
           </Category>
 
         </aside>
@@ -2382,7 +2377,7 @@ export default function LiteracyManipulatives() {
                     if (p.kind === 'frame') setBoxInsertFor((cur) => (cur === p.instanceId ? null : p.instanceId));
                     if (p.kind === 'morpheme' && isBlankMorpheme(p.morphId)) setEditPieceFor(p.instanceId);
                   }}
-                  style={multiSel.has(p.instanceId) ? { outline: '3px dashed var(--brand-blue)', outlineOffset: 3, borderRadius: 10 } : selectedId === p.instanceId && !p.groupId ? { boxShadow: '0 0 0 3px rgba(25,104,171,0.35)', borderRadius: 10 } : undefined}
+                  style={multiSel.has(p.instanceId) && !p.groupId ? { outline: '3px dashed var(--brand-blue)', outlineOffset: 3, borderRadius: 10 } : selectedId === p.instanceId && !p.groupId ? { boxShadow: '0 0 0 3px rgba(25,104,171,0.35)', borderRadius: 10 } : undefined}
                 >
                   <ItemVisual
                     kind={p.kind} pieceId={p.pieceId} wordClass={p.wordClass} letter={p.letter} boxCount={p.boxCount} morphId={p.morphId} punctId={p.punctId}
@@ -2541,13 +2536,13 @@ export default function LiteracyManipulatives() {
             {/* The selected piece's (or group's) gear and X, and its settings toolbar when open. */}
             {(() => {
               const sel = placed.find((pp) => pp.instanceId === selectedId);
-              if (!sel || sel.kind === 'textbox' || multiSel.size > 1 || studentViewOnly) return null;
+              if (!sel || multiSel.size > 1 || studentViewOnly) return null;
               const unit = unitOf(sel.instanceId);
               const ids = new Set(unit.map((pp) => pp.instanceId));
               const right = Math.max(...unit.map((pp) => pp.x + measured(pp).w));
               const top = Math.min(...unit.map((pp) => pp.y));
               const open = toolsFor === sel.instanceId;
-              const worded = unit.filter((pp) => pp.kind === 'shape' || pp.kind === 'symbolSentence');
+              const worded = unit.filter((pp) => pp.kind === 'shape' || pp.kind === 'symbolSentence' || pp.kind === 'textbox');
               const style = worded[0]?.bubbleStyle ?? bubbleDefault;
               const row = rowMembers(sel.instanceId);
               const canGroupRow = !sel.groupId && row.length > 1;
@@ -2588,6 +2583,14 @@ export default function LiteracyManipulatives() {
                       )}
                       {sel.groupId && <button type="button" className="lm-tool-btn" onClick={() => setGroup(ids, undefined)}>Ungroup</button>}
                       {canGroupRow && <button type="button" className="lm-tool-btn" onClick={() => setGroup(new Set(row.map((pp) => pp.instanceId)), `g-${Date.now()}`)}>Group</button>}
+                      {(() => {
+                        const pieces = sentencePieces(sel.instanceId);
+                        if (!(pieces.length >= 2 || (pieces.length === 1 && pieces[0].kind === 'symbolSentence'))) return null;
+                        const c = checkSentence(sentenceParts(pieces));
+                        return c.capital && c.grammar && c.punctuation
+                          ? <button type="button" className="lm-tool-btn lm-t-btn" onClick={() => sentenceToTextBox(sel.instanceId)} aria-label="Put this sentence in one text box" title="Put this sentence in one text box">T</button>
+                          : <button type="button" className="lm-tool-btn lm-t-btn" onClick={() => setChecklistFor((cur) => (cur === sel.instanceId ? null : sel.instanceId))} aria-label="What this sentence still needs" title="What this sentence still needs">?</button>;
+                      })()}
                       <button type="button" className="lm-tool-btn icon" onClick={() => duplicateUnit(ids)} aria-label={unit.length > 1 ? 'Duplicate this group' : 'Duplicate'} title="Duplicate"><Icon name="copy" size={16} /></button>
                     </div>
                   )}
@@ -2599,6 +2602,36 @@ export default function LiteracyManipulatives() {
                   </div>
                 </div>}
                 </>
+              );
+            })()}
+            {/* What a sentence still needs before it can become one text box. */}
+            {checklistFor && (() => {
+              const pieces = sentencePieces(checklistFor);
+              if (!pieces.length) return null;
+              const c = checkSentence(sentenceParts(pieces));
+              const x = Math.min(...pieces.map((pp) => pp.x));
+              const y = Math.max(...pieces.map((pp) => pp.y + measured(pp).h)) + 16;
+              const rows: [string, boolean][] = [['Capitalization', c.capital], ['Correct grammar', c.grammar], ['Punctuation', c.punctuation]];
+              return (
+                <FloatingCard
+                  x={x + checklistPos.dx}
+                  y={y + checklistPos.dy}
+                  width={240}
+                  zoom={zoom}
+                  title="Make it a sentence"
+                  onMove={(nx, ny) => setChecklistPos({ dx: nx - x, dy: ny - y })}
+                  onClose={() => setChecklistFor(null)}
+                >
+                  <ul className="lm-checklist">
+                    {rows.map(([label, ok]) => (
+                      <li key={label} className={ok ? 'done' : ''}>
+                        <span className="lm-check-box" aria-hidden="true">{ok && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>}</span>
+                        {label}<span className="sr-only">{ok ? ' (done)' : ' (still needed)'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {c.capital && c.grammar && c.punctuation && <p style={{ margin: '6px 0 0', fontWeight: 700 }}>Ready! Press T in settings.</p>}
+                </FloatingCard>
               );
             })()}
             {/* The "check this word" note, under the symbol whose word doesn't fit. */}
@@ -2728,7 +2761,7 @@ export default function LiteracyManipulatives() {
                     onPointerDown={startDragPlaced(item.instanceId)}
                     onPointerMove={onDragMove}
                     onPointerUp={onDragEnd}
-                    style={multiSel.has(item.instanceId) ? { outline: '3px dashed var(--brand-blue)', outlineOffset: 3, borderRadius: 10, padding: 2 } : selected && !item.groupId ? { boxShadow: '0 0 0 3px rgba(25,104,171,0.35)', borderRadius: 10, padding: 2 } : { padding: 2 }}
+                    style={multiSel.has(item.instanceId) && !item.groupId ? { outline: '3px dashed var(--brand-blue)', outlineOffset: 3, borderRadius: 10, padding: 2 } : selected && !item.groupId ? { boxShadow: '0 0 0 3px rgba(25,104,171,0.35)', borderRadius: 10, padding: 2 } : { padding: 2 }}
                   >
                     <div className="lm-sentence">
                       {sentenceTokens(sentence).map((t) => {
@@ -2763,12 +2796,16 @@ export default function LiteracyManipulatives() {
               <TextBoxWidget
                 key={item.instanceId}
                 item={item}
+                bubbleStyle={item.bubbleStyle ?? bubbleDefault}
+                setRef={setItemRef(item.instanceId)}
+                editing={editPieceFor === item.instanceId}
+                onEditDone={() => setEditPieceFor(null)}
                 onPointerDown={startDragPlaced(item.instanceId)}
                 onPointerMove={onDragMove}
                 onPointerUp={onDragEnd}
+                onDoubleClick={() => { showBadges(item.instanceId); setEditPieceFor(item.instanceId); }}
                 onTextChange={(v) => setTextBoxValue(item.instanceId, v)}
-                onFontSizeChange={(d) => setTextBoxFontSize(item.instanceId, d)}
-                onRemove={() => removePlacedItem(item.instanceId)}
+                selected={selectedId === item.instanceId && !item.groupId}
               />
             ))}
             {marquee && (

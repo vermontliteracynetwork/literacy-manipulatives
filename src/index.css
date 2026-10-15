@@ -572,3 +572,11 @@ button, input, select, textarea {
 .lm-filter-clear { border-style: dashed; }
 /* The part-of-speech hint inside an empty word bubble disappears once the cursor is in it. */
 .lm-bubble:focus::placeholder { color: transparent; }
+.lm-text-pill { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; cursor: grab; user-select: none; touch-action: none; box-sizing: border-box; }
+input.lm-text-pill { cursor: text; user-select: text; }
+.lm-t-btn { min-width: 40px; justify-content: center; border: 2px solid #8A9099 !important; font-weight: 800; font-size: 0.95rem; }
+.lm-checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lm-checklist li { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.lm-check-box { width: 20px; height: 20px; border: 2px solid var(--ink); border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 900; color: #fff; flex-shrink: 0; }
+.lm-checklist li.done .lm-check-box { background: #2F8A5B; border-color: #2F8A5B; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
