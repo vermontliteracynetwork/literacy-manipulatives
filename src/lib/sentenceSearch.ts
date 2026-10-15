@@ -48,17 +48,55 @@ learn(ARTICLES, 'article'); learn(SUBJECT_PRONOUNS, 'pronoun'); learn(OBJECT_PRO
 learn(PREPOSITIONS, 'preposition'); learn(CONJUNCTIONS, 'conjunction'); learn(INTERJECTIONS, 'interjection');
 learn(ADVERBS, 'adverb'); learn(ADJECTIVES, 'adjective'); learn(SANDBOX_VERBS, 'verb');
 learn(PROPER_NOUNS, 'propernoun'); learn(COMMON_NOUNS, 'noun');
+// Possessive words (my, your...) do an adjective's job: they tell which one.
+learn(['my', 'your', 'his', 'her', 'its', 'our', 'their', 'this', 'that', 'these', 'those'].map((text) => ({ text })), 'adjective');
 
-// Best guess for a word the board hasn't seen: a capital in the middle of a sentence is a proper noun,
-// -ly an adverb, -ed / -ing a verb, anything else a noun.
+// Everyday verbs, so "I like dogs and cats" reads "like" as the action. Each base also counts in its -s,
+// -ed and -ing forms; common irregular past forms are listed too.
+const VERB_BASES = `be am is are was were been being have has had do does did go goes went gone come came see saw
+seen like love want need get got make made take took give gave say said tell told know knew think thought feel felt
+look watch hear listen play run ran jump eat ate drink drank sleep slept sit sat stand stood walk swim swam fly flew
+read write wrote draw drew sing sang dance ride rode climb throw threw catch caught kick help find found keep kept
+live laugh cry smile talk call ask answer open close build built bring brought buy bought sell sold sold wear wore
+hold held hug kiss chase hide hid fall fell grow grew paint cook bake clean wash brush pick push pull carry hope care
+try tries tried use work learn teach taught start stop wait win won lose lost fix fit hit hurt cut put set let
+leave left meet met pay paid send sent spend spent sleep wake woke enjoy hate miss share visit wish wonder bark meow
+roar buzz hop skip crawl dig dug fight fought float sink sank shine shone spin spun swing swung tickle wave yell`;
+const VERBS = new Set<string>();
+const NO_ENDINGS = new Set(['be', 'am', 'is', 'are', 'was', 'were', 'been', 'being', 'has', 'had', 'does', 'did', 'went', 'gone', 'came', 'saw', 'seen', 'got', 'made', 'took', 'gave', 'said', 'told', 'knew', 'thought', 'felt', 'ran', 'ate', 'drank', 'slept', 'sat', 'stood', 'swam', 'flew', 'wrote', 'drew', 'sang', 'rode', 'threw', 'caught', 'found', 'kept', 'built', 'brought', 'bought', 'sold', 'wore', 'held', 'hid', 'fell', 'grew', 'taught', 'won', 'lost', 'left', 'met', 'paid', 'sent', 'spent', 'woke', 'dug', 'fought', 'sank', 'shone', 'spun', 'swung']);
+for (const v of VERB_BASES.split(/\s+/)) {
+  VERBS.add(v);
+  if (NO_ENDINGS.has(v)) continue;
+  VERBS.add(v.endsWith('y') && !/[aeiou]y$/.test(v) ? `${v.slice(0, -1)}ies` : /(s|sh|ch|x|z|o)$/.test(v) ? `${v}es` : `${v}s`);
+  const stem = v.endsWith('e') ? v.slice(0, -1) : v;
+  VERBS.add(`${stem}ed`); VERBS.add(`${stem}ing`); VERBS.add(`${v}ed`); VERBS.add(`${v}ing`);
+}
+const FUNCTION_CLASSES: MontessoriWordClass[] = ['article', 'pronoun', 'preposition', 'conjunction', 'interjection', 'adjective', 'adverb'];
+
+// Best guess for a word the board hasn't seen: a known verb is a verb; a capital in the middle of a sentence
+// is a proper noun; -ly an adverb; -ed / -ing a verb; anything else a noun.
 function tagWord(raw: string, first: boolean): MontessoriWordClass {
   const key = raw.toLowerCase();
   const known = LEXICON.get(key);
+  if (known && known !== 'noun' && known !== 'propernoun') return known;
+  if (VERBS.has(key)) return 'verb';
   if (known) return known === 'propernoun' && !/^[A-Z]/.test(raw) && !first ? 'noun' : known;
-  if (!first && /^[A-Z]/.test(raw) && 'propernoun' in MONTESSORI_WORD_CLASS_INFO) return 'propernoun';
+  if (/^[A-Z]/.test(raw) && (!first || raw !== raw.toUpperCase()) && !first) return 'propernoun';
+  if (first && /^[A-Z][a-z]+$/.test(raw) && !LEXICON.has(key) && !/(s|ed|ing|ly)$/.test(key)) return 'propernoun';
   if (/ly$/.test(key)) return 'adverb';
   if (/(ed|ing)$/.test(key)) return 'verb';
   return 'noun';
+}
+
+// A sentence needs a verb. If none was found, the first word after the subject (a pronoun or noun) that
+// isn't a small joining word is read as the action.
+function ensureVerb(words: PatternWord[]): PatternWord[] {
+  if (words.some((w) => w.wordClass === 'verb')) return words;
+  const subj = words.findIndex((w) => w.wordClass === 'pronoun' || w.wordClass === 'noun' || w.wordClass === 'propernoun');
+  if (subj < 0) return words;
+  const i = words.findIndex((w, idx) => idx > subj && !FUNCTION_CLASSES.includes(w.wordClass));
+  if (i < 0) return words;
+  return words.map((w, idx) => (idx === i ? { ...w, wordClass: 'verb' } : w));
 }
 
 export function patternFor(query: string): { words: PatternWord[]; fromNames: boolean } | null {
@@ -68,7 +106,7 @@ export function patternFor(query: string): { words: PatternWord[]; fromNames: bo
   if (names) return { words: names.map((c) => ({ wordClass: c, word: '' })), fromNames: true };
   const raw = q.match(/[A-Za-z']+/g) ?? [];
   if (!raw.length) return null;
-  return { words: raw.map((w, i) => ({ wordClass: tagWord(w, i === 0), word: w })), fromNames: false };
+  return { words: ensureVerb(raw.map((w, i) => ({ wordClass: tagWord(w, i === 0), word: w }))), fromNames: false };
 }
 
 const key = (classes: MontessoriWordClass[]) => classes.join(' ');

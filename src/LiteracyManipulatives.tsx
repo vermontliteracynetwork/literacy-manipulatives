@@ -687,6 +687,9 @@ export default function LiteracyManipulatives() {
   // groups them (they move as one), ungroups them, or lines them up centered on each other.
   const [selectMode, setSelectMode] = useState(false);
   const [multiSel, setMultiSel] = useState<Set<string>>(new Set());
+  // Drag-to-select (her request 2026-10-15): drag across empty board to draw a box; everything it touches is
+  // selected and then moves together when you drag any one of them.
+  const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   // Word bubbles for newly placed symbols start as an outline or solid (the toggle in the Grammar Symbols and
   // Symbol Sentences trays, which also switches every bubble already on the board).
   const [bubbleDefault, setBubbleDefault] = useState<BubbleStyle>('outline');
@@ -1225,6 +1228,7 @@ export default function LiteracyManipulatives() {
     // Formula card detaches it from whatever it was stacked under -
     // anything joined BELOW it still comes along, via getChainDescendantIds.
     setSelectedId(instanceId);
+    if (!multiSel.has(instanceId) && multiSel.size) setMultiSel(new Set());
     dragStartRef.current = { x: e.clientX, y: e.clientY, moved: false };
     try { (e.target as Element).setPointerCapture(e.pointerId); } catch { /* not supported */ }
   };
@@ -1238,6 +1242,7 @@ export default function LiteracyManipulatives() {
     const start = dragStartRef.current;
     if (start && !start.moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6) {
       start.moved = true;
+      if (multiSel.size > 1 && multiSel.has(id)) { /* moving a whole selection: keep rows and boxes intact */ } else
       // Once a piece really starts moving (a plain tap only selects it): a piece in the middle or end of a
       // snapped row lifts out on its own and the row closes the gap; the first piece takes the whole row
       // along. A letter lifted out of a Sound Box leaves it.
@@ -1263,10 +1268,16 @@ export default function LiteracyManipulatives() {
       const ny = y - size.h / 2;
       const dx = nx - dragged.x;
       const dy = ny - dragged.y;
-      // Everything grouped with the dragged piece moves the same amount.
+      // Everything grouped with the dragged piece moves the same amount, and so does everything picked with
+      // drag-to-select when the dragged piece is one of them. (Pieces snapped into a row or a Sound Box follow
+      // their row or box on their own.)
+      const moving = new Set<string>();
+      if (multiSel.has(id)) multiSel.forEach((m) => moving.add(m));
+      const groups = new Set(p.filter((pp) => pp.instanceId === id || moving.has(pp.instanceId)).map((pp) => pp.groupId).filter(Boolean));
       return p.map((pp) => {
         if (pp.instanceId === id) return { ...pp, x: nx, y: ny };
-        if (dragged.groupId && pp.groupId === dragged.groupId) return { ...pp, x: pp.x + dx, y: pp.y + dy };
+        const follows = moving.has(pp.instanceId) || (pp.groupId && groups.has(pp.groupId));
+        if (follows && !pp.snapLeftId && !pp.inFrameId) return { ...pp, x: pp.x + dx, y: pp.y + dy };
         return pp;
       });
     });
@@ -1667,6 +1678,7 @@ export default function LiteracyManipulatives() {
                   {found.map((sentence) => (
                     <SymbolSentenceCard key={sentence.id} sentence={sentence} onPointerDown={startDragNewSymbolSentence(sentence)} />
                   ))}
+                  {pattern && !pattern.some((w) => w.wordClass === 'verb') && <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>A sentence needs a verb (an action word).</span>}
                   {found.length === 0 && <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>No card with that pattern yet. Drag the pattern above to build it.</span>}
                 </div>
               );
@@ -1826,7 +1838,7 @@ export default function LiteracyManipulatives() {
         <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
           {(selectMode || multiSel.size > 0) && (
             <div className="lm-select-bar" role="toolbar" aria-label="Selected pieces">
-              <strong>{multiSel.size ? `${multiSel.size} selected` : 'Tap pieces to select them'}</strong>
+              <strong>{multiSel.size ? `${multiSel.size} selected` : 'Tap pieces, or drag a box around them'}</strong>
               <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={groupSelected}>Group</button>
               <button className="btn btn-sm" disabled={!placed.some((pp) => multiSel.has(pp.instanceId) && pp.groupId)} onClick={ungroupSelected}>Ungroup</button>
               <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('middle')} title="Line up their middles side by side">Align middles</button>
@@ -1839,7 +1851,32 @@ export default function LiteracyManipulatives() {
             ref={canvasRef}
             className="lm-canvas"
             style={{ position: 'relative', height: '100%', pointerEvents: drawOn ? 'none' : undefined, transform: `scale(${zoom})`, transformOrigin: '0 0' }}
-            onPointerDown={(e) => { if (e.target === e.currentTarget) setSelectedId(null); }}
+            onPointerDown={(e) => {
+              if (e.target !== e.currentTarget) return;
+              setSelectedId(null);
+              const { x, y } = canvasRelative(e.clientX, e.clientY);
+              setMarquee({ x0: x, y0: y, x1: x, y1: y });
+              try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* not supported */ }
+            }}
+            onPointerMove={(e) => {
+              if (!marquee) return;
+              const { x, y } = canvasRelative(e.clientX, e.clientY);
+              setMarquee((m) => (m ? { ...m, x1: x, y1: y } : m));
+            }}
+            onPointerUp={() => {
+              if (!marquee) return;
+              const l = Math.min(marquee.x0, marquee.x1), r = Math.max(marquee.x0, marquee.x1);
+              const t = Math.min(marquee.y0, marquee.y1), b = Math.max(marquee.y0, marquee.y1);
+              setMarquee(null);
+              if (r - l < 6 && b - t < 6) { setMultiSel(new Set()); return; }
+              const hit = placed.filter((pp) => {
+                const sz = measured(pp);
+                return pp.x < r && pp.x + sz.w > l && pp.y < b && pp.y + sz.h > t;
+              });
+              // Selecting one piece of a group selects the whole group.
+              const groups = new Set(hit.map((pp) => pp.groupId).filter(Boolean));
+              setMultiSel(new Set(placed.filter((pp) => hit.includes(pp) || (pp.groupId && groups.has(pp.groupId))).map((pp) => pp.instanceId)));
+            }}
           >
             {placed.filter((p) => p.kind !== 'textbox' && p.kind !== 'symbolSentence' && p.kind !== 'writingFrame').map((p) => (
               // Sound Boxes sit behind everything else on purpose (a
@@ -2156,6 +2193,9 @@ export default function LiteracyManipulatives() {
                 </div>
               );
             })}
+            {marquee && (
+              <div className="lm-marquee" style={{ left: Math.min(marquee.x0, marquee.x1), top: Math.min(marquee.y0, marquee.y1), width: Math.abs(marquee.x1 - marquee.x0), height: Math.abs(marquee.y1 - marquee.y0) }} />
+            )}
             {placed.length === 0 && (
               <p style={{ position: 'absolute', top: '45%', left: '50%', transform: 'translate(-50%, -50%)', margin: 0, fontWeight: 700, opacity: 0.35, textAlign: 'center', width: 320 }}>
                 Drag anything from the left onto this board!

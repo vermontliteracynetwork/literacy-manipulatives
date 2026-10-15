@@ -502,3 +502,4 @@ button {
 .lm-welcome-choice.join { background: #19b4c8; color: #fff; }
 .lm-welcome-choice:hover { transform: translateY(-2px); box-shadow: 0 4px 0 var(--ink); }
 @media (max-width: 520px) { .lm-welcome-choices { grid-template-columns: 1fr; } }
+.lm-marquee { position: absolute; z-index: 40; border: 2px dashed #7c3aed; background: rgba(124, 58, 237, 0.08); border-radius: 4px; pointer-events: none; }
