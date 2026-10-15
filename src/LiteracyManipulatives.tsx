@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { useSyncedTTS, SyncedSpeakButton } from './components/SyncedSpeakButton';
 import { ReferencePopover } from './components/ReferencePopover';
 import { SANDBOX_PIECES } from './lib/grammarContent';
-import { MORPHEME_GROUPS, KIND_LABEL, buildWord, canFollow, isCore, kindExplanation, madeUpMeaning, makeItReal, morphemeById, morphemeFor, BLANK_MORPHEMES, isBlankMorpheme, pieceLabel, type Morpheme } from './lib/morphemes';
+import { MORPHEME_GROUPS, KIND_LABEL, buildWord, canFollow, isCore, kindExplanation, madeUpMeaning, makeItReal, morphemeById, morphemeFor, BLANK_MORPHEMES, isBlankMorpheme, morphemeTags, tagsForGroup, pieceLabel, type Morpheme } from './lib/morphemes';
 import { lookupDefinition, peekDefinition } from './lib/dictionary';
 import { MorphemePiece, pieceBodyWidth, pieceOuterSize } from './components/MorphemePiece';
 import { FloatingCard } from './components/FloatingCard';
@@ -893,6 +893,8 @@ export default function LiteracyManipulatives() {
   });
   const toggleSubcategory = (key: string) => setOpenSubcategories((s) => ({ ...s, [key]: !s[key] }));
   const [morphSearch, setMorphSearch] = useState('');
+  const [morphFilters, setMorphFilters] = useState<Record<string, string[]>>({});
+  const [morphFiltersOpen, setMorphFiltersOpen] = useState<Record<string, boolean>>({});
   const [catSearch, setCatSearch] = useState<Record<string, string>>({});
   const searchFor = (k: string) => catSearch[k] ?? '';
   const setSearch = (k: string) => (v: string) => setCatSearch((c) => ({ ...c, [k]: v }));
@@ -2124,10 +2126,37 @@ export default function LiteracyManipulatives() {
             <input className="lm-tray-search" type="search" value={morphSearch} onChange={(e) => setMorphSearch(e.target.value)} placeholder="Find a morpheme or meaning" aria-label="Find a morpheme or meaning" />
             {MORPHEME_GROUPS.map((group) => {
               const q = morphSearch.trim().toLowerCase();
-              const items = q ? group.items.filter((m) => m.text.toLowerCase().includes(q) || m.meaning.toLowerCase().includes(q)) : group.items;
+              const picked = morphFilters[group.key] ?? [];
+              const tags = tagsForGroup(group.items);
+              const items = group.items
+                .filter((m) => !q || m.text.toLowerCase().includes(q) || m.meaning.toLowerCase().includes(q))
+                .filter((m) => !picked.length || morphemeTags(m).some((t) => picked.includes(t)));
               if (q && items.length === 0) return null;
+              const filtersOpen = !!morphFiltersOpen[group.key];
               return (
                 <SubcategoryRow key={group.key} id={group.key} label={`${group.label} (${items.length})`} open={!!q || openSubcategories[group.key]} onToggle={() => toggleSubcategory(group.key)}>
+                  {/* Filters (her request 2026-10-15): closed until tapped; pick tags to narrow this section. */}
+                  {tags.length > 0 && (
+                    <div className="lm-filters">
+                      <button type="button" className="lm-filters-toggle" aria-expanded={filtersOpen} onClick={() => setMorphFiltersOpen((o) => ({ ...o, [group.key]: !filtersOpen }))}>
+                        Filters{picked.length ? ` (${picked.length})` : ''} <span aria-hidden="true">{filtersOpen ? '▾' : '▸'}</span>
+                      </button>
+                      {filtersOpen && (
+                        <div className="lm-filter-tags" role="group" aria-label={`${group.label} filters`}>
+                          {tags.map((t) => {
+                            const on = picked.includes(t);
+                            return (
+                              <button key={t} type="button" className={`lm-filter-tag${on ? ' on' : ''}`} aria-pressed={on}
+                                onClick={() => setMorphFilters((f) => ({ ...f, [group.key]: on ? picked.filter((x) => x !== t) : [...picked, t] }))}>
+                                {t}
+                              </button>
+                            );
+                          })}
+                          {picked.length > 0 && <button type="button" className="lm-filter-clear" onClick={() => setMorphFilters((f) => ({ ...f, [group.key]: [] }))}>Clear</button>}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="row-wrap" style={{ gap: 6 }}>
                     {items.map((m) => (
                       <Draggable key={m.id} label={`${pieceLabel(m)}: ${m.meaning}`} onPointerDown={startDragNewItem(() => ({ kind: 'morpheme', morphId: m.id }))}>

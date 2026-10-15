@@ -452,3 +452,50 @@ export function makeItReal(parts: Morpheme[]): RealFix | null {
   fixCache.set(key, found);
   return found;
 }
+
+// Filter tags for the Morphemes tray (her request 2026-10-15): each section can be narrowed by a few simple
+// tags read from the meanings, plus where the part comes from when the source says.
+const NUM = /\b(one|two|three|four|five|six|seven|eight|nine|ten|hundred|many|all|including all|equal|a group)\b/;
+const TAG_RULES: Record<MorphemeKind, [string, RegExp][]> = {
+  prefix: [
+    ['Not or against', /\b(not|without|against|opposite|undo)\b/],
+    ['Numbers', NUM],
+    ['Where', /\b(to|towards|near|down|off|out|away|apart|in|into|on|upon|over|above|between|within|front|around|forward|under|beyond|across)\b/],
+    ['When', /\b(before|after|again|back)\b/],
+    ['Together', /\b(with|together)\b/],
+  ],
+  base: [
+    ['Feelings', /\b(feel|feeling|glad|gentle|caring|wish|matters)\b/],
+    ['Actions', /^to\b|\baction\b/],
+    ['People', /\b(someone|person)\b/],
+  ],
+  root: [
+    ['Numbers', NUM],
+    ['Size', /\b(large|small|tiny)\b/],
+    ['Nature and science', /\b(water|star|life|earth|sun|plants?|rock|fire|light|heat|ocean|animal|world|universe|color|shape|poisonous|meat|power)\b/],
+    ['People and body', /\b(human|self|people|mother|father|heart|head|foot|skin|mind|god)\b/],
+    ['Words and thinking', /\b(say|write|word|language|name|book|believe|remember|knowledge|wisdom|truth|law)\b/],
+    ['Senses', /\b(sound|see|light|feeling)\b/],
+    ['Actions', /^to\b|\b(move|eat|sleep|love|build|break)\b/],
+    ['Time', /\b(year|time|ancient|new|first|quick)\b/],
+    ['Places', /\b(home|city|far|earth|world|ocean)\b/],
+  ],
+  suffix: [
+    ['Makes a noun', /\b(one who|condition|state|noun|action or process|madness|fear|rule|study)\b/],
+    ['Describing words', /\b(capable|full of|lacking|having the quality|comparison|superlative)\b/],
+    ['Verb and plural endings', /\b(past tense|continuous|plural|third person)\b/],
+    ['People', /\bone who\b/],
+    ['Comparing', /\b(comparison|superlative)\b/],
+  ],
+};
+export function morphemeTags(m: Morpheme): string[] {
+  const tags = TAG_RULES[m.kind].filter(([, re]) => re.test(m.meaning.toLowerCase())).map(([t]) => t);
+  if (m.origin) tags.push(m.origin);
+  return tags;
+}
+// The tags worth offering in one section: those that pick out at least two parts, in the order above.
+export function tagsForGroup(items: Morpheme[]): string[] {
+  const count = new Map<string, number>();
+  for (const m of items) for (const t of morphemeTags(m)) count.set(t, (count.get(t) ?? 0) + 1);
+  return [...count.entries()].filter(([, n]) => n >= 2 && n < items.length).map(([t]) => t);
+}
