@@ -10,6 +10,8 @@ import { Icon } from './components/Icon';
 import { SharePanel } from './components/SharePanel';
 import { JoinScreen } from './components/JoinScreen';
 import { WelcomeChoice } from './components/WelcomeChoice';
+import { SettingsPanel } from './components/SettingsPanel';
+import { useFontChoice } from './lib/fontChoice';
 import { diffItems, isJoinRoute, shareConfigured, useHostSession, useStudentSession, type Ops, type Snapshot } from './lib/share';
 import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from './lib/montessoriGrammar';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
@@ -192,7 +194,7 @@ const GRAPHEME_GROUPS: { key: string; label: string; graphemes: { g: string; sou
 // purchased/earned/inventory markers of students in addition to regular."
 // A student with nothing purchased yet still has real colors to draw
 // with; owned Marketplace colors are appended after these.
-const BASE_PEN_COLORS = ['#1f1147', '#dc2626', '#2563eb', '#16a34a', '#f97316', '#7c3aed'];
+const BASE_PEN_COLORS = ['#1f1147', '#dc2626', '#2563eb', '#16a34a', '#f97316', 'var(--brand-blue)'];
 const BASE_HIGHLIGHT_COLORS = ['#fde047', '#86efac', '#93c5fd', '#f9a8d4'];
 
 type PlacedKind = 'grammar' | 'shape' | 'letter' | 'frame' | 'morpheme' | 'textbox' | 'symbolSentence' | 'punctuation' | 'soundChip' | 'divider' | 'writingFrame';
@@ -289,7 +291,7 @@ function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compa
         <div style={{
           minWidth: 40, height: 40, padding: '0 10px', display: 'flex', alignItems: 'center', justifyContent: 'center',
           border: '3px solid var(--ink)', borderRadius: 8, background: LM_PUNCTUATION_COLOR, color: LM_PUNCTUATION_TEXT_COLOR,
-          fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: '1.3rem', boxShadow: '2px 2px 0 rgba(31,17,71,0.2)',
+          fontFamily: 'var(--lm-font)', fontWeight: 800, fontSize: '1.3rem', boxShadow: '2px 2px 0 rgba(31,17,71,0.2)',
         }}>
           {info.mark}
         </div>
@@ -305,7 +307,7 @@ function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compa
       <div style={{
         width: TILE_W, minHeight: TILE_H, display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '6px 14px', borderRadius: piece.wordClass === 'noun' ? 12 : 999, background: bg, color: fg,
-        fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: '1rem', boxShadow: '2px 2px 0 rgba(31,17,71,0.2)', textAlign: 'center',
+        fontFamily: 'var(--lm-font)', fontWeight: 800, fontSize: '1rem', boxShadow: '2px 2px 0 rgba(31,17,71,0.2)', textAlign: 'center',
       }}>
         {piece.text}
       </div>
@@ -370,7 +372,7 @@ function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compa
         <div style={{
           minWidth: tileSize ?? 40, height: tileSize ?? 40, padding: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1,
           border: '3px solid var(--ink)', borderRadius: 8, background: 'white',
-          fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: tileSize ? tileSize * 0.42 : '1.1rem', boxShadow: '2px 2px 0 rgba(31,17,71,0.2)', ...colorStyle,
+          fontFamily: 'var(--lm-font)', fontWeight: 800, fontSize: tileSize ? tileSize * 0.42 : '1.1rem', boxShadow: '2px 2px 0 rgba(31,17,71,0.2)', ...colorStyle,
         }}>
           <span>{head}</span>
           <svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true" style={{ flexShrink: 0 }}>
@@ -384,7 +386,7 @@ function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compa
       <div style={{
         minWidth: tileSize ?? 40, height: tileSize ?? 40, padding: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box',
         border: '3px solid var(--ink)', borderRadius: 8, background: 'white',
-        fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: tileSize ? tileSize * ((letter?.length ?? 1) > 2 ? 0.32 : 0.48) : ((letter?.length ?? 1) > 2 ? '0.85rem' : '1.2rem'), boxShadow: '2px 2px 0 rgba(31,17,71,0.2)', ...colorStyle,
+        fontFamily: 'var(--lm-font)', fontWeight: 800, fontSize: tileSize ? tileSize * ((letter?.length ?? 1) > 2 ? 0.32 : 0.48) : ((letter?.length ?? 1) > 2 ? '0.85rem' : '1.2rem'), boxShadow: '2px 2px 0 rgba(31,17,71,0.2)', ...colorStyle,
       }}>
         {letter}
       </div>
@@ -624,7 +626,7 @@ function TextBoxWidget({ item, onPointerDown, onPointerMove, onPointerUp, onText
           onChange={(e) => onTextChange(e.target.value)}
           placeholder="Type here..."
           style={{
-            width: 220, minHeight: 70, fontFamily: "'Baloo 2', sans-serif", fontSize,
+            width: 220, minHeight: 70, fontFamily: 'var(--lm-font)', fontSize,
             border: '2px solid var(--ink)', borderRadius: 8, padding: 6, resize: 'both',
           }}
         />
@@ -656,7 +658,7 @@ function TextBoxWidget({ item, onPointerDown, onPointerMove, onPointerUp, onText
         position: 'absolute', left: item.x, top: item.y, zIndex: 5,
         touchAction: 'none', userSelect: 'none', cursor: 'grab', minWidth: 120, minHeight: 44,
         padding: '8px 12px', border: '2px dashed var(--content-border)', borderRadius: 8, background: 'white',
-        fontFamily: "'Baloo 2', sans-serif", fontSize, whiteSpace: 'pre-wrap', maxWidth: 320,
+        fontFamily: 'var(--lm-font)', fontSize, whiteSpace: 'pre-wrap', maxWidth: 320,
       }}
     >
       {item.textValue?.trim() ? item.textValue : <span style={{ opacity: 0.45 }}>Double-tap to type</span>}
@@ -841,6 +843,8 @@ export default function LiteracyManipulatives() {
   };
   const host = useHostSession<PlacedItem, Stroke>(placed, strokes, applyOps);
   const [shareOpen, setShareOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const fontChoice = useFontChoice();
   // First visit: welcome pop-up with "Start a whiteboard" or "Join a board". Remembered per browser; a page
   // that embeds the board (the dashboard's iframe) can pass ?welcome=0 to skip it.
   const [welcomeOpen, setWelcomeOpen] = useState(() => {
@@ -1666,6 +1670,7 @@ export default function LiteracyManipulatives() {
   return (
     <div className={`lm-page${studentViewOnly ? ' lm-readonly' : ''}`} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {welcomeOpen && !joinMode && <WelcomeChoice onStart={closeWelcome} />}
+      {settingsOpen && !joinMode && <SettingsPanel font={fontChoice.font} onFont={fontChoice.setFont} onClose={() => setSettingsOpen(false)} />}
       {shareOpen && !joinMode && (
         <SharePanel
           code={host.code}
@@ -1725,6 +1730,7 @@ export default function LiteracyManipulatives() {
                 {host.status === 'live' && host.code ? `Sharing ${host.code} (${host.students.length})` : 'Share'}
               </button>
             )}
+            {!joinMode && <button className={`btn btn-sm ${settingsOpen ? 'btn-primary' : ''}`} onClick={() => setSettingsOpen((o) => !o)}>Settings</button>}
             <span style={{ flex: 1 }} />
             <button className="btn btn-sm" onClick={() => setTopBarOpen(false)} aria-label="Hide toolbar">▲ Hide bar</button>
           </>
@@ -1754,7 +1760,7 @@ export default function LiteracyManipulatives() {
       <div className="lm-shell" style={{ flex: 1, minHeight: 0 }}>
       {sidebarOpen && !studentViewOnly ? (
         <aside className="lm-sidebar">
-          <Category label="Grammar Symbols" color="#e9d5ff" open={openCategories.shapes} onToggle={() => toggleCategory('shapes')}>
+          <Category label="Grammar Symbols" color="#E5B9E0" open={openCategories.shapes} onToggle={() => toggleCategory('shapes')}>
             <TraySearch value={searchFor('shapes')} onChange={setSearch('shapes')} placeholder="Find a grammar symbol" />
             <BubbleToggle value={bubbleDefault} onChange={setAllBubbles} />
             {(() => {
@@ -1788,7 +1794,7 @@ export default function LiteracyManipulatives() {
             })()}
           </Category>
 
-          <Category label="Symbol Sentences" color="#ddd6fe" open={openCategories.symbolSentences} onToggle={() => toggleCategory('symbolSentences')}>
+          <Category label="Symbol Sentences" color="#C0D6F5" open={openCategories.symbolSentences} onToggle={() => toggleCategory('symbolSentences')}>
             <TraySearch value={searchFor('sentences')} onChange={setSearch('sentences')} placeholder="Type a sentence or parts of speech" />
             <BubbleToggle value={bubbleDefault} onChange={setAllBubbles} />
             {searchFor('sentences').trim() ? (() => {
@@ -1829,7 +1835,7 @@ export default function LiteracyManipulatives() {
           {/* Morphemes (her request 2026-10-15): every morpheme from the DSF Level 1 Unit 1 tile deck and the 111
               Greek/Latin list, sorted into prefixes, suffixes, free bases and Greek & Latin roots. Hover a piece
               to see its meaning; on the board, tap a piece for its card. */}
-          <Category label="Morphemes" color="#bae6fd" open={openCategories.morphemes} onToggle={() => toggleCategory('morphemes')}>
+          <Category label="Morphemes" color="#C5E4ED" open={openCategories.morphemes} onToggle={() => toggleCategory('morphemes')}>
             <input className="lm-tray-search" type="search" value={morphSearch} onChange={(e) => setMorphSearch(e.target.value)} placeholder="Find a morpheme or meaning" aria-label="Find a morpheme or meaning" />
             {MORPHEME_GROUPS.map((group) => {
               const q = morphSearch.trim().toLowerCase();
@@ -1851,7 +1857,7 @@ export default function LiteracyManipulatives() {
             })}
           </Category>
 
-          <Category label="Alphabet" color="#fed7aa" open={openCategories.letters} onToggle={() => toggleCategory('letters')}>
+          <Category label="Alphabet" color="#FEDBC1" open={openCategories.letters} onToggle={() => toggleCategory('letters')}>
             {/* A23-ROADMAP Phase 2: vowel/consonant coloring toggle,
                 shared with Graphemes below (both are letter tiles). */}
             <button type="button" className={`btn btn-sm ${vowelConsonantColors ? 'btn-primary' : ''}`} style={{ fontSize: '0.7rem', marginBottom: 6 }} onClick={() => setVowelConsonantColors((v) => !v)}>
@@ -1870,7 +1876,7 @@ export default function LiteracyManipulatives() {
             </div>
           </Category>
 
-          <Category label="Graphemes" color="#fde68a" open={openCategories.graphemes} onToggle={() => toggleCategory('graphemes')}>
+          <Category label="Graphemes" color="#FBF2BB" open={openCategories.graphemes} onToggle={() => toggleCategory('graphemes')}>
             <TraySearch value={searchFor('graphemes')} onChange={setSearch('graphemes')} placeholder="Find a spelling or sound" />
             {GRAPHEME_GROUPS.filter((group) => group.graphemes.some(({ g, sound }) => matches('graphemes', g, sound))).map((group) => (
               <SubcategoryRow key={group.key} id={`graph-${group.key}`} label={group.label} open={!!searchFor('graphemes').trim() || openSubcategories[`graph-${group.key}`]} onToggle={() => toggleSubcategory(`graph-${group.key}`)}>
@@ -1908,7 +1914,7 @@ export default function LiteracyManipulatives() {
               categories", free-play manipulatives, no target word, no
               auto-counting/auto-splitting, matching this sandbox's
               standing "entirely unscripted" rule. */}
-          <Category label="Phonological Awareness" color="#fce7f3" open={openCategories.phono} onToggle={() => toggleCategory('phono')}>
+          <Category label="Phonological Awareness" color="#FFDAE0" open={openCategories.phono} onToggle={() => toggleCategory('phono')}>
             <div className="row-wrap" style={{ gap: 10, alignItems: 'flex-start' }}>
               <Draggable label="Sound chip" onPointerDown={startDragNewItem(() => ({ kind: 'soundChip' }))}>
                 <ItemVisual kind="soundChip" />
@@ -1919,7 +1925,7 @@ export default function LiteracyManipulatives() {
             </div>
           </Category>
 
-          <Category label="Sound Boxes" color="#bbf7d0" open={openCategories.frames} onToggle={() => toggleCategory('frames')}>
+          <Category label="Sound Boxes" color="#C6E8CC" open={openCategories.frames} onToggle={() => toggleCategory('frames')}>
             <div className="stack" style={{ gap: 10 }}>
               {FRAME_SIZES.map((n) => (
                 <Draggable key={n} label={`${n}-box frame`} onPointerDown={startDragNewItem(() => ({ kind: 'frame', boxCount: n }))}>
@@ -1929,11 +1935,11 @@ export default function LiteracyManipulatives() {
             </div>
           </Category>
 
-          <Category label="Text Box" color="#c7d2fe" open={openCategories.textbox} onToggle={() => toggleCategory('textbox')}>
+          <Category label="Text Box" color="#C0D6F5" open={openCategories.textbox} onToggle={() => toggleCategory('textbox')}>
             <Draggable label="Add a text box" onPointerDown={startDragNewItem(() => ({ kind: 'textbox', textValue: '', fontSize: 20 }))} style={{ width: '100%' }}>
               <div style={{
                 width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                border: '2px dashed var(--ink)', borderRadius: 8, background: 'white', fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: '0.85rem', padding: '6px 10px',
+                border: '2px dashed var(--ink)', borderRadius: 8, background: 'white', fontFamily: 'var(--lm-font)', fontWeight: 700, fontSize: '0.85rem', padding: '6px 10px',
               }}>
                 Add a text box
               </div>
@@ -1949,7 +1955,7 @@ export default function LiteracyManipulatives() {
               <div className="stack" style={{ gap: 4 }}>
                 {WRITING_FRAMES.filter((f) => matches('writing', f.title, ...f.lines)).map((f) => (
                   <Draggable key={f.id} label={f.title} onPointerDown={startDragNewItem(() => ({ kind: 'writingFrame', writingFrameId: f.id, frameFills: {} }))} style={{ width: '100%' }}>
-                    <div style={{ width: '100%', textAlign: 'left', padding: '6px 8px', border: '2px solid var(--ink)', borderRadius: 8, background: 'white', fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: '0.78rem' }}>
+                    <div style={{ width: '100%', textAlign: 'left', padding: '6px 8px', border: '2px solid var(--ink)', borderRadius: 8, background: 'white', fontFamily: 'var(--lm-font)', fontWeight: 700, fontSize: '0.78rem' }}>
                       {f.title}
                     </div>
                   </Draggable>
@@ -2027,7 +2033,7 @@ export default function LiteracyManipulatives() {
                   onPointerMove={onDragMove}
                   onPointerUp={onDragEnd}
                   onDoubleClick={p.kind === 'letter' ? () => toggleLetterCase(p.instanceId) : undefined}
-                  style={multiSel.has(p.instanceId) ? { outline: '3px dashed #7c3aed', outlineOffset: 3, borderRadius: 10 } : selectedId === p.instanceId ? { boxShadow: '0 0 0 3px rgba(124,58,237,0.35)', borderRadius: 10 } : undefined}
+                  style={multiSel.has(p.instanceId) ? { outline: '3px dashed var(--brand-blue)', outlineOffset: 3, borderRadius: 10 } : selectedId === p.instanceId ? { boxShadow: '0 0 0 3px rgba(25,104,171,0.35)', borderRadius: 10 } : undefined}
                 >
                   <ItemVisual
                     kind={p.kind} pieceId={p.pieceId} wordClass={p.wordClass} letter={p.letter} boxCount={p.boxCount} morphId={p.morphId} punctId={p.punctId}
@@ -2206,7 +2212,7 @@ export default function LiteracyManipulatives() {
                     onPointerDown={startDragPlaced(item.instanceId)}
                     onPointerMove={onDragMove}
                     onPointerUp={onDragEnd}
-                    style={multiSel.has(item.instanceId) ? { outline: '3px dashed #7c3aed', outlineOffset: 3, borderRadius: 10, padding: 2 } : selected ? { boxShadow: '0 0 0 3px rgba(124,58,237,0.35)', borderRadius: 10, padding: 2 } : { padding: 2 }}
+                    style={multiSel.has(item.instanceId) ? { outline: '3px dashed var(--brand-blue)', outlineOffset: 3, borderRadius: 10, padding: 2 } : selected ? { boxShadow: '0 0 0 3px rgba(25,104,171,0.35)', borderRadius: 10, padding: 2 } : { padding: 2 }}
                   >
                     <div className="lm-sentence">
                       {sentenceTokens(sentence).map((t) => {

@@ -18,7 +18,8 @@ function textWidth(text: string): number {
   if (typeof document === 'undefined') return text.length * 12;
   measureCtx ??= document.createElement('canvas').getContext('2d');
   if (!measureCtx) return text.length * 12;
-  measureCtx.font = "800 22px 'Baloo 2', sans-serif";
+  const family = getComputedStyle(document.documentElement).getPropertyValue('--lm-font').trim() || 'sans-serif';
+  measureCtx.font = `700 22px ${family}`;
   return measureCtx.measureText(text).width;
 }
 
@@ -51,7 +52,7 @@ export function MorphemePiece({ m, scale = 1, linkedLeft = false, linkedRight = 
   return (
     <svg width={w * scale} height={h * scale} viewBox={`${-MARGIN} ${-MARGIN} ${w} ${h}`} style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
       <path d={d} fill={KIND_COLOR[m.kind]} stroke="#000000" strokeWidth="3" strokeLinejoin="round" />
-      <text x={textX} y={cy + 8} textAnchor="middle" fontFamily="'Baloo 2', sans-serif" fontWeight={800} fontSize="22" fill="#000000">
+      <text x={textX} y={cy + 8} textAnchor="middle" style={{ fontFamily: 'var(--lm-font)' }} fontWeight={700} fontSize="22" fill="#000000">
         {pieceLabel(m)}
       </text>
     </svg>

@@ -1,7 +1,6 @@
 /* Base tokens + shared UI primitives (btn/tag-pill/layout helpers), ported
    verbatim from the Homeplot dashboard's index.css, this standalone tool
    reuses the same visual language on purpose. */
-@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@400;600;700;800&family=Lexend:wght@400;600;700&display=swap');
 
 /* Full-screen 3D world views (Town Square, Home Room, Creative Island) set
    an inline 100vh as a fallback for browsers with no dvh support, then this
@@ -15,17 +14,26 @@
 }
 
 :root {
-  --purple: #7c3aed;
-  --purple-dark: #5b21b6;
+  /* Literacy Manipulatives brand (her branding sheet, 2026-10-15). Primary: blue, sky and cream. */
+  --brand-blue: #1968AB;
+  --brand-blue-dark: #124E81;
+  --brand-sky: #C5E4ED;
+  --brand-cream: #FBF2BB;
+  --brand-sky-soft: #E8F4F8;
+  --brand-cream-soft: #FDF9E1;
+  /* The whole app's font. Inclusive Sans by default; Settings can switch it to OpenDyslexic or cursive. */
+  --lm-font: 'Inclusive Sans', system-ui, sans-serif;
+  --purple: var(--brand-blue);
+  --purple-dark: var(--brand-blue-dark);
   --pink: #ec4899;
   --teal: #14b8a6;
-  --yellow: #fbbf24;
+  --yellow: var(--brand-cream);
   --orange: #fb923c;
   --blue: #3b82f6;
-  --ink: #1f1147;
+  --ink: #0F2B45;
   --paper: #fffdf7;
   --content-bg: #ffffff;
-  --content-border: #d8d3ea;
+  --content-border: #BCD7E2;
   --success: #22c55e;
   --danger: #dc2626;
 
@@ -37,7 +45,7 @@
   --radius: 18px;
   --chunk: 4px;
 
-  font-family: 'Nunito', system-ui, sans-serif;
+  font-family: var(--lm-font);
   color-scheme: light;
 }
 
@@ -62,15 +70,15 @@ html, body, #root {
 
 body {
   margin: 0;
-  background: #f4effe;
+  background: var(--brand-sky-soft);
   color: var(--ink);
 }
 
 h1, h2, h3, .display {
-  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-family: var(--lm-font);
 }
 
-button {
+button, input, select, textarea {
   font-family: inherit;
 }
 
@@ -105,10 +113,10 @@ button {
 }
 
 .btn {
-  font-family: 'Baloo 2', sans-serif;
+  font-family: var(--lm-font);
   font-weight: 700;
   font-size: 1.08rem;
-  border: 2px outset var(--yellow);
+  border: 2px outset #E9DC8C;
   border-radius: 4px;
   padding: 9px 20px;
   background: var(--yellow);
@@ -189,7 +197,7 @@ button {
   flex-direction: column;
   gap: 14px;
   padding: 16px;
-  background: #fffaf0;
+  background: var(--brand-cream-soft);
   border-right: var(--chunk, 4px) solid var(--ink);
   overflow-y: auto;
 }
@@ -201,10 +209,10 @@ button {
   border-bottom: 2px solid var(--content-border);
 }
 .lm-sidebar-title {
-  font-family: 'Baloo 2', sans-serif;
-  font-weight: 800;
+  font-family: var(--lm-font);
+  font-weight: 700;
   font-size: 1.15rem;
-  color: var(--ink);
+  color: var(--brand-blue);
 }
 .lm-category {
   border: 2px solid var(--ink);
@@ -219,7 +227,7 @@ button {
   flex-shrink: 0;
 }
 .lm-category-header {
-  font-family: 'Baloo 2', sans-serif;
+  font-family: var(--lm-font);
   font-weight: 800;
   font-size: 0.95rem;
   padding: 8px 12px;
@@ -345,9 +353,9 @@ button {
 /* Sentence Formula join, direct teacher instruction: "joined together
    (a connection animation) to stack them into a paragraph form." */
 @keyframes lmFormulaJoinPulse {
-  0% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.5); }
-  70% { box-shadow: 0 0 0 12px rgba(124, 58, 237, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(25, 104, 171, 0.5); }
+  70% { box-shadow: 0 0 0 12px rgba(25, 104, 171, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(25, 104, 171, 0); }
 }
 .lm-formula-glow {
   animation: lmFormulaJoinPulse 0.9s ease-out;
@@ -416,30 +424,30 @@ button {
 
 /* Word bubbles under Grammar Symbols and Symbol Sentence words (2026-10-15). */
 .lm-bubble-row { display: flex; justify-content: center; margin-top: -6px; }
-.lm-bubble { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 1.05rem; text-align: center; min-width: 76px; height: 44px; padding: 0 14px; border: 4px solid; border-radius: 999px; outline: none; touch-action: manipulation; }
+.lm-bubble { font-family: var(--lm-font); font-weight: 800; font-size: 1.05rem; text-align: center; min-width: 76px; height: 44px; padding: 0 14px; border: 4px solid; border-radius: 999px; outline: none; touch-action: manipulation; }
 /* The class-name placeholder uses the same solid black/white as typed words, never a faded tint. */
 .lm-bubble::placeholder { color: inherit; opacity: 1; font-weight: 800; }
-.lm-bubble:focus { box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.35); }
+.lm-bubble:focus { box-shadow: 0 0 0 3px rgba(25, 104, 171, 0.35); }
 .lm-sentence { display: flex; align-items: flex-end; gap: 10px; padding: 4px; }
 .lm-sentence-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .lm-sentence-col img { width: 72px; height: 72px; object-fit: contain; pointer-events: none; }
-.lm-punct-icon { width: 44px; height: 52px; border-radius: 999px; border: none; background: #b3b3b3; color: #1f1147; font-family: 'Baloo 2', sans-serif; font-weight: 900; font-size: 1.6rem; line-height: 1; cursor: pointer; touch-action: manipulation; }
+.lm-punct-icon { width: 44px; height: 52px; border-radius: 999px; border: none; background: #b3b3b3; color: var(--ink); font-family: var(--lm-font); font-weight: 900; font-size: 1.6rem; line-height: 1; cursor: pointer; touch-action: manipulation; }
 .lm-ctl { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--ink); background: #fff; font-size: 14px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; line-height: 1; }
 .lm-bubble-toggle { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 8px; font-size: 0.75rem; font-weight: 700; }
 .lm-bubble-toggle button { display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 2px 10px; border-radius: 999px; border: 2px solid var(--content-border, #ccc); background: #fff; font: inherit; cursor: pointer; }
-.lm-bubble-toggle button.on { border-color: var(--ink, #1f1147); background: #ede9fe; }
+.lm-bubble-toggle button.on { border-color: var(--ink, var(--ink)); background: var(--brand-sky); }
 .lm-bubble-swatch { width: 22px; height: 12px; border-radius: 999px; border: 3px solid #d02028; display: inline-block; }
 .lm-bubble-swatch.solid { background: #d02028; }
 
 /* Movable pop-ups (FloatingCard.tsx): always an ✕, drag the title bar to move. */
-.lm-float { position: absolute; z-index: 20; background: #fff; border: 3px solid var(--ink); border-radius: 12px; box-shadow: 0 6px 16px rgba(31, 17, 71, 0.18); font-size: 0.85rem; }
-.lm-float-bar { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 8px; background: #f1edff; border-bottom: 2px solid var(--ink); border-radius: 9px 9px 0 0; cursor: grab; touch-action: none; user-select: none; }
+.lm-float { position: absolute; z-index: 20; background: #fff; border: 3px solid var(--ink); border-radius: 12px; box-shadow: 0 6px 16px rgba(15, 43, 69, 0.18); font-size: 0.85rem; }
+.lm-float-bar { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 8px; background: var(--brand-sky); border-bottom: 2px solid var(--ink); border-radius: 9px 9px 0 0; cursor: grab; touch-action: none; user-select: none; }
 .lm-float-bar:active { cursor: grabbing; }
 .lm-float-grip { opacity: 0.5; font-size: 0.9rem; }
-.lm-float-title { flex: 1; font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 0.95rem; }
+.lm-float-title { flex: 1; font-family: var(--lm-font); font-weight: 800; font-size: 0.95rem; }
 .lm-float-x { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--ink); background: #fee2e2; color: #991b1b; font-weight: 900; cursor: pointer; flex-shrink: 0; }
 .lm-float-body { padding: 10px 12px; line-height: 1.4; }
-.lm-float-kind { display: inline-block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 1px 8px; border-radius: 999px; background: #ede9fe; margin-bottom: 4px; }
+.lm-float-kind { display: inline-block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 1px 8px; border-radius: 999px; background: var(--brand-sky); margin-bottom: 4px; }
 .lm-float-def { margin: 4px 0 0; font-size: 0.9rem; line-height: 1.35; }
 .lm-float-parts { margin: 6px 0 0; padding-left: 18px; }
 
@@ -455,54 +463,63 @@ button {
 .lm-wf-tokens { display: flex; align-items: flex-end; gap: 4px; flex-wrap: wrap; }
 .lm-wf-token { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .lm-wf-token img { width: 30px; height: 30px; object-fit: contain; }
-.lm-wf-token input { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 0.8rem; text-align: center; border: 3px solid; border-radius: 999px; padding: 0 6px; height: 28px; min-width: 40px; }
-.lm-wf-punct { font-family: 'Baloo 2', sans-serif; font-weight: 900; font-size: 1.2rem; background: #b3b3b3; border-radius: 999px; width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; }
+.lm-wf-token input { font-family: var(--lm-font); font-weight: 800; font-size: 0.8rem; text-align: center; border: 3px solid; border-radius: 999px; padding: 0 6px; height: 28px; min-width: 40px; }
+.lm-wf-punct { font-family: var(--lm-font); font-weight: 900; font-size: 1.2rem; background: #b3b3b3; border-radius: 999px; width: 26px; height: 32px; display: flex; align-items: center; justify-content: center; }
 
 /* Share (SharePanel.tsx, JoinScreen.tsx) */
 .lm-fixed-layer { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
 .lm-fixed-layer .lm-float { pointer-events: auto; position: fixed; }
-.lm-share-code { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 3.2rem; letter-spacing: 0.18em; line-height: 1.1; margin: 4px 0 8px; }
+.lm-share-code { font-family: var(--lm-font); font-weight: 800; font-size: 3.2rem; letter-spacing: 0.18em; line-height: 1.1; margin: 4px 0 8px; }
 .lm-share-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: auto; }
 .lm-share-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 6px; border: 2px solid var(--content-border); border-radius: 8px; }
 .lm-share-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lm-share-toggle { display: inline-flex; border: 2px solid var(--ink); border-radius: 999px; overflow: hidden; flex-shrink: 0; }
 .lm-share-toggle button { border: none; background: #fff; min-width: 44px; min-height: 36px; font-size: 1.05rem; cursor: pointer; }
 .lm-share-toggle button + button { border-left: 2px solid var(--ink); }
-.lm-share-toggle button.on { background: #ede9fe; box-shadow: inset 0 0 0 2px #7c3aed; }
-.lm-share-badge { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-size: 0.85rem; padding: 4px 10px; border-radius: 999px; background: #ede9fe; }
-.lm-join { min-height: 100vh; display: flex; flex-direction: column; background-color: #19b4c8; background-image: radial-gradient(rgba(255, 255, 255, 0.16) 22%, transparent 23%); background-size: 72px 72px; }
-.lm-join-bar { background: #9a4fb5; color: #fff; font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 1.4rem; text-align: center; padding: 10px; border-bottom: 5px solid #7b3796; }
+.lm-share-toggle button.on { background: var(--brand-sky); box-shadow: inset 0 0 0 2px var(--brand-blue); }
+.lm-share-badge { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-size: 0.85rem; padding: 4px 10px; border-radius: 999px; background: var(--brand-sky); }
+.lm-join { min-height: 100vh; display: flex; flex-direction: column; background-color: var(--brand-blue); background-image: radial-gradient(rgba(255, 255, 255, 0.16) 22%, transparent 23%); background-size: 72px 72px; }
+.lm-join-bar { background: var(--brand-cream); color: var(--ink); font-family: var(--lm-font); font-weight: 800; font-size: 1.4rem; text-align: center; padding: 10px; border-bottom: 5px solid #E9DC8C; }
 .lm-join-center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 16px; }
-.lm-join-title { font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #fff; font-size: clamp(2rem, 7vw, 4rem); margin: 0; text-align: center; text-shadow: 0 4px 0 rgba(0, 0, 0, 0.15); }
+.lm-join-title { font-family: var(--lm-font); font-weight: 800; color: #fff; font-size: clamp(2rem, 7vw, 4rem); margin: 0; text-align: center; text-shadow: 0 4px 0 rgba(0, 0, 0, 0.15); }
 .lm-join-row { display: flex; gap: 12px; align-items: center; }
-.lm-join-input { width: min(260px, 60vw); height: 64px; border: none; border-radius: 6px; box-shadow: 0 5px 0 #c8c8c8; font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 1.8rem; text-align: center; color: #333; padding: 0 12px; }
+.lm-join-input { width: min(260px, 60vw); height: 64px; border: none; border-radius: 6px; box-shadow: 0 5px 0 #c8c8c8; font-family: var(--lm-font); font-weight: 800; font-size: 1.8rem; text-align: center; color: #333; padding: 0 12px; }
 .lm-join-go { width: 64px; height: 64px; border: none; border-radius: 6px; box-shadow: 0 5px 0 #c8c8c8; background: #fff; font-size: 2rem; font-weight: 900; cursor: pointer; color: #333; }
 .lm-join-go:disabled { opacity: 0.6; cursor: default; }
 .lm-join-msg { color: #fff; font-weight: 800; font-size: 1.1rem; text-align: center; margin: 0; max-width: 420px; }
 .lm-readonly .lm-canvas { pointer-events: none; }
-.lm-pattern-card { width: 100%; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border: 2px dashed var(--ink); border-radius: 10px; background: #f5f3ff; }
+.lm-pattern-card { width: 100%; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border: 2px dashed var(--ink); border-radius: 10px; background: var(--brand-sky-soft); }
 .lm-pattern-icons { display: flex; gap: 3px; flex-wrap: wrap; }
 .lm-pattern-icons img { width: 22px; height: 22px; object-fit: contain; pointer-events: none; }
 .lm-pattern-text { font-weight: 800; font-size: 0.78rem; }
 .lm-tray-search { margin-bottom: 4px; }
-.lm-select-bar { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; background: #fff; border: 3px solid var(--ink); border-radius: 12px; box-shadow: 0 4px 10px rgba(31, 17, 71, 0.15); max-width: calc(100% - 24px); }
+.lm-select-bar { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; background: #fff; border: 3px solid var(--ink); border-radius: 12px; box-shadow: 0 4px 10px rgba(15, 43, 69, 0.15); max-width: calc(100% - 24px); }
 /* Word bubble choices: just the two shapes, side by side with their label. */
 .lm-bubble-toggle { flex-wrap: nowrap; }
 .lm-bubble-toggle button { padding: 2px 8px; min-width: 44px; justify-content: center; }
 .lm-bubble-swatch.outline { background: transparent; }
 /* First-visit welcome (WelcomeChoice.tsx) */
-.lm-welcome-backdrop { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(31, 17, 71, 0.45); }
+.lm-welcome-backdrop { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 43, 69, 0.45); }
 .lm-welcome { width: 100%; max-width: 560px; background: var(--paper, #fffdf7); border: 4px solid var(--ink); border-radius: 18px; box-shadow: 0 10px 0 var(--ink); padding: 24px; text-align: center; }
 .lm-welcome h2 { margin: 0 0 6px; font-size: 1.8rem; }
 .lm-welcome p { margin: 0 0 18px; font-weight: 600; }
 .lm-welcome-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .lm-welcome-choice { display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center; min-height: 120px; padding: 16px; border: 3px solid var(--ink); border-radius: 14px; font: inherit; color: var(--ink); text-decoration: none; cursor: pointer; }
-.lm-welcome-choice strong { font-family: 'Baloo 2', sans-serif; font-size: 1.35rem; }
+.lm-welcome-choice strong { font-family: var(--lm-font); font-size: 1.35rem; }
 .lm-welcome-choice span { font-size: 0.9rem; font-weight: 600; opacity: 0.8; }
-.lm-welcome-choice.start { background: #fbbf24; }
-.lm-welcome-choice.join { background: #19b4c8; color: #fff; }
+.lm-welcome-choice.start { background: var(--brand-cream); }
+.lm-welcome-choice.join { background: var(--brand-blue); color: #fff; }
 .lm-welcome-choice:hover { transform: translateY(-2px); box-shadow: 0 4px 0 var(--ink); }
 @media (max-width: 520px) { .lm-welcome-choices { grid-template-columns: 1fr; } }
-.lm-marquee { position: absolute; z-index: 40; border: 2px dashed #7c3aed; background: rgba(124, 58, 237, 0.08); border-radius: 4px; pointer-events: none; }
+.lm-marquee { position: absolute; z-index: 40; border: 2px dashed var(--brand-blue); background: rgba(25, 104, 171, 0.08); border-radius: 4px; pointer-events: none; }
 .lm-board { overflow: hidden; touch-action: none; background-color: #fdfdfb; }
 .lm-word-symbol { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 0.8rem; text-align: center; }
+
+/* Settings panel: font choice. */
+.lm-settings { position: fixed; top: 76px; right: 16px; z-index: 60; width: min(340px, calc(100vw - 32px)); background: #fff; border: 3px solid var(--ink); border-radius: 14px; box-shadow: 0 8px 20px rgba(15, 43, 69, 0.2); }
+.lm-settings-bar { display: flex; align-items: center; justify-content: space-between; padding: 6px 6px 6px 14px; background: var(--brand-sky); border-bottom: 2px solid var(--ink); border-radius: 11px 11px 0 0; font-weight: 700; }
+.lm-settings-body { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 14px; }
+.lm-font-choice { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left; padding: 10px 12px; border: 2px solid var(--content-border); border-radius: 10px; background: #fff; color: var(--ink); cursor: pointer; }
+.lm-font-choice.on { border-color: var(--brand-blue); background: var(--brand-sky-soft); box-shadow: inset 0 0 0 2px var(--brand-blue); }
+.lm-font-choice .name { font-size: 0.75rem; font-weight: 700; opacity: 0.7; font-family: 'Inclusive Sans', sans-serif; }
+.lm-font-choice .sample { font-size: 1.25rem; line-height: 1.5; }
