@@ -239,6 +239,21 @@ const CELL_GAP = 4;
 const DEFAULT_CELL = 44;
 const frameWidth = (n: number, cell: number) => n * cell + (n - 1) * CELL_GAP;
 const MAX_BOXES = 10;
+const SAVE_KEY = 'lm-board';
+let savedBoard: { placed: PlacedItem[]; strokes: Stroke[] } | null = null;
+let hadSavedBoard = false;
+function readSavedBoard(): { placed: PlacedItem[]; strokes: Stroke[] } {
+  if (savedBoard) return savedBoard;
+  try {
+    const raw = sessionStorage.getItem(SAVE_KEY);
+    const data = raw ? JSON.parse(raw) : null;
+    savedBoard = { placed: Array.isArray(data?.placed) ? data.placed : [], strokes: Array.isArray(data?.strokes) ? data.strokes : [] };
+  } catch {
+    savedBoard = { placed: [], strokes: [] };
+  }
+  hadSavedBoard = savedBoard.placed.length > 0 || savedBoard.strokes.length > 0;
+  return savedBoard;
+}
 const CHIP_COLORS = [LM_PHONO_COLOR, '#FAF003', '#D2222E', '#1968AB', '#42AC74', '#F87220', '#9877B9', '#FFFFFF'];
 
 function sizeFor(kind: PlacedKind, boxCount?: number, item?: Partial<PlacedItem>): { w: number; h: number } {
@@ -664,7 +679,9 @@ function TextBoxWidget({ item, onPointerDown, onPointerMove, onPointerUp, onText
 export default function LiteracyManipulatives() {
   const [ttsSettings] = useState<TTSSettings>({ rate: 1, voiceURI: null });
 
-  const [placed, setPlaced] = useState<PlacedItem[]>([]);
+  // A refresh keeps the board (her request 2026-10-15): it's saved for this tab only, so closing the tab still
+  // starts fresh next time. A student joining a shared board gets the teacher's board instead.
+  const [placed, setPlaced] = useState<PlacedItem[]>(() => (isJoinRoute() ? [] : readSavedBoard().placed));
   const [glowIds, setGlowIds] = useState<Set<string>>(new Set());
   // Direct teacher instruction: "ensure that after i drag and drop, the
   // x is not shown on the assets on the whiteboard. only show x upon
@@ -813,7 +830,7 @@ export default function LiteracyManipulatives() {
   const [drawMode, setDrawMode] = useState<'pen' | 'highlight' | 'eraser'>('pen');
   // Every pen/highlighter mark is kept as its own stroke so the eraser can remove one mark at a time (her
   // request 2026-10-15). Points are in the draw canvas's own 1400x900 space.
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [strokes, setStrokes] = useState<Stroke[]>(() => (isJoinRoute() ? [] : readSavedBoard().strokes));
   const liveStroke = useRef<Stroke | null>(null);
 
   // ---- Share (live board for students) ----
@@ -821,6 +838,13 @@ export default function LiteracyManipulatives() {
   // the whole board back out. A student's board mirrors the teacher's; an editing student sends only what
   // they changed.
   const joinMode = useRef(isJoinRoute()).current;
+  useEffect(() => {
+    if (joinMode) return;
+    const t = window.setTimeout(() => {
+      try { sessionStorage.setItem(SAVE_KEY, JSON.stringify({ placed, strokes })); } catch { /* storage full or blocked: just not saved */ }
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [placed, strokes, joinMode]);
   const applyOps = (ops: Ops<PlacedItem, Stroke>) => {
     setPlaced((p) => {
       const removes = new Set(ops.removes);
@@ -848,6 +872,8 @@ export default function LiteracyManipulatives() {
   // Every launch opens on the welcome pop-up, "Start a whiteboard" or "Join a board" (her request 2026-10-15).
   // A page that embeds the board (the dashboard's iframe) can pass ?welcome=0 to skip it.
   const [welcomeOpen, setWelcomeOpen] = useState(() => {
+    // A refreshed tab goes straight back to its board.
+    if (!isJoinRoute() && hadSavedBoard) return false;
     try { return new URLSearchParams(window.location.search).get('welcome') !== '0'; } catch { return true; }
   });
   const closeWelcome = () => setWelcomeOpen(false);
