@@ -2106,6 +2106,7 @@ export default function LiteracyManipulatives() {
           onSetAccess={host.setStudentAccess}
           onStop={() => { void host.stop(); setShareOpen(false); }}
           onClose={() => setShareOpen(false)}
+          requests={host.requests}
         />
       )}
       {/* Top toolbar, same collapsible bar as the dashboard's native
@@ -2117,6 +2118,11 @@ export default function LiteracyManipulatives() {
           <>
             <span className="lm-sidebar-title" style={{ marginRight: 8 }}>Literacy Manipulatives</span>
             <span className="lm-share-badge"><Icon name="eye" /> Watching your teacher's board{student.name ? `, ${student.name}` : ''}</span>
+            {student.status === 'joined' && (
+              <button className="btn btn-sm" onClick={student.requestAccess} disabled={student.requested} title="Ask your teacher if you can move pieces">
+                {student.requested ? 'Access requested' : 'Request access'}
+              </button>
+            )}
           </>
         ) : topBarOpen ? (
           <>
@@ -2145,6 +2151,9 @@ export default function LiteracyManipulatives() {
               >
                 {host.status === 'live' && host.code ? host.code : 'Share'}
               </button>
+            )}
+            {!joinMode && host.requests.length > 0 && (
+              <span className="lm-request-badge" role="status" aria-label={`${host.requests.length} ${host.requests.length === 1 ? 'student is' : 'students are'} asking for edit access`} title="A student is asking for edit access">{host.requests.length}</span>
             )}
             {!joinMode && <button className={`btn btn-sm ${settingsOpen ? 'btn-primary' : ''}`} onClick={() => setSettingsOpen((o) => !o)}>Settings</button>}
             <span style={{ flex: 1 }} />

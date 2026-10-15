@@ -118,6 +118,8 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
   const [code, setCode] = useState<string | null>(null);
   const [students, setStudents] = useState<SharedStudent[]>([]);
   const [access, setAccess] = useState<Record<string, Access>>({});
+  // Students who pressed "Request access" (her request 2026-10-15), until the teacher answers.
+  const [requests, setRequests] = useState<string[]>([]);
   const [status, setStatus] = useState<'off' | 'starting' | 'live' | 'error'>('off');
   const channelRef = useRef<RealtimeChannel | null>(null);
   const accessRef = useRef(access);
@@ -153,9 +155,14 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
           if (meta?.role === 'student') list.push({ id: key, name: meta.name || 'Student' });
         }
         setStudents(list);
+        setRequests((r) => r.filter((id) => list.some((st) => st.id === id)));
         focus.prune(Object.keys(ch.presenceState()));
       });
       ch.on('broadcast', { event: 'hello' }, () => sendSnapshot());
+      ch.on('broadcast', { event: 'request' }, ({ payload }) => {
+        const from = (payload as { from?: string }).from;
+        if (from) setRequests((r) => (r.includes(from) ? r : [...r, from]));
+      });
       focus.listen(ch);
       ch.on('broadcast', { event: 'ops' }, ({ payload }) => {
         const ops = payload as Ops<P, S>;
@@ -181,6 +188,7 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
     setCode(null);
     setStudents([]);
     setAccess({});
+    setRequests([]);
     setStatus('off');
     focus.clear();
     if (ch) {
@@ -221,8 +229,8 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
 
   useSendFocus(channelRef, status === 'live', code ? `teacher-${code}` : null, 'Teacher', focusIds);
 
-  const setStudentAccess = (id: string, a: Access) => setAccess((m) => ({ ...m, [id]: a }));
-  return { code, students, access, status, error, start, stop, setStudentAccess, sendPointer, remoteFocus: focus.remote };
+  const setStudentAccess = (id: string, a: Access) => { setAccess((m) => ({ ...m, [id]: a })); setRequests((r) => r.filter((x) => x !== id)); };
+  return { code, students, access, status, error, start, stop, setStudentAccess, sendPointer, remoteFocus: focus.remote, requests };
 }
 
 // ---------- Student ----------
@@ -246,6 +254,8 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
   const [access, setAccess] = useState<Access>('view');
   const [name, setName] = useState('');
   const [teacherPointer, setTeacherPointer] = useState<TeacherPointer>(null);
+  const [requested, setRequested] = useState(false);
+  const lastAccess = useRef<Access>('view');
   const channelRef = useRef<RealtimeChannel | null>(null);
   const joinedRef = useRef(false);
   const goneTimer = useRef<number | null>(null);
@@ -273,7 +283,10 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
     });
     ch.on('broadcast', { event: 'state' }, ({ payload }) => {
       const snap = payload as Snapshot<P, S>;
-      setAccess(snap.access?.[studentId] ?? 'view');
+      const a = snap.access?.[studentId] ?? 'view';
+      if (lastAccess.current !== a) setRequested(false); // the teacher answered
+      lastAccess.current = a;
+      setAccess(a);
       snapRef.current(snap);
     });
     ch.on('broadcast', { event: 'ended' }, () => setStatus('ended'));
@@ -307,7 +320,13 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
 
   useSendFocus(channelRef, status === 'joined' && access === 'edit', studentId, name, focusIds);
 
-  return { status, access, name, error, checkCode, join, sendOps, teacherPointer, remoteFocus: focus.remote };
+  // A watching student can ask the teacher for edit access.
+  const requestAccess = useCallback(() => {
+    void channelRef.current?.send({ type: 'broadcast', event: 'request', payload: { from: studentId } });
+    setRequested(true);
+  }, []);
+
+  return { status, access, name, error, checkCode, join, sendOps, teacherPointer, remoteFocus: focus.remote, requested, requestAccess };
 }
 
 // Changes from `before` to `after`, by id. Positions of pieces that are snapped into a row or a Sound Box are

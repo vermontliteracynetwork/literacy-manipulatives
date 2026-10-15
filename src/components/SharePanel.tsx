@@ -6,8 +6,8 @@ import { shareConfigured, type Access, type SharedStudent } from '../lib/share';
 // The teacher's Share pop-up: the 4-digit code and join link to give students, then each student who joins
 // (by the name they typed) with a view 👁 / edit ✏️ switch on the right. Movable, always has an ✕ (closing it
 // keeps sharing on; "Stop sharing" ends it).
-export function SharePanel({ code, status, error, students, access, onSetAccess, onStop, onClose, onRetry }: {
-  code: string | null; status: string; error: string | null; students: SharedStudent[]; access: Record<string, Access>; onRetry: () => void;
+export function SharePanel({ code, status, error, students, access, onSetAccess, onStop, onClose, onRetry, requests = [] }: {
+  code: string | null; status: string; error: string | null; students: SharedStudent[]; access: Record<string, Access>; onRetry: () => void; requests?: string[];
   onSetAccess: (id: string, a: Access) => void; onStop: () => void; onClose: () => void;
 }) {
   const [pos, setPos] = useState({ x: Math.max(16, window.innerWidth - 400), y: 80 });
@@ -53,7 +53,10 @@ export function SharePanel({ code, status, error, students, access, onSetAccess,
                     const a = access[st.id] ?? 'view';
                     return (
                       <li key={st.id}>
-                        <span className="lm-share-name">{st.name}</span>
+                        <span className="lm-share-name">
+                          {st.name}
+                          {requests.includes(st.id) && <span className="lm-request-dot" title="Asking for edit access" aria-label="Asking for edit access" />}
+                        </span>
                         <span className="lm-share-toggle" role="radiogroup" aria-label={`${st.name}'s access`}>
                           <button type="button" role="radio" aria-checked={a === 'view'} className={a === 'view' ? 'on' : ''} onClick={() => onSetAccess(st.id, 'view')} title="Can only watch" aria-label="View only"><Icon name="eye" /></button>
                           <button type="button" role="radio" aria-checked={a === 'edit'} className={a === 'edit' ? 'on' : ''} onClick={() => onSetAccess(st.id, 'edit')} title="Can move pieces" aria-label="Can edit"><Icon name="pencil" /></button>
