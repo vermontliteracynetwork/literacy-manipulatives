@@ -580,3 +580,9 @@ input.lm-text-pill { cursor: text; user-select: text; }
 .lm-check-box { width: 20px; height: 20px; border: 2px solid var(--ink); border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 900; color: #fff; flex-shrink: 0; }
 .lm-checklist li.done .lm-check-box { background: #2F8A5B; border-color: #2F8A5B; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.lm-text-box { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 4px 14px 4px 6px; border: 4px solid; border-radius: 22px; box-sizing: border-box; font-family: var(--lm-font); font-weight: 800; font-size: 1.05rem; }
+.lm-text-grip { display: inline-flex; align-items: center; justify-content: center; width: 18px; align-self: stretch; cursor: grab; touch-action: none; opacity: 0.55; border-radius: 6px; }
+.lm-text-grip:hover { opacity: 0.9; }
+.lm-text-area { border: none; outline: none; background: transparent; resize: none; overflow: hidden; padding: 0; margin: 0; font: inherit; line-height: 1.3; display: block; }
+.lm-text-area::placeholder { color: inherit; opacity: 0.5; }
+.lm-text-area:focus::placeholder { color: transparent; }

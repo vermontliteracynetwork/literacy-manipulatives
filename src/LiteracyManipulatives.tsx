@@ -166,6 +166,7 @@ interface PlacedItem {
   chipColor?: string; // soundChip, its color (double tap to change)
   customText?: string; // a blank morpheme piece's own text
   sourcePieces?: PlacedItem[]; // textbox made with T: the symbols it came from, to turn back into
+  textAlign?: 'left' | 'center' | 'right'; // textbox
   cellIndex?: number; // letter, which box of that frame
   cellSize?: number; // frame, box size in px (resizable, default 44)
   groupId?: string; // items grouped together (Select → Group) move as one
@@ -555,15 +556,25 @@ function SymbolSentenceCard({ sentence, onPointerDown }: {
 // textarea, focused automatically), and while editing a student can
 // type, speak (🎤, browser speech-to-text), or grow/shrink the text
 // with A-/A+.
-// Text boxes (her request 2026-10-15) look like word bubbles in medium gray, hold as many words as needed, and
-// snap into a sentence row like a symbol. Press to move; double tap to type; Enter or tapping away finishes.
+// Text boxes (her request 2026-10-15) look like word bubbles in medium gray and hold as many words as needed:
+// tap anywhere in the text to type (arrow keys move through it like any text field), and long text wraps onto
+// more lines. The dotted grip on the left moves it; double tap the grip for its settings. It snaps into a
+// sentence row like a symbol. Left, center or right alignment is in its settings.
 const TEXT_GRAY = '#8A9099';
-function TextBoxWidget({ item, bubbleStyle, setRef, editing, onEditDone, onPointerDown, onPointerMove, onPointerUp, onDoubleClick, onTextChange, selected }: {
+const TEXT_MAX_W = 460;
+let textMeasure: CanvasRenderingContext2D | null = null;
+function textWidthPx(text: string): number {
+  if (typeof document === 'undefined') return text.length * 11;
+  textMeasure ??= document.createElement('canvas').getContext('2d');
+  if (!textMeasure) return text.length * 11;
+  const family = getComputedStyle(document.documentElement).getPropertyValue('--lm-font').trim() || 'sans-serif';
+  textMeasure.font = `800 16.8px ${family}`;
+  return Math.max(...text.split('\n').map((line) => textMeasure!.measureText(line || ' ').width));
+}
+function TextBoxWidget({ item, bubbleStyle, setRef, onPointerDown, onPointerMove, onPointerUp, onDoubleClick, onTextChange, selected }: {
   item: PlacedItem;
   bubbleStyle: BubbleStyle;
   setRef: (el: HTMLDivElement | null) => void;
-  editing: boolean;
-  onEditDone: () => void;
   onPointerDown: (e: React.PointerEvent) => void;
   onPointerMove: (e: React.PointerEvent) => void;
   onPointerUp: (e: React.PointerEvent) => void;
@@ -573,39 +584,47 @@ function TextBoxWidget({ item, bubbleStyle, setRef, editing, onEditDone, onPoint
 }) {
   const solid = bubbleStyle === 'solid';
   const text = item.textValue ?? '';
-  const look: CSSProperties = { borderColor: TEXT_GRAY, background: solid ? TEXT_GRAY : BUBBLE_WHITE, color: solid ? textOn(TEXT_GRAY) : BUBBLE_BLACK };
+  const areaRef = useRef<HTMLTextAreaElement>(null);
+  const width = Math.min(TEXT_MAX_W, Math.max(60, Math.ceil(textWidthPx(text || 'text')) + 8));
+  useLayoutEffect(() => {
+    const el = areaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  });
   return (
     <div ref={setRef} style={{ position: 'absolute', left: item.x, top: item.y, zIndex: 2 }}>
-      {editing ? (
-        <input
-          className="lm-bubble lm-text-pill"
-          autoFocus
-          value={text}
-          placeholder="text"
-          aria-label="Text box"
-          size={Math.max(6, text.length + 1)}
-          onPointerDown={(e) => e.stopPropagation()}
-          onChange={(e) => onTextChange(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur(); }}
-          onBlur={onEditDone}
-          style={look}
-        />
-      ) : (
-        <div
+      <div
+        className="lm-text-box"
+        style={{ borderColor: TEXT_GRAY, background: solid ? TEXT_GRAY : BUBBLE_WHITE, color: solid ? textOn(TEXT_GRAY) : BUBBLE_BLACK, boxShadow: selected ? '0 0 0 3px rgba(25,104,171,0.35)' : undefined }}
+      >
+        <span
+          className="lm-text-grip"
           role="button"
           tabIndex={0}
-          className="lm-bubble lm-text-pill"
-          aria-label={text.trim() ? `Text box: ${text}` : 'Empty text box, double tap to type'}
+          aria-label="Move text box (double tap for settings)"
+          title="Drag to move. Double tap for settings."
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
           onDoubleClick={onDoubleClick}
-          style={{ ...look, boxShadow: selected ? '0 0 0 3px rgba(25,104,171,0.35)' : undefined }}
         >
-          {text.trim() ? text : <span style={{ opacity: 0.5 }}>text</span>}
-        </div>
-      )}
+          <svg width="10" height="18" viewBox="0 0 10 18" aria-hidden="true"><g fill="currentColor">{[3, 9, 15].flatMap((y) => [<circle key={`a${y}`} cx="2.5" cy={y} r="1.6" />, <circle key={`b${y}`} cx="7.5" cy={y} r="1.6" />])}</g></svg>
+        </span>
+        <textarea
+          ref={areaRef}
+          className="lm-text-area"
+          rows={1}
+          value={text}
+          placeholder="text"
+          aria-label="Text box"
+          style={{ width, textAlign: item.textAlign ?? 'left', color: 'inherit' }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onChange={(e) => onTextChange(e.target.value.replace(/\n/g, ' '))}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); (e.target as HTMLTextAreaElement).blur(); } }}
+        />
+      </div>
     </div>
   );
 }
@@ -1644,11 +1663,14 @@ export default function LiteracyManipulatives() {
     // anything joined BELOW it still comes along, via getChainDescendantIds.
     setSelectedId(instanceId);
     if (!multiSel.has(instanceId) && multiSel.size) setMultiSel(new Set());
-    dragStartRef.current = { x: e.clientX, y: e.clientY, moved: false };
+    // Where on the piece it was grabbed, so it moves without jumping to center under the pointer.
+    const grabbed = placed.find((pp) => pp.instanceId === instanceId);
+    const at = canvasRelative(e.clientX, e.clientY);
+    dragStartRef.current = { x: e.clientX, y: e.clientY, moved: false, offX: grabbed ? at.x - grabbed.x : undefined, offY: grabbed ? at.y - grabbed.y : undefined };
     try { (e.target as Element).setPointerCapture(e.pointerId); } catch { /* not supported */ }
   };
 
-  const dragStartRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const dragStartRef = useRef<{ x: number; y: number; moved: boolean; offX?: number; offY?: number } | null>(null);
 
   // Only the picked-up piece moves here; anything snapped to its right follows through the layout effect.
   const onDragMove = (e: React.PointerEvent) => {
@@ -1680,8 +1702,9 @@ export default function LiteracyManipulatives() {
       const dragged = p.find((pp) => pp.instanceId === id);
       if (!dragged) return p;
       const size = sizeFor(dragged.kind, dragged.boxCount, dragged);
-      const nx = x - size.w / 2;
-      const ny = y - size.h / 2;
+      const grab = dragStartRef.current;
+      const nx = x - (grab?.offX ?? size.w / 2);
+      const ny = y - (grab?.offY ?? size.h / 2);
       const dx = nx - dragged.x;
       const dy = ny - dragged.y;
       // Everything grouped with the dragged piece moves the same amount, and so does everything picked with
@@ -2652,6 +2675,15 @@ export default function LiteracyManipulatives() {
                           ? <button type="button" className="lm-tool-btn lm-t-btn" onClick={() => sentenceToTextBox(sel.instanceId)} aria-label="Put this sentence in one text box" title="Put this sentence in one text box">T</button>
                           : <button type="button" className="lm-tool-btn lm-t-btn" onClick={() => setChecklistFor((cur) => (cur === sel.instanceId ? null : sel.instanceId))} aria-label="What this sentence still needs" title="What this sentence still needs">?</button>;
                       })()}
+                      {unit.length === 1 && sel.kind === 'textbox' && (
+                        <span className="lm-tool-pair" role="radiogroup" aria-label="Text alignment">
+                          {(['left', 'center', 'right'] as const).map((a) => (
+                            <button key={a} type="button" role="radio" aria-checked={(sel.textAlign ?? 'left') === a} className={`lm-tool-btn icon${(sel.textAlign ?? 'left') === a ? ' on' : ''}`} onClick={() => setPlacedField(sel.instanceId, { textAlign: a })} aria-label={`Align ${a}`} title={`Align ${a}`}>
+                              <Icon name={a === 'left' ? 'alignLeft' : a === 'center' ? 'alignCenter' : 'alignRight'} size={16} />
+                            </button>
+                          ))}
+                        </span>
+                      )}
                       {unit.length === 1 && sel.kind === 'textbox' && (sel.textValue ?? '').trim() && (
                         <button type="button" className="lm-tool-btn icon lm-t-btn" onClick={() => textBoxToSymbols(sel.instanceId)} aria-label="Turn back into symbols" title="Turn back into symbols"><Icon name="triangle" size={16} /></button>
                       )}
@@ -2866,12 +2898,10 @@ export default function LiteracyManipulatives() {
                 item={item}
                 bubbleStyle={item.bubbleStyle ?? bubbleDefault}
                 setRef={setItemRef(item.instanceId)}
-                editing={editPieceFor === item.instanceId}
-                onEditDone={() => setEditPieceFor(null)}
                 onPointerDown={startDragPlaced(item.instanceId)}
                 onPointerMove={onDragMove}
                 onPointerUp={onDragEnd}
-                onDoubleClick={() => { showBadges(item.instanceId); setEditPieceFor(item.instanceId); }}
+                onDoubleClick={() => showBadges(item.instanceId)}
                 onTextChange={(v) => setTextBoxValue(item.instanceId, v)}
                 selected={selectedId === item.instanceId && !item.groupId}
               />
