@@ -557,3 +557,8 @@ button, input, select, textarea {
 .lm-sel-tools .lm-tool-btn.icon { padding: 0 8px; }
 .lm-sel-count { min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px; background: var(--brand-blue); color: #fff; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; margin-left: 2px; }
 .lm-group-outline { position: absolute; z-index: 1; border: 3px solid rgba(25, 104, 171, 0.35); border-radius: 12px; pointer-events: none; }
+.lm-float-foot { padding: 7px 10px; background: #D2222E; color: #fff; border-top: 2px solid var(--ink); border-radius: 0 0 9px 9px; font-size: 0.82rem; line-height: 1.35; }
+.lm-make-real { display: flex; align-items: center; gap: 8px; }
+.lm-make-real span { flex: 1; }
+.lm-make-real-try { flex-shrink: 0; min-height: 30px; padding: 0 10px; border-radius: 999px; border: 2px solid #fff; background: #fff; color: #D2222E; font: inherit; font-weight: 700; cursor: pointer; }
+.lm-piece-edit { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; width: 96px; height: 36px; border: 2px solid var(--brand-blue); border-radius: 8px; text-align: center; font: inherit; font-weight: 700; font-size: 1.1rem; background: #fff; }

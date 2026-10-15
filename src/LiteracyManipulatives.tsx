@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { useSyncedTTS, SyncedSpeakButton } from './components/SyncedSpeakButton';
 import { ReferencePopover } from './components/ReferencePopover';
 import { SANDBOX_PIECES } from './lib/grammarContent';
-import { MORPHEME_GROUPS, KIND_LABEL, buildWord, canFollow, isCore, kindExplanation, madeUpMeaning, morphemeById, pieceLabel, type Morpheme } from './lib/morphemes';
+import { MORPHEME_GROUPS, KIND_LABEL, buildWord, canFollow, isCore, kindExplanation, madeUpMeaning, makeItReal, morphemeById, morphemeFor, BLANK_MORPHEMES, isBlankMorpheme, pieceLabel, type Morpheme } from './lib/morphemes';
 import { lookupDefinition, peekDefinition } from './lib/dictionary';
 import { MorphemePiece, pieceBodyWidth, pieceOuterSize } from './components/MorphemePiece';
 import { FloatingCard } from './components/FloatingCard';
@@ -219,6 +219,7 @@ interface PlacedItem {
   snapLeftId?: string;
   inFrameId?: string; // letter, sound chip or split line: the Sound Box it's snapped to (moves with the frame)
   chipColor?: string; // soundChip, its color (double tap to change)
+  customText?: string; // a blank morpheme piece's own text
   cellIndex?: number; // letter, which box of that frame
   cellSize?: number; // frame, box size in px (resizable, default 44)
   groupId?: string; // items grouped together (Select → Group) move as one
@@ -242,7 +243,7 @@ const CHIP_COLORS = [LM_PHONO_COLOR, '#FAF003', '#D2222E', '#1968AB', '#42AC74',
 
 function sizeFor(kind: PlacedKind, boxCount?: number, item?: Partial<PlacedItem>): { w: number; h: number } {
   if (kind === 'grammar') return { w: TILE_W, h: TILE_H };
-  if (kind === 'morpheme') { const m = morphemeById(item?.morphId); return m ? pieceOuterSize(m) : { w: 96, h: 70 }; }
+  if (kind === 'morpheme') { const m = morphemeFor(item?.morphId, item?.customText); return m ? pieceOuterSize(m) : { w: 96, h: 70 }; }
   if (kind === 'frame') { const n = boxCount ?? 3; const c = item?.cellSize ?? DEFAULT_CELL; return { w: frameWidth(n, c), h: c }; }
   if (kind === 'textbox') return { w: 160, h: 56 };
   if (kind === 'shape') return { w: 130, h: 150 };
@@ -272,10 +273,10 @@ function vcColorFor(text: string | undefined, on: boolean): CSSProperties | unde
   return { color: isVowel ? '#b91c1c' : '#1d4ed8' };
 }
 
-function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compact, punctId, vowelConsonantColors, cellSize, tileSize, linkedLeft, linkedRight, chipColor }: {
+function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compact, punctId, vowelConsonantColors, cellSize, tileSize, linkedLeft, linkedRight, chipColor, customText }: {
   kind: PlacedKind; pieceId?: string; wordClass?: MontessoriWordClass; letter?: string; boxCount?: number;
   morphId?: string; compact?: boolean; punctId?: string; vowelConsonantColors?: boolean; cellSize?: number; tileSize?: number;
-  linkedLeft?: boolean; linkedRight?: boolean; chipColor?: string;
+  linkedLeft?: boolean; linkedRight?: boolean; chipColor?: string; customText?: string;
 }) {
   if (kind === 'punctuation') {
     // A23-ROADMAP Phase 2: opt-in punctuation tiles. Same bordered-tile
@@ -401,7 +402,7 @@ function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compa
     );
   }
   // morpheme
-  const m = morphemeById(morphId);
+  const m = morphemeFor(morphId, customText);
   return m ? <MorphemePiece m={m} scale={compact ? 0.72 : 1} linkedLeft={linkedLeft} linkedRight={linkedRight} /> : null;
 }
 
@@ -903,7 +904,7 @@ export default function LiteracyManipulatives() {
   // once placed, a tile's own case toggles independently via its own
   // double-tap, tracked directly on that placed instance's `letter`.
   const [letterCase, setLetterCase] = useState<Record<string, 'upper' | 'lower'>>({});
-  const caseFor = (l: string) => letterCase[l] ?? 'upper';
+  const caseFor = (l: string) => letterCase[l] ?? 'lower'; // lowercase by default (her request 2026-10-15)
   const toggleTrayCase = (l: string) => setLetterCase((c) => ({ ...c, [l]: caseFor(l) === 'upper' ? 'lower' : 'upper' }));
   const toggleLetterCase = (instanceId: string) => setPlaced((p) => p.map((pp) => (
     pp.instanceId === instanceId && pp.kind === 'letter' && pp.letter
@@ -994,6 +995,8 @@ export default function LiteracyManipulatives() {
   // boxes, and at its right end; each adds a box right there. Letters after it shift over with their boxes, and
   // adding on the left grows the Sound Box leftward so the boxes already there stay put.
   const [boxInsertFor, setBoxInsertFor] = useState<string | null>(null);
+  // Blank morpheme pieces: double tap to type their text.
+  const [editPieceFor, setEditPieceFor] = useState<string | null>(null);
   // Sound chips: double tap for a small menu of colors.
   const [chipMenuFor, setChipMenuFor] = useState<string | null>(null);
   useEffect(() => { if (chipMenuFor && selectedId !== chipMenuFor) setChipMenuFor(null); }, [selectedId, chipMenuFor]);
@@ -1054,7 +1057,7 @@ export default function LiteracyManipulatives() {
         const item = row[i];
         const lp = pos.get(left.instanceId)!;
         if (item.kind === 'morpheme') {
-          const lm = morphemeById(left.morphId);
+          const lm = morphemeFor(left.morphId, left.customText);
           pos.set(item.instanceId, { x: lp.x + (lm ? pieceBodyWidth(lm) : 96), y: lp.y });
         } else {
           const ls = measured(left);
@@ -1088,7 +1091,7 @@ export default function LiteracyManipulatives() {
     .filter((pp) => pp.kind === 'morpheme' && !placed.some((q) => q.instanceId === pp.snapLeftId))
     .map((head) => {
       const row = rowFrom(placed, head.instanceId).filter((pp) => pp.kind === 'morpheme');
-      const parts = row.map((pp) => morphemeById(pp.morphId)).filter((m): m is Morpheme => !!m);
+      const parts = row.map((pp) => morphemeFor(pp.morphId, pp.customText)).filter((m): m is Morpheme => !!m && !!m.text);
       return { head, row, parts, ...buildWord(parts) };
     })
     .filter((w) => w.parts.length >= 2);
@@ -1653,7 +1656,7 @@ export default function LiteracyManipulatives() {
       const row = rowFrom(current, instanceId);
       const tail = row[row.length - 1];
       const rowIds = new Set(row.map((r) => r.instanceId));
-      const morph = (pp: PlacedItem) => morphemeById(pp.morphId);
+      const morph = (pp: PlacedItem) => morphemeFor(pp.morphId, pp.customText);
       const sameFamily = (pp: PlacedItem) => (isMorph ? pp.kind === 'morpheme' : SENTENCE_KINDS.includes(pp.kind));
       const fits = (left: PlacedItem, right: PlacedItem) => {
         if (!isMorph) return true;
@@ -1757,7 +1760,7 @@ export default function LiteracyManipulatives() {
     // A tap without moving a morpheme piece opens its meaning card (her request: "a hover or click on ipad
     // needs to show the morpheme meaning").
     const tapped = !!dragStartRef.current && !dragStartRef.current.moved;
-    if (item?.kind === 'morpheme' && tapped) openMorphemeCard(item);
+    if (item?.kind === 'morpheme' && tapped && !isBlankMorpheme(item.morphId)) openMorphemeCard(item);
     dragStartRef.current = null;
     if (item && !tapped) handleDrop(id, item.kind, e.clientX, e.clientY);
   };
@@ -2129,6 +2132,18 @@ export default function LiteracyManipulatives() {
                 </SubcategoryRow>
               );
             })}
+            {!morphSearch.trim() && (
+              <SubcategoryRow id="blankPieces" label="Blank pieces" open={!!openSubcategories.blankPieces} onToggle={() => toggleSubcategory('blankPieces')}>
+                <p style={{ margin: '0 0 6px', fontSize: '0.75rem', opacity: 0.75 }}>Drag one out, then double tap it to type your own word part.</p>
+                <div className="row-wrap" style={{ gap: 6 }}>
+                  {BLANK_MORPHEMES.map((m) => (
+                    <Draggable key={m.id} label={`Blank ${KIND_LABEL[m.kind].toLowerCase()}`} onPointerDown={startDragNewItem(() => ({ kind: 'morpheme', morphId: m.id, customText: '' }))}>
+                      <ItemVisual kind="morpheme" morphId={m.id} compact />
+                    </Draggable>
+                  ))}
+                </div>
+              </SubcategoryRow>
+            )}
           </Category>
 
           <Category label="Alphabet" color="#FEDBC1" open={openCategories.letters} onToggle={() => toggleCategory('letters')}>
@@ -2282,6 +2297,7 @@ export default function LiteracyManipulatives() {
                     showBadges(p.instanceId);
                     if (p.kind === 'soundChip') setChipMenuFor((cur) => (cur === p.instanceId ? null : p.instanceId));
                     if (p.kind === 'frame') setBoxInsertFor((cur) => (cur === p.instanceId ? null : p.instanceId));
+                    if (p.kind === 'morpheme' && isBlankMorpheme(p.morphId)) setEditPieceFor(p.instanceId);
                   }}
                   style={multiSel.has(p.instanceId) ? { outline: '3px dashed var(--brand-blue)', outlineOffset: 3, borderRadius: 10 } : selectedId === p.instanceId && !p.groupId ? { boxShadow: '0 0 0 3px rgba(25,104,171,0.35)', borderRadius: 10 } : undefined}
                 >
@@ -2292,6 +2308,7 @@ export default function LiteracyManipulatives() {
                     linkedLeft={p.kind === 'morpheme' && !!p.snapLeftId && placed.some((q) => q.instanceId === p.snapLeftId && q.kind === 'morpheme')}
                     linkedRight={p.kind === 'morpheme' && placed.some((q) => q.snapLeftId === p.instanceId && q.kind === 'morpheme')}
                     chipColor={p.chipColor}
+                    customText={p.customText}
                   />
                 </Draggable>
                 {/* The word bubble is part of the symbol (her picture, 2026-10-15): it sits right under the icon and
@@ -2324,6 +2341,19 @@ export default function LiteracyManipulatives() {
                     Follow-up instruction: "have the same setting button
                     appear for single grammar symbols" (matching the
                     Symbol Sentence settings/close pair). */}
+                {p.kind === 'morpheme' && editPieceFor === p.instanceId && (
+                  <input
+                    className="lm-piece-edit lm-item-controls"
+                    autoFocus
+                    defaultValue={p.customText ?? ''}
+                    placeholder="type"
+                    aria-label="Word part"
+                    maxLength={14}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur(); }}
+                    onBlur={(e) => { setPlacedField(p.instanceId, { customText: e.target.value.trim() }); setEditPieceFor(null); }}
+                  />
+                )}
                 {p.kind === 'soundChip' && chipMenuFor === p.instanceId && selectedId === p.instanceId && (
                   <div className="lm-chip-menu lm-item-controls" role="radiogroup" aria-label="Chip color" onPointerDown={(e) => e.stopPropagation()}>
                     {CHIP_COLORS.map((c) => (
@@ -2532,6 +2562,28 @@ export default function LiteracyManipulatives() {
                   title={<>{w.word}<span className={`lm-word-tag ${real ? 'real' : 'nonsense'}`}>{real ? 'Real' : 'Nonsense'}</span></>}
                   tone={real ? 'real' : 'nonsense'}
                   subtitle={<><strong>{meaningLabel}:</strong> {meaningLine}</>}
+                  footer={(() => {
+                    // A nonsense word gets one way to make it real (her request 2026-10-15), with a Try it button.
+                    if (real) return undefined;
+                    const fix = makeItReal(w.parts);
+                    if (!fix) return undefined;
+                    const steps = [
+                      ...(fix.removed ? [`take out ${pieceLabel(fix.removed.part)}`] : []),
+                      ...fix.swaps.map((sw) => `change ${pieceLabel(sw.from)} to ${pieceLabel(sw.to)}`),
+                    ];
+                    const tryIt = () => {
+                      pushHistory();
+                      const swaps = new Map(fix.swaps.map((sw) => [w.row[sw.index]?.instanceId, sw.to.id]));
+                      setPlaced((p) => p.map((pp) => (swaps.has(pp.instanceId) ? { ...pp, morphId: swaps.get(pp.instanceId) } : pp)));
+                      if (fix.removed) { const gone = w.row[fix.removed.index]; if (gone) removePlacedItem(gone.instanceId); }
+                    };
+                    return (
+                      <div className="lm-make-real">
+                        <span><strong>Make it real:</strong> {steps.join(' and ')} to make <strong>{fix.word}</strong>.</span>
+                        <button type="button" className="lm-make-real-try" onClick={tryIt}>Try it</button>
+                      </div>
+                    );
+                  })()}
                   actions={<SyncedSpeakButton id={speakId} text={spoken} tts={tts} settings={ttsSettings} className="lm-float-speak" ariaLabel={`Hear ${w.word}`} />}
                   onMove={(x, y) => setWordCardState((s) => ({ ...s, [w.head.instanceId]: { ...(s[w.head.instanceId] ?? {}), dx: x - w.head.x, dy: y - w.head.y - 78 } }))}
                   onClose={() => setWordCardState((s) => ({ ...s, [w.head.instanceId]: { dx: s[w.head.instanceId]?.dx ?? 0, dy: s[w.head.instanceId]?.dy ?? 0, closedWord: w.word } }))}

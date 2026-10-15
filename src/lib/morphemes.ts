@@ -246,6 +246,17 @@ export const KIND_COLOR: Record<MorphemeKind, string> = {
 export const ALL_MORPHEMES: Morpheme[] = MORPHEME_GROUPS.flatMap((g) => g.items);
 export const morphemeById = (id: string | undefined) => ALL_MORPHEMES.find((m) => m.id === id);
 
+// Blank pieces (her request 2026-10-15): one of each shape with no text; double tap a placed one to type a
+// word part that isn't on the lists.
+export const BLANK_MORPHEMES: Morpheme[] = (['prefix', 'base', 'root', 'suffix'] as MorphemeKind[]).map((kind) => ({ id: `blank-${kind}`, kind, text: '', meaning: '' }));
+export const isBlankMorpheme = (id: string | undefined) => !!id && id.startsWith('blank-');
+export function morphemeFor(id: string | undefined, customText?: string): Morpheme | undefined {
+  const blank = BLANK_MORPHEMES.find((m) => m.id === id);
+  if (!blank) return morphemeById(id);
+  const text = (customText ?? '').trim().toLowerCase().replace(/[^a-z]/g, '');
+  return { ...blank, text, meaning: text ? 'your own word part' : 'a blank piece (double tap to type)' };
+}
+
 // Shape: which sides interlock. A tab (bump) on the right fits into a notch on the left of the next piece.
 // Bases and roots are always two-sided. A suffix is an end cap (flat right side) until another suffix snaps
 // on after it; a prefix is flat on its left until another prefix snaps on in front of it (her request
@@ -262,7 +273,7 @@ export function canFollow(left: Morpheme, right: Morpheme): boolean {
   return right.kind !== 'prefix';
 }
 export const isCore = (m: Morpheme) => m.kind === 'base' || m.kind === 'root';
-export const pieceLabel = (m: Morpheme) => (m.kind === 'prefix' ? `${m.text}-` : m.kind === 'suffix' ? `-${m.text}` : m.text);
+export const pieceLabel = (m: Morpheme) => (!m.text ? '' : m.kind === 'prefix' ? `${m.text}-` : m.kind === 'suffix' ? `-${m.text}` : m.text);
 
 export const KIND_LABEL: Record<MorphemeKind, string> = {
   prefix: 'Prefix', suffix: 'Suffix', base: 'Free base', root: 'Root',
@@ -371,4 +382,72 @@ export function madeUpMeaning(parts: Morpheme[]): string {
   for (const p of [...prefixes].reverse()) x = (PREFIX_PHRASE[p.text] ?? ((y: string) => `${first(p.meaning)} ${y}`))(x);
   for (const sfx of suffixes) x = (SUFFIX_PHRASE[sfx.text] ?? ((y: string) => `${y} (${first(sfx.meaning)})`))(x, sfx);
   return x.charAt(0).toUpperCase() + x.slice(1) + '.';
+}
+
+// "Make it real" (her request 2026-10-15): for a made-up word, find a small change that makes a real word,
+// swapping one part for another of the same kind (or two parts if one isn't enough), or taking a part out.
+// Affixes are tried before the base or root, so the word keeps its main meaning where it can.
+export interface RealFix { word: string; swaps: { index: number; from: Morpheme; to: Morpheme }[]; removed?: { index: number; part: Morpheme } }
+const fixCache = new Map<string, RealFix | null>();
+const sameSlot = (a: Morpheme, b: Morpheme) => (isCore(a) ? isCore(b) : a.kind === b.kind);
+const chainOk = (parts: Morpheme[]) => parts.some(isCore) && parts.every((m, i) => i === 0 || canFollow(parts[i - 1], m));
+export function makeItReal(parts: Morpheme[]): RealFix | null {
+  const key = parts.map((m) => m.id).join('|');
+  if (fixCache.has(key)) return fixCache.get(key)!;
+  const order = parts.map((_, i) => i).sort((a, b) => Number(isCore(parts[a])) - Number(isCore(parts[b])));
+  const options = (i: number, base: Morpheme[]) => ALL_MORPHEMES.filter((m) => m.id !== parts[i].id && m.text !== parts[i].text && sameSlot(parts[i], m)
+    && (i === 0 || canFollow(base[i - 1], m)) && (i === base.length - 1 || canFollow(m, base[i + 1])));
+  let found: RealFix | null = null;
+  // One swap.
+  for (const i of order) {
+    for (const m of options(i, parts)) {
+      const next = parts.map((p, k) => (k === i ? m : p));
+      const b = buildWord(next);
+      if (b.real) { found = { word: b.word, swaps: [{ index: i, from: parts[i], to: m }] }; break; }
+    }
+    if (found) break;
+  }
+  // Take one part out.
+  if (!found && parts.length > 2) {
+    for (const i of order) {
+      const next = parts.filter((_, k) => k !== i);
+      if (!chainOk(next)) continue;
+      const b = buildWord(next);
+      if (b.real) { found = { word: b.word, swaps: [], removed: { index: i, part: parts[i] } }; break; }
+    }
+  }
+  // Take one part out and swap another.
+  if (!found && parts.length > 2) {
+    outer2: for (const r of order) {
+      const kept = parts.filter((_, k) => k !== r);
+      const keptIdx = parts.map((_, k) => k).filter((k) => k !== r);
+      for (let i = 0; i < kept.length; i++) {
+        for (const m of ALL_MORPHEMES) {
+          if (m.text === kept[i].text || !sameSlot(kept[i], m)) continue;
+          const next = kept.map((p, k) => (k === i ? m : p));
+          if (!chainOk(next)) continue;
+          const b = buildWord(next);
+          if (b.real) { found = { word: b.word, swaps: [{ index: keptIdx[i], from: kept[i], to: m }], removed: { index: r, part: parts[r] } }; break outer2; }
+        }
+      }
+    }
+  }
+  // Two swaps, for short words.
+  if (!found && parts.length <= 4) {
+    outer: for (const i of order) {
+      for (const j of order) {
+        if (j <= i) continue;
+        for (const a of options(i, parts)) {
+          const mid = parts.map((p, k) => (k === i ? a : p));
+          for (const c of options(j, mid)) {
+            const next = mid.map((p, k) => (k === j ? c : p));
+            const b = buildWord(next);
+            if (b.real) { found = { word: b.word, swaps: [{ index: i, from: parts[i], to: a }, { index: j, from: parts[j], to: c }] }; break outer; }
+          }
+        }
+      }
+    }
+  }
+  fixCache.set(key, found);
+  return found;
 }

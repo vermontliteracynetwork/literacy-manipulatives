@@ -5,10 +5,10 @@ import { useRef, type ReactNode } from 'react';
 // so the card zooms and scrolls with everything else; `zoom` turns screen pixels back into board pixels.
 // Optional: `actions` sit in the title bar next to the X (a read-aloud button), `subtitle` is a line inside the
 // colored bar under the title, and `tone` colors the bar (green for a real word, red for a nonsense one).
-export function FloatingCard({ x, y, width = 260, zoom, title, onMove, onClose, children, actions, subtitle, tone }: {
+export function FloatingCard({ x, y, width = 260, zoom, title, onMove, onClose, children, actions, subtitle, tone, footer }: {
   x: number; y: number; width?: number; zoom: number; title: ReactNode;
   onMove: (x: number, y: number) => void; onClose: () => void; children: ReactNode;
-  actions?: ReactNode; subtitle?: ReactNode; tone?: 'real' | 'nonsense';
+  actions?: ReactNode; subtitle?: ReactNode; tone?: 'real' | 'nonsense'; footer?: ReactNode;
 }) {
   const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
   return (
@@ -37,6 +37,7 @@ export function FloatingCard({ x, y, width = 260, zoom, title, onMove, onClose, 
         {subtitle && <div className="lm-float-sub">{subtitle}</div>}
       </div>
       <div className="lm-float-body" onPointerDown={(e) => e.stopPropagation()}>{children}</div>
+      {footer && <div className="lm-float-foot" onPointerDown={(e) => e.stopPropagation()}>{footer}</div>}
     </div>
   );
 }
