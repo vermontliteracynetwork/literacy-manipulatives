@@ -1000,7 +1000,15 @@ export default function LiteracyManipulatives() {
   // Sound chips: double tap for a small menu of colors.
   const [chipMenuFor, setChipMenuFor] = useState<string | null>(null);
   useEffect(() => { if (chipMenuFor && selectedId !== chipMenuFor) setChipMenuFor(null); }, [selectedId, chipMenuFor]);
-  useEffect(() => { if (boxInsertFor && selectedId !== boxInsertFor) setBoxInsertFor(null); }, [selectedId, boxInsertFor]);
+  // The + buttons stay up while the Sound Box, a tile in it, or its group is selected.
+  const frameFor = (id: string | null): PlacedItem | undefined => {
+    const it = placed.find((pp) => pp.instanceId === id);
+    if (!it) return undefined;
+    if (it.kind === 'frame') return it;
+    if (it.inFrameId) return placed.find((pp) => pp.instanceId === it.inFrameId);
+    return it.groupId ? placed.find((pp) => pp.kind === 'frame' && pp.groupId === it.groupId) : undefined;
+  };
+  useEffect(() => { if (boxInsertFor && frameFor(selectedId)?.instanceId !== boxInsertFor) setBoxInsertFor(null); }, [selectedId, boxInsertFor]);
   const insertBox = (frameId: string, at: number) => {
     pushHistory();
     setPlaced((p) => {
@@ -2370,24 +2378,6 @@ export default function LiteracyManipulatives() {
                     ))}
                   </div>
                 )}
-                {p.kind === 'frame' && boxInsertFor === p.instanceId && selectedId === p.instanceId && (p.boxCount ?? 3) < MAX_BOXES && (
-                  Array.from({ length: (p.boxCount ?? 3) + 1 }).map((_, i) => {
-                    const cell = p.cellSize ?? DEFAULT_CELL;
-                    const n = p.boxCount ?? 3;
-                    const x = i === 0 ? -16 : i === n ? frameWidth(n, cell) + 16 : i * (cell + CELL_GAP) - CELL_GAP / 2;
-                    return (
-                      <button
-                        key={i}
-                        type="button"
-                        className="lm-box-plus lm-item-controls"
-                        style={{ left: x, top: cell / 2 }}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onClick={() => insertBox(p.instanceId, i)}
-                        aria-label={i === 0 ? 'Add a box at the start' : i === n ? 'Add a box at the end' : `Add a box between box ${i} and box ${i + 1}`}
-                      >+</button>
-                    );
-                  })
-                )}
                 {selectedId === p.instanceId && p.kind === 'frame' && (
                   <div className="lm-resize-handle lm-item-controls" onPointerDown={startFrameResize(p.instanceId)} role="slider" aria-label="Resize sound boxes" aria-valuenow={p.cellSize ?? DEFAULT_CELL} aria-valuemin={36} aria-valuemax={140} title="Drag to resize">⤡</div>
                 )}
@@ -2451,6 +2441,27 @@ export default function LiteracyManipulatives() {
                 <Icon name={student.teacherPointer.kind === 'touch' ? 'finger' : 'arrow'} size={student.teacherPointer.kind === 'touch' ? 56 : 44} />
               </div>
             )}
+            {/* A Sound Box's + buttons, drawn above the tiles in it so they can always be tapped. */}
+            {(() => {
+              const f = placed.find((pp) => pp.instanceId === boxInsertFor && pp.kind === 'frame');
+              if (!f || (f.boxCount ?? 3) >= MAX_BOXES) return null;
+              const cell = f.cellSize ?? DEFAULT_CELL;
+              const n = f.boxCount ?? 3;
+              return Array.from({ length: n + 1 }).map((_, i) => {
+                const x = i === 0 ? -16 : i === n ? frameWidth(n, cell) + 16 : i * (cell + CELL_GAP) - CELL_GAP / 2;
+                return (
+                  <button
+                    key={`plus-${i}`}
+                    type="button"
+                    className="lm-box-plus lm-item-controls"
+                    style={{ left: f.x + x, top: f.y + cell / 2 }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={() => insertBox(f.instanceId, i)}
+                    aria-label={i === 0 ? 'Add a box at the start' : i === n ? 'Add a box at the end' : `Add a box between box ${i} and box ${i + 1}`}
+                  >+</button>
+                );
+              });
+            })()}
             {/* The selected piece's (or group's) gear and X, and its settings toolbar when open. */}
             {(() => {
               const sel = placed.find((pp) => pp.instanceId === selectedId);
@@ -2465,8 +2476,9 @@ export default function LiteracyManipulatives() {
               const row = rowMembers(sel.instanceId);
               const canGroupRow = !sel.groupId && row.length > 1;
               const loneSentence = unit.length === 1 && sel.kind === 'symbolSentence';
-              const loneFrame = unit.length === 1 && sel.kind === 'frame';
               const loneLetter = unit.length === 1 && sel.kind === 'letter';
+              // A Sound Box's add/remove buttons also show for a tile sitting in it or a group holding it.
+              const soundBox = frameFor(sel.instanceId);
               const loneShape = unit.length === 1 && sel.kind === 'shape';
               const hasTools = true; // every piece can at least be duplicated
               const badges = badgesFor === sel.instanceId;
@@ -2492,10 +2504,10 @@ export default function LiteracyManipulatives() {
                       {loneSentence && <button type="button" className="lm-tool-btn" onClick={() => setPlacedField(sel.instanceId, { wordFills: {}, punctFills: {} })} title="Put the sentence's own words back">Reset words</button>}
                       {loneSentence && <button type="button" className="lm-tool-btn" onClick={() => splitSymbolSentence(sel.instanceId)} title="Break the sentence into separate symbols">Ungroup</button>}
                       {loneLetter && <button type="button" className="lm-tool-btn" onClick={() => toggleLetterCase(sel.instanceId)} title="Switch between capital and small letter">Aa</button>}
-                      {loneFrame && (
+                      {soundBox && (
                         <>
-                          <button type="button" className="lm-tool-btn" onClick={() => adjustFrameBoxCount(sel.instanceId, -1)} disabled={(sel.boxCount ?? 3) <= 1} aria-label="Remove a box">− Box</button>
-                          <button type="button" className="lm-tool-btn" onClick={() => adjustFrameBoxCount(sel.instanceId, 1)} disabled={(sel.boxCount ?? 3) >= MAX_BOXES} aria-label="Add a box">+ Box</button>
+                          <button type="button" className={`lm-tool-btn${boxInsertFor === soundBox.instanceId ? ' on' : ''}`} onClick={() => setBoxInsertFor((cur) => (cur === soundBox.instanceId ? null : soundBox.instanceId))} disabled={(soundBox.boxCount ?? 3) >= MAX_BOXES} aria-label="Show where boxes can be added" title="Add boxes">+</button>
+                          <button type="button" className="lm-tool-btn" onClick={() => adjustFrameBoxCount(soundBox.instanceId, -1)} disabled={(soundBox.boxCount ?? 3) <= 1} aria-label="Remove the last box" title="Remove the last box">−</button>
                         </>
                       )}
                       {sel.groupId && <button type="button" className="lm-tool-btn" onClick={() => setGroup(ids, undefined)}>Ungroup</button>}

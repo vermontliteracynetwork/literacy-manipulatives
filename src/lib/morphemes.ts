@@ -385,7 +385,8 @@ export function madeUpMeaning(parts: Morpheme[]): string {
 }
 
 // "Make it real" (her request 2026-10-15): for a made-up word, find a small change that makes a real word,
-// swapping one part for another of the same kind (or two parts if one isn't enough), or taking a part out.
+// swapping one part for another of the same kind (or two parts if one isn't enough), or taking a part out. A
+// suggestion always keeps at least one of the parts already on the board.
 // Affixes are tried before the base or root, so the word keeps its main meaning where it can.
 export interface RealFix { word: string; swaps: { index: number; from: Morpheme; to: Morpheme }[]; removed?: { index: number; part: Morpheme } }
 const fixCache = new Map<string, RealFix | null>();
@@ -432,8 +433,8 @@ export function makeItReal(parts: Morpheme[]): RealFix | null {
       }
     }
   }
-  // Two swaps, for short words.
-  if (!found && parts.length <= 4) {
+  // Two swaps, for short words, always leaving at least one of the student's own parts in place.
+  if (!found && parts.length >= 3 && parts.length <= 4) {
     outer: for (const i of order) {
       for (const j of order) {
         if (j <= i) continue;

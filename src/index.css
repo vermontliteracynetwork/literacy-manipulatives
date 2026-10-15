@@ -542,7 +542,7 @@ button, input, select, textarea {
 .lm-teacher-pointer { position: absolute; z-index: 50; pointer-events: none; color: #222; filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1.5px #fff) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3)); transition: left 0.06s linear, top 0.06s linear; }
 .lm-teacher-pointer.mouse { transform: translate(-8px, -6px); }
 .lm-teacher-pointer.touch { transform: translate(-25px, -3px); }
-.lm-box-plus { position: absolute; z-index: 4; width: 24px; height: 24px; margin: -12px 0 0 -12px; border-radius: 50%; border: 2px solid var(--brand-blue); background: var(--brand-blue); color: #fff; font-size: 16px; font-weight: 900; line-height: 1; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 4px rgba(15, 43, 69, 0.25); }
+.lm-box-plus { position: absolute; z-index: 35; width: 24px; height: 24px; margin: -12px 0 0 -12px; border-radius: 50%; border: 2px solid var(--brand-blue); background: var(--brand-blue); color: #fff; font-size: 16px; font-weight: 900; line-height: 1; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 4px rgba(15, 43, 69, 0.25); }
 .lm-chip-menu { position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 5; display: flex; gap: 5px; padding: 6px; background: #fff; border: 2px solid var(--ink); border-radius: 999px; box-shadow: 0 4px 10px rgba(15, 43, 69, 0.18); }
 .lm-chip-menu button { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--ink); padding: 0; cursor: pointer; }
 .lm-chip-menu button.on { box-shadow: 0 0 0 3px var(--brand-sky), 0 0 0 5px var(--brand-blue); }
