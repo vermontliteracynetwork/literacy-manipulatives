@@ -2183,7 +2183,7 @@ export default function LiteracyManipulatives() {
                     : p.kind === 'soundChip' ? () => { setSelectedId(p.instanceId); setChipMenuFor((cur) => (cur === p.instanceId ? null : p.instanceId)); }
                     : p.kind === 'frame' ? () => { setSelectedId(p.instanceId); setBoxInsertFor((cur) => (cur === p.instanceId ? null : p.instanceId)); }
                     : undefined}
-                  style={multiSel.has(p.instanceId) ? { outline: '3px dashed var(--brand-blue)', outlineOffset: 3, borderRadius: 10 } : selectedId === p.instanceId ? { boxShadow: '0 0 0 3px rgba(25,104,171,0.35)', borderRadius: 10 } : undefined}
+                  style={multiSel.has(p.instanceId) ? { outline: '3px dashed var(--brand-blue)', outlineOffset: 3, borderRadius: 10 } : selectedId === p.instanceId && !p.groupId ? { boxShadow: '0 0 0 3px rgba(25,104,171,0.35)', borderRadius: 10 } : undefined}
                 >
                   <ItemVisual
                     kind={p.kind} pieceId={p.pieceId} wordClass={p.wordClass} letter={p.letter} boxCount={p.boxCount} morphId={p.morphId} punctId={p.punctId}
@@ -2337,7 +2337,12 @@ export default function LiteracyManipulatives() {
               const loneFrame = unit.length === 1 && sel.kind === 'frame';
               const hasTools = worded.length > 0 || !!sel.groupId || canGroupRow || loneFrame;
               const stop = (e: React.PointerEvent) => e.stopPropagation();
+              // A group gets one outline around all of its pieces, like a Symbol Sentence card.
+              const left = Math.min(...unit.map((pp) => pp.x));
+              const bottom = Math.max(...unit.map((pp) => pp.y + measured(pp).h));
               return (
+                <>
+                {unit.length > 1 && <div className="lm-group-outline" style={{ left: left - 8, top: top - 8, width: right - left + 16, height: bottom - top + 16 }} aria-hidden="true" />}
                 <div className="lm-unit-controls lm-item-controls" style={{ left: right + 12, top: top - 22 }} onPointerDown={stop}>
                   {open && hasTools && (
                     <div className="lm-unit-tools" role="toolbar" aria-label={sel.groupId ? 'Group settings' : 'Settings'}>
@@ -2368,6 +2373,7 @@ export default function LiteracyManipulatives() {
                     <button type="button" className="lm-ctl lm-ctl-x" onClick={() => removeUnit(ids)} aria-label={unit.length > 1 ? 'Remove this group' : 'Remove'}>×</button>
                   </div>
                 </div>
+                </>
               );
             })()}
             {/* A word built from snapped morpheme pieces gets a movable card (× to close, drag to move) that says
@@ -2452,7 +2458,7 @@ export default function LiteracyManipulatives() {
                     onPointerDown={startDragPlaced(item.instanceId)}
                     onPointerMove={onDragMove}
                     onPointerUp={onDragEnd}
-                    style={multiSel.has(item.instanceId) ? { outline: '3px dashed var(--brand-blue)', outlineOffset: 3, borderRadius: 10, padding: 2 } : selected ? { boxShadow: '0 0 0 3px rgba(25,104,171,0.35)', borderRadius: 10, padding: 2 } : { padding: 2 }}
+                    style={multiSel.has(item.instanceId) ? { outline: '3px dashed var(--brand-blue)', outlineOffset: 3, borderRadius: 10, padding: 2 } : selected && !item.groupId ? { boxShadow: '0 0 0 3px rgba(25,104,171,0.35)', borderRadius: 10, padding: 2 } : { padding: 2 }}
                   >
                     <div className="lm-sentence">
                       {sentenceTokens(sentence).map((t) => {

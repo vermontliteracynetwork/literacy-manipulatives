@@ -556,3 +556,4 @@ button, input, select, textarea {
 .lm-sel-tools .lm-tool-btn:hover:not(:disabled) { background: var(--brand-sky-soft); }
 .lm-sel-tools .lm-tool-btn.icon { padding: 0 8px; }
 .lm-sel-count { min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px; background: var(--brand-blue); color: #fff; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; margin-left: 2px; }
+.lm-group-outline { position: absolute; z-index: 1; border: 3px solid rgba(25, 104, 171, 0.35); border-radius: 12px; pointer-events: none; }
