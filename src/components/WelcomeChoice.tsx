@@ -9,7 +9,6 @@ export function WelcomeChoice({ onStart }: { onStart: () => void }) {
     <div className="lm-welcome-backdrop" role="dialog" aria-modal="true" aria-labelledby="lm-welcome-title">
       <div className="lm-welcome">
         <h2 id="lm-welcome-title">Welcome to Literacy Manipulatives</h2>
-        <p>Build words, sentences and sounds by dragging pieces onto a whiteboard.</p>
         <div className="lm-welcome-choices">
           <button ref={startRef} type="button" className="lm-welcome-choice start" onClick={onStart}>
             <strong>Start a whiteboard</strong>
