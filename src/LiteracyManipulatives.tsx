@@ -15,7 +15,7 @@ import { isFontChoice, useFontChoice, type FontChoice } from './lib/fontChoice';
 import { diffItems, isJoinRoute, shareConfigured, studentId as myStudentId, useHostSession, useStudentSession, type Ops, type Snapshot } from './lib/share';
 import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from './lib/montessoriGrammar';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
-import { agreeWords, isKnownWord, searchSymbolSentences, symbolsForWords, wordMismatch, type PatternWord } from './lib/sentenceSearch';
+import { agreeWords, isKnownWord, patternFor, searchSymbolSentences, symbolsForWords, wordMismatch, type PatternWord } from './lib/sentenceSearch';
 import { PUNCTUATION_MARKS } from './lib/punctuationContent';
 import { BUBBLE_BLACK, BUBBLE_WHITE, nextPunct, randomWordInSentence, sentenceTokens, stripPunctuation, textOn, type BubbleStyle } from './lib/wordBubbles';
 import {
@@ -165,6 +165,7 @@ interface PlacedItem {
   inFrameId?: string; // letter, sound chip or split line: the Sound Box it's snapped to (moves with the frame)
   chipColor?: string; // soundChip, its color (double tap to change)
   customText?: string; // a blank morpheme piece's own text
+  sourcePieces?: PlacedItem[]; // textbox made with T: the symbols it came from, to turn back into
   cellIndex?: number; // letter, which box of that frame
   cellSize?: number; // frame, box size in px (resizable, default 44)
   groupId?: string; // items grouped together (Select → Group) move as one
@@ -1293,9 +1294,50 @@ export default function LiteracyManipulatives() {
     const outsideLeft = items.find((pp) => pp.snapLeftId && !ids.has(pp.snapLeftId))?.snapLeftId;
     setPlaced((p) => [
       ...p.filter((pp) => !ids.has(pp.instanceId)).map((pp) => (pp.snapLeftId && ids.has(pp.snapLeftId) ? { ...pp, snapLeftId: newId } : pp)),
-      { instanceId: newId, kind: 'textbox', textValue: check.text, x: minX, y: bottom - 44, snapLeftId: outsideLeft, bubbleStyle: items[0].bubbleStyle, addedBy: joinMode ? myStudentId : undefined },
+      { instanceId: newId, kind: 'textbox', textValue: check.text, x: minX, y: bottom - 44, snapLeftId: outsideLeft, bubbleStyle: items[0].bubbleStyle, addedBy: joinMode ? myStudentId : undefined, sourcePieces: items },
     ]);
     setSelectedId(newId);
+    setToolsFor(null);
+  };
+
+  // Back to symbols (her request 2026-10-15): a text box turns into symbols snapped in a row. One made with T
+  // gets its own symbols back (with any edits to the text kept, word by word); a typed one gets a symbol for
+  // each word, read the same way the sentence search reads words, plus punctuation tiles.
+  const textBoxToSymbols = (id: string) => {
+    const box = placed.find((pp) => pp.instanceId === id && pp.kind === 'textbox');
+    if (!box) return;
+    const tokens = (box.textValue ?? '').match(/[A-Za-z'-]+|[.,!?;:]/g) ?? [];
+    if (!tokens.length) return;
+    pushHistory();
+    const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const words = tokens.filter((t) => !/^[.,!?;:]$/.test(t));
+    const tagged = patternFor(words.join(' '))?.words ?? [];
+    // Word classes from the symbols the box was made from, when the words still line up with them.
+    const fromSource = (box.sourcePieces ?? []).flatMap((pp): MontessoriWordClass[] => {
+      if (pp.kind === 'shape') return [pp.wordClass ?? 'noun'];
+      if (pp.kind === 'symbolSentence') return ALL_SYMBOL_SENTENCES.find((ss) => ss.id === pp.symbolSentenceId)?.words.map((w) => w.wordClass) ?? [];
+      return [];
+    });
+    const classes = fromSource.length === words.length ? fromSource : tagged.map((w) => w.wordClass);
+    let wi = 0;
+    const pieces: PlacedItem[] = [];
+    for (const t of tokens) {
+      const pid = `sym-${stamp}-${pieces.length}`;
+      const left = pieces.length ? pieces[pieces.length - 1].instanceId : box.snapLeftId;
+      if (/^[.,!?;:]$/.test(t)) {
+        const punctId = PUNCTUATION_MARKS.find((m) => m.mark === t)?.id;
+        if (punctId) pieces.push({ instanceId: pid, kind: 'punctuation', punctId, snapLeftId: left, x: box.x + pieces.length * 120, y: box.y, addedBy: box.addedBy });
+      } else {
+        pieces.push({ instanceId: pid, kind: 'shape', wordClass: classes[wi] ?? 'noun', bubbleWord: t, bubbleStyle: box.bubbleStyle, snapLeftId: left, x: box.x + pieces.length * 120, y: box.y, addedBy: box.addedBy });
+        wi++;
+      }
+    }
+    const lastId = pieces[pieces.length - 1]?.instanceId;
+    setPlaced((p) => [
+      ...p.filter((pp) => pp.instanceId !== id).map((pp) => (pp.snapLeftId === id ? { ...pp, snapLeftId: lastId } : pp)),
+      ...pieces,
+    ]);
+    setSelectedId(null);
     setToolsFor(null);
   };
 
@@ -2610,6 +2652,9 @@ export default function LiteracyManipulatives() {
                           ? <button type="button" className="lm-tool-btn lm-t-btn" onClick={() => sentenceToTextBox(sel.instanceId)} aria-label="Put this sentence in one text box" title="Put this sentence in one text box">T</button>
                           : <button type="button" className="lm-tool-btn lm-t-btn" onClick={() => setChecklistFor((cur) => (cur === sel.instanceId ? null : sel.instanceId))} aria-label="What this sentence still needs" title="What this sentence still needs">?</button>;
                       })()}
+                      {unit.length === 1 && sel.kind === 'textbox' && (sel.textValue ?? '').trim() && (
+                        <button type="button" className="lm-tool-btn icon lm-t-btn" onClick={() => textBoxToSymbols(sel.instanceId)} aria-label="Turn back into symbols" title="Turn back into symbols"><Icon name="triangle" size={16} /></button>
+                      )}
                       <button type="button" className="lm-tool-btn icon" onClick={() => duplicateUnit(ids)} aria-label={unit.length > 1 ? 'Duplicate this group' : 'Duplicate'} title="Duplicate"><Icon name="copy" size={16} /></button>
                     </div>
                   )}
