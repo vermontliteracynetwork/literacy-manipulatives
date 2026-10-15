@@ -2297,24 +2297,22 @@ export default function LiteracyManipulatives() {
                 ? `${def.partOfSpeech ? `(${def.partOfSpeech}) ` : ''}${def.text}`
                 : looking && w.real ? 'Looking up the meaning...' : guess;
               const meaningLabel = def?.text ? 'Means' : real ? 'From its parts' : 'Could mean';
-              const spoken = `${w.word}. ${real ? 'This is a real word.' : 'This is a made-up word built from real parts.'} ${looking && w.real ? '' : `${meaningLabel}: ${meaningLine}`} ${partsText}.`;
+              const spoken = `${w.word}. ${real ? 'This is a real word.' : 'This is a nonsense word built from real parts.'} ${looking && w.real ? '' : `${meaningLabel}: ${meaningLine}`} ${partsText}.`;
               return (
                 <FloatingCard
                   key={`word-${w.head.instanceId}`}
                   x={w.head.x + (st?.dx ?? 0)}
                   y={w.head.y + 78 + (st?.dy ?? 0)}
-                  width={280}
+                  width={300}
                   zoom={zoom}
-                  title={w.word}
+                  title={<>{w.word}<span className={`lm-word-tag ${real ? 'real' : 'nonsense'}`}>{real ? 'Real' : 'Nonsense'}</span></>}
+                  tone={real ? 'real' : 'nonsense'}
+                  subtitle={<><strong>{meaningLabel}:</strong> {meaningLine}</>}
+                  actions={<SyncedSpeakButton id={speakId} text={spoken} tts={tts} settings={ttsSettings} className="lm-float-speak" ariaLabel={`Hear ${w.word}`} />}
                   onMove={(x, y) => setWordCardState((s) => ({ ...s, [w.head.instanceId]: { ...(s[w.head.instanceId] ?? {}), dx: x - w.head.x, dy: y - w.head.y - 78 } }))}
                   onClose={() => setWordCardState((s) => ({ ...s, [w.head.instanceId]: { dx: s[w.head.instanceId]?.dx ?? 0, dy: s[w.head.instanceId]?.dy ?? 0, closedWord: w.word } }))}
                 >
-                  <div className="space-between" style={{ alignItems: 'center', gap: 6 }}>
-                    <span className="lm-float-kind">{real ? 'Real word' : 'Made-up word from real parts'}</span>
-                    <SyncedSpeakButton id={speakId} text={spoken} tts={tts} settings={ttsSettings} style={{ padding: '2px 8px', minHeight: 30 }} ariaLabel={`Hear ${w.word}`} />
-                  </div>
-                  <p className="lm-float-def"><strong>{meaningLabel}:</strong> {meaningLine}</p>
-                  <ul className="lm-float-parts">
+                  <ul className="lm-float-parts" style={{ marginTop: 0 }}>
                     {w.parts.map((m, i) => <li key={i}><strong>{pieceLabel(m)}</strong> = {m.meaning}</li>)}
                   </ul>
                 </FloatingCard>
@@ -2333,13 +2331,11 @@ export default function LiteracyManipulatives() {
                   y={c.y}
                   zoom={zoom}
                   title={pieceLabel(m)}
+                  actions={<SyncedSpeakButton id={speakId} text={spoken} tts={tts} settings={ttsSettings} className="lm-float-speak" ariaLabel={`Hear ${m.text}`} />}
                   onMove={(x, y) => setMorphCards((cards) => cards.map((cc) => (cc.id === c.id ? { ...cc, x, y } : cc)))}
                   onClose={() => setMorphCards((cards) => cards.filter((cc) => cc.id !== c.id))}
                 >
-                  <div className="space-between" style={{ alignItems: 'center', gap: 6 }}>
-                    <span className="lm-float-kind">{m.origin ? `${m.origin} ` : ''}{KIND_LABEL[m.kind].toLowerCase()}</span>
-                    <SyncedSpeakButton id={speakId} text={spoken} tts={tts} settings={ttsSettings} style={{ padding: '2px 8px', minHeight: 30 }} ariaLabel={`Hear ${m.text}`} />
-                  </div>
+                  <span className="lm-float-kind">{m.origin ? `${m.origin} ` : ''}{KIND_LABEL[m.kind].toLowerCase()}</span>
                   <p style={{ margin: '4px 0', fontWeight: 800 }}>Means: {m.meaning}</p>
                   {m.example && <p style={{ margin: '0 0 4px' }}>Example: <em>{m.example}</em></p>}
                   {m.note && <p style={{ margin: '0 0 4px', fontSize: '0.78rem', opacity: 0.75 }}>{m.note}</p>}

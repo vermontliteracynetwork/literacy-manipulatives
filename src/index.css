@@ -441,8 +441,17 @@ button, input, select, textarea {
 
 /* Movable pop-ups (FloatingCard.tsx): always an ✕, drag the title bar to move. */
 .lm-float { position: absolute; z-index: 20; background: #fff; border: 3px solid var(--ink); border-radius: 12px; box-shadow: 0 6px 16px rgba(15, 43, 69, 0.18); font-size: 0.85rem; }
-.lm-float-bar { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 8px; background: var(--brand-sky); border-bottom: 2px solid var(--ink); border-radius: 9px 9px 0 0; cursor: grab; touch-action: none; user-select: none; }
+.lm-float-bar { display: flex; flex-direction: column; gap: 2px; padding: 4px 4px 4px 8px; background: var(--brand-sky); border-bottom: 2px solid var(--ink); border-radius: 9px 9px 0 0; cursor: grab; touch-action: none; user-select: none; }
 .lm-float-bar:active { cursor: grabbing; }
+.lm-float-row { display: flex; align-items: center; gap: 6px; }
+.lm-float-actions { display: inline-flex; align-items: center; gap: 4px; }
+.lm-float-speak { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--ink); background: #fff; color: var(--ink); display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
+.lm-float-sub { padding: 2px 6px 6px 18px; font-size: 0.88rem; line-height: 1.35; cursor: auto; }
+.lm-float.tone-real .lm-float-bar { background: #C6E8CC; }
+.lm-float.tone-nonsense .lm-float-bar { background: #FFDAE0; }
+.lm-word-tag { display: inline-block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 9px; border-radius: 999px; color: #fff; vertical-align: middle; margin-left: 6px; }
+.lm-word-tag.real { background: #2F8A5B; }
+.lm-word-tag.nonsense { background: #D2222E; }
 .lm-float-grip { opacity: 0.5; font-size: 0.9rem; }
 .lm-float-title { flex: 1; font-family: var(--lm-font); font-weight: 800; font-size: 0.95rem; }
 .lm-float-x { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--ink); background: #fee2e2; color: #991b1b; font-weight: 900; cursor: pointer; flex-shrink: 0; }
