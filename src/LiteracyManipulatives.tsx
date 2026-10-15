@@ -524,8 +524,9 @@ function WordListRow({ word, rowId, onDragStart, tts }: {
 // The word bubble attached under a Grammar Symbol (her picture, 2026-10-15): a pill in the symbol's own color,
 // outlined or solid, that a student taps and types into. Typing never starts a drag, and punctuation is kept
 // out (it gets its own icon).
-function WordBubble({ value, placeholder, color, bubbleStyle, onChange, label }: {
+function WordBubble({ value, placeholder, color, bubbleStyle, onChange, label, owner, idx = 0 }: {
   value: string; placeholder: string; color: string; bubbleStyle: BubbleStyle; onChange: (v: string) => void; label: string;
+  owner?: string; idx?: number;
 }) {
   const solid = bubbleStyle === 'solid';
   const shown = value || placeholder;
@@ -535,6 +536,8 @@ function WordBubble({ value, placeholder, color, bubbleStyle, onChange, label }:
       value={value}
       placeholder={placeholder}
       aria-label={label}
+      data-owner={owner}
+      data-idx={idx}
       size={Math.max(4, shown.length + 1)}
       onPointerDown={(e) => e.stopPropagation()}
       onChange={(e) => onChange(stripPunctuation(e.target.value))}
@@ -1582,10 +1585,67 @@ export default function LiteracyManipulatives() {
     if (item && !tapped) handleDrop(id, item.kind, e.clientX, e.clientY);
   };
 
+  // Clearing the whole board asks first (her request 2026-10-15). Undo still brings it back.
+  const [confirmClear, setConfirmClear] = useState(false);
   const clearBoard = () => {
+    setConfirmClear(false);
     if (placed.length === 0) return;
     pushHistory();
     setPlaced([]);
+  };
+
+  // Tab in a word bubble jumps to the next bubble in the same sentence (her request 2026-10-15): a Symbol
+  // Sentence card, a snapped row, or a group, read left to right and top to bottom. Shift+Tab goes back.
+  const tabToNextBubble = (e: React.KeyboardEvent) => {
+    const input = e.target as HTMLElement;
+    if (e.key !== 'Tab' || !input.classList.contains('lm-bubble')) return;
+    const owner = input.dataset.owner;
+    const start = placed.find((pp) => pp.instanceId === owner);
+    if (!owner || !start) return;
+    const ids = new Set<string>([owner]);
+    const addRow = (id: string) => {
+      let head = placed.find((pp) => pp.instanceId === id);
+      const seen = new Set<string>();
+      while (head?.snapLeftId && !seen.has(head.instanceId)) { seen.add(head.instanceId); const l = placed.find((pp) => pp.instanceId === head!.snapLeftId); if (!l) break; head = l; }
+      if (head) for (const r of rowFrom(placed, head.instanceId)) ids.add(r.instanceId);
+    };
+    addRow(owner);
+    for (const id of [...ids]) {
+      const g = placed.find((pp) => pp.instanceId === id)?.groupId;
+      if (g) for (const pp of placed) if (pp.groupId === g) { ids.add(pp.instanceId); addRow(pp.instanceId); }
+    }
+    const items = placed.filter((pp) => ids.has(pp.instanceId));
+    const band = (pp: PlacedItem) => Math.round((pp.y + measured(pp).h / 2) / 60);
+    items.sort((a, b) => band(a) - band(b) || a.x - b.x);
+    const order = new Map(items.map((pp, i) => [pp.instanceId, i]));
+    const bubbles = [...document.querySelectorAll<HTMLInputElement>('.lm-canvas input.lm-bubble')]
+      .filter((el) => el.dataset.owner && order.has(el.dataset.owner))
+      .sort((a, b) => order.get(a.dataset.owner!)! - order.get(b.dataset.owner!)! || Number(a.dataset.idx) - Number(b.dataset.idx));
+    if (bubbles.length < 2) return;
+    e.preventDefault();
+    const i = bubbles.indexOf(input as HTMLInputElement);
+    const next = bubbles[(i + (e.shiftKey ? -1 : 1) + bubbles.length) % bubbles.length];
+    next.focus();
+    next.select();
+  };
+
+  // The eraser also removes pieces (her request 2026-10-15): with the eraser on, tap a Sound Box, a tile, a
+  // symbol, anything, and it comes off the board. A tap on a pen mark erases just the mark.
+  const marksAt = (pt: [number, number]) => strokes.some((st) => {
+    const reach = ERASER_RADIUS + strokeWidth(st) / 2;
+    if (st.points.length === 1) return Math.hypot(pt[0] - st.points[0][0], pt[1] - st.points[0][1]) <= reach;
+    for (let i = 1; i < st.points.length; i++) if (distToSegment(pt, st.points[i - 1], st.points[i]) <= reach) return true;
+    return false;
+  });
+  const eraseItemAt = (clientX: number, clientY: number) => {
+    const { x, y } = canvasRelative(clientX, clientY);
+    const hits = placed.filter((pp) => { const sz = measured(pp); return x >= pp.x && x <= pp.x + sz.w && y >= pp.y && y <= pp.y + sz.h; });
+    if (!hits.length) return;
+    // The smallest piece under the tap is the one on top (a letter in a Sound Box, a symbol on a scaffold).
+    const area = (pp: PlacedItem) => { const sz = measured(pp); return sz.w * sz.h; };
+    const target = hits.reduce((a, b) => (area(b) < area(a) ? b : a));
+    pushHistory();
+    removePlacedItem(target.instanceId);
   };
 
   // Draw canvas, same transparent-overlay technique as the old marker
@@ -1613,7 +1673,11 @@ export default function LiteracyManipulatives() {
   const drawStart = (e: React.PointerEvent<HTMLCanvasElement>) => {
     drawing.current = true;
     const p = drawPosFor(e);
-    if (drawMode === 'eraser') { eraseAt([p.x, p.y]); return; }
+    if (drawMode === 'eraser') {
+      if (marksAt([p.x, p.y])) eraseAt([p.x, p.y]);
+      else { drawing.current = false; eraseItemAt(e.clientX, e.clientY); }
+      return;
+    }
     liveStroke.current = { id: `st-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, mode: drawMode, color: drawColor, points: [[p.x, p.y]] };
     drawLast.current = p;
   };
@@ -1670,6 +1734,18 @@ export default function LiteracyManipulatives() {
   return (
     <div className={`lm-page${studentViewOnly ? ' lm-readonly' : ''}`} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {welcomeOpen && !joinMode && <WelcomeChoice onStart={closeWelcome} />}
+      {confirmClear && (
+        <div className="lm-welcome-backdrop" onClick={() => setConfirmClear(false)}>
+          <div className="lm-welcome lm-confirm" role="alertdialog" aria-labelledby="lm-confirm-title" onClick={(e) => e.stopPropagation()}>
+            <h2 id="lm-confirm-title">Clear the whole board?</h2>
+            <p>Every piece on the board will be removed. Pen marks stay. You can press Undo to bring the pieces back.</p>
+            <div className="row" style={{ justifyContent: 'center', gap: 12 }}>
+              <button className="btn" autoFocus onClick={() => setConfirmClear(false)}>Keep my board</button>
+              <button className="btn btn-danger" onClick={clearBoard}>Clear board</button>
+            </div>
+          </div>
+        </div>
+      )}
       {settingsOpen && !joinMode && <SettingsPanel font={fontChoice.font} onFont={fontChoice.setFont} onClose={() => setSettingsOpen(false)} />}
       {shareOpen && !joinMode && (
         <SharePanel
@@ -1704,7 +1780,7 @@ export default function LiteracyManipulatives() {
             <button className={`btn btn-sm ${selectMode ? 'btn-primary' : ''}`} onClick={() => { setSelectMode((v) => !v); setMultiSel(new Set()); }} title="Pick several pieces to group or line up">Select</button>
             <button className="btn btn-sm" onClick={undo} disabled={!canUndo}>Undo</button>
             <button className="btn btn-sm" onClick={redo} disabled={!canRedo}>Redo</button>
-            <button className="btn btn-sm" onClick={clearBoard} disabled={placed.length === 0}>Clear</button>
+            <button className="btn btn-sm" onClick={() => setConfirmClear(true)} disabled={placed.length === 0}>Clear</button>
             <span className="lm-toolbar-divider" />
             <button className="btn btn-sm" onClick={zoomOut} disabled={zoom <= 0.5} aria-label="Zoom out">−</button>
             <button className="btn btn-sm" onClick={zoomReset} aria-label="Reset zoom">{Math.round(zoom * 100)}%</button>
@@ -1742,7 +1818,7 @@ export default function LiteracyManipulatives() {
         <div className="lm-toolbar" style={{ flex: '0 0 auto', paddingTop: 0 }}>
           <button className={`btn btn-sm ${drawMode === 'pen' ? 'btn-primary' : ''}`} onClick={() => setDrawModeAndColor('pen')}>Pen</button>
           <button className={`btn btn-sm ${drawMode === 'highlight' ? 'btn-primary' : ''}`} onClick={() => setDrawModeAndColor('highlight')}>Highlight</button>
-          <button className={`btn btn-sm ${drawMode === 'eraser' ? 'btn-primary' : ''}`} onClick={() => setDrawModeAndColor('eraser')} title="Erase one mark at a time">Eraser</button>
+          <button className={`btn btn-sm ${drawMode === 'eraser' ? 'btn-primary' : ''}`} onClick={() => setDrawModeAndColor('eraser')} title="Tap a mark or a piece to erase it">Eraser</button>
           <span className="lm-toolbar-divider" />
           {drawMode !== 'eraser' && activePalette.map((hex, i) => (
             <button
@@ -2016,6 +2092,7 @@ export default function LiteracyManipulatives() {
           <div
             ref={canvasRef}
             className="lm-canvas"
+            onKeyDown={tabToNextBubble}
             style={{ position: 'relative', height: '100%', overflow: 'visible', pointerEvents: drawOn ? 'none' : undefined, transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0' }}
           >
             {placed.filter((p) => p.kind !== 'textbox' && p.kind !== 'symbolSentence' && p.kind !== 'writingFrame').map((p) => (
@@ -2054,6 +2131,7 @@ export default function LiteracyManipulatives() {
                       bubbleStyle={p.bubbleStyle ?? bubbleDefault}
                       label={`${MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].name} word`}
                       onChange={(v) => setPlacedField(p.instanceId, { bubbleWord: v })}
+                      owner={p.instanceId}
                     />
                   </div>
                 )}
@@ -2226,7 +2304,8 @@ export default function LiteracyManipulatives() {
                           <div key={t.index} className="lm-sentence-col">
                             <img src={info.imageUrl} alt={info.name} draggable={false} />
                             <WordBubble value={fills[t.index] ?? w.word} placeholder={info.name.toLowerCase()} color={info.color} bubbleStyle={item.bubbleStyle ?? bubbleDefault}
-                              label={`${info.name} word ${t.index + 1}`} onChange={(v) => setSymbolSentenceWordFill(item.instanceId, t.index, v)} />
+                              label={`${info.name} word ${t.index + 1}`} onChange={(v) => setSymbolSentenceWordFill(item.instanceId, t.index, v)}
+                              owner={item.instanceId} idx={t.index} />
                             {/* Her request 2026-10-15: a random-word die for each word, even inside a whole sentence. */}
                             {selected && (
                               <button type="button" className="lm-ctl lm-item-controls" onPointerDown={(e) => e.stopPropagation()} onClick={() => setSymbolSentenceWordFill(item.instanceId, t.index, randomWordFor(w.wordClass))} aria-label={`Random ${info.name.toLowerCase()}`} title={`Random ${info.name.toLowerCase()}`}><Icon name="dice" size={16} /></button>
