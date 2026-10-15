@@ -10,6 +10,7 @@ import { JoinScreen } from './components/JoinScreen';
 import { diffItems, isJoinRoute, shareConfigured, useHostSession, useStudentSession, type Ops, type Snapshot } from './lib/share';
 import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from './lib/montessoriGrammar';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
+import { searchSymbolSentences, type PatternWord } from './lib/sentenceSearch';
 import { PUNCTUATION_MARKS } from './lib/punctuationContent';
 import { BUBBLE_BLACK, BUBBLE_WHITE, nextPunct, randomWordFor, sentenceTokens, stripPunctuation, textOn, type BubbleStyle } from './lib/wordBubbles';
 import { WRITING_FRAMES, SENTENCE_STARTERS } from './lib/writingScaffoldContent';
@@ -214,6 +215,7 @@ interface PlacedItem {
   inFrameId?: string; // letter — the Sound Box frame it's snapped into (moves with the frame)
   cellIndex?: number; // letter — which box of that frame
   cellSize?: number; // frame — box size in px (resizable, default 44)
+  groupId?: string; // items grouped together (Select → Group) move as one
   lineTokens?: Record<number, LineToken[]>; // writingFrame — symbols dropped into each line
   textValue?: string; // textbox
   fontSize?: number; // textbox
@@ -451,6 +453,12 @@ function SubcategoryRow({ id, label, open, onToggle, children }: {
   );
 }
 
+// The small search box at the top of a sidebar category (her request 2026-10-15: search bars instead of
+// the little subtext under each category title).
+function TraySearch({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+  return <input className="lm-tray-search" type="search" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={placeholder} />;
+}
+
 // A single collapsible top-level category in the left sidebar.
 function Category({ label, color, open, onToggle, children }: {
   label: string; color: string; open: boolean; onToggle: () => void; children: React.ReactNode;
@@ -668,6 +676,10 @@ export default function LiteracyManipulatives() {
   // stays visible through the whole move, and a plain tap selects it
   // on touch. Tapping empty canvas clears the selection.
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Group / ungroup / line up (her request 2026-10-15): Select mode picks several pieces, then the action bar
+  // groups them (they move as one), ungroups them, or lines them up centered on each other.
+  const [selectMode, setSelectMode] = useState(false);
+  const [multiSel, setMultiSel] = useState<Set<string>>(new Set());
   // Word bubbles for newly placed symbols start as an outline or solid (the toggle in the Grammar Symbols and
   // Symbol Sentences trays, which also switches every bubble already on the board).
   const [bubbleDefault, setBubbleDefault] = useState<BubbleStyle>('outline');
@@ -772,6 +784,10 @@ export default function LiteracyManipulatives() {
   });
   const toggleSubcategory = (key: string) => setOpenSubcategories((s) => ({ ...s, [key]: !s[key] }));
   const [morphSearch, setMorphSearch] = useState('');
+  const [catSearch, setCatSearch] = useState<Record<string, string>>({});
+  const searchFor = (k: string) => catSearch[k] ?? '';
+  const setSearch = (k: string) => (v: string) => setCatSearch((c) => ({ ...c, [k]: v }));
+  const matches = (k: string, ...texts: string[]) => { const q = searchFor(k).trim().toLowerCase(); return !q || texts.some((t) => t.toLowerCase().includes(q)); };
 
   // Alphabet — direct teacher instruction: full set of tiles, lowercase
   // and uppercase, toggled by double-tapping a tile. letterCase tracks
@@ -983,6 +999,44 @@ export default function LiteracyManipulatives() {
     })
     .filter((w) => w.parts.length >= 2);
 
+  const groupSelected = () => {
+    if (multiSel.size < 2) return;
+    pushHistory();
+    const gid = `g-${Date.now()}`;
+    setPlaced((p) => p.map((pp) => (multiSel.has(pp.instanceId) ? { ...pp, groupId: gid } : pp)));
+  };
+  const ungroupSelected = () => {
+    pushHistory();
+    setPlaced((p) => {
+      const gids = new Set(p.filter((pp) => multiSel.has(pp.instanceId) && pp.groupId).map((pp) => pp.groupId));
+      return p.map((pp) => (pp.groupId && gids.has(pp.groupId) ? { ...pp, groupId: undefined } : pp));
+    });
+  };
+  // Line pieces up on each other's middles (side by side) or centers (stacked), or spread them in a neat row.
+  const alignSelected = (how: 'middle' | 'center' | 'row') => {
+    const items = placed.filter((pp) => multiSel.has(pp.instanceId) && !pp.snapLeftId && !pp.inFrameId);
+    if (items.length < 2) return;
+    pushHistory();
+    const sized = items.map((pp) => ({ pp, ...measured(pp) }));
+    const pos = new Map<string, { x: number; y: number }>();
+    if (how === 'middle' || how === 'row') {
+      const mid = sized.reduce((a, it) => a + it.pp.y + it.h / 2, 0) / sized.length;
+      sized.forEach((it) => pos.set(it.pp.instanceId, { x: it.pp.x, y: mid - it.h / 2 }));
+    }
+    if (how === 'center') {
+      const mid = sized.reduce((a, it) => a + it.pp.x + it.w / 2, 0) / sized.length;
+      sized.forEach((it) => pos.set(it.pp.instanceId, { x: mid - it.w / 2, y: it.pp.y }));
+    }
+    if (how === 'row') {
+      let x = Math.min(...sized.map((it) => it.pp.x));
+      [...sized].sort((a, b) => a.pp.x - b.pp.x).forEach((it) => {
+        pos.set(it.pp.instanceId, { x, y: pos.get(it.pp.instanceId)!.y });
+        x += it.w + 16;
+      });
+    }
+    setPlaced((p) => p.map((pp) => { const q = pos.get(pp.instanceId); return q ? { ...pp, ...q } : pp; }));
+  };
+
   const pushHistory = () => {
     historyRef.current = [...historyRef.current.slice(-(HISTORY_LIMIT - 1)), placed];
     setCanUndo(true);
@@ -1116,6 +1170,24 @@ export default function LiteracyManipulatives() {
   // the whole row moves, selects, and deletes together. Its own real
   // words stay available for the settings popup (see PlacedItem.wordFills)
   // even though the board only ever shows the symbols.
+  // A typed pattern from the Symbol Sentences search, dragged out as a row of Grammar Symbols already
+  // snapped together (each one still its own symbol with its own word bubble and dice).
+  const startDragNewRow = (pattern: PatternWord[]) => (e: React.PointerEvent) => {
+    e.preventDefault();
+    if (!pattern.length) return;
+    pushHistory();
+    const { x, y } = canvasRelative(e.clientX, e.clientY);
+    const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const size = sizeFor('shape');
+    const items: PlacedItem[] = pattern.map((w, i) => ({
+      instanceId: `row-${stamp}-${i}`, kind: 'shape', wordClass: w.wordClass, bubbleWord: w.word || undefined,
+      snapLeftId: i ? `row-${stamp}-${i - 1}` : undefined, x: x - size.w / 2 + i * 120, y: y - size.h / 2,
+    }));
+    setPlaced((p) => [...p, ...items]);
+    dragInstanceRef.current = items[0].instanceId;
+    bindGlobalDragTracking([items[0]], { x: items[0].x, y: items[0].y }, size, 'shape');
+  };
+
   const startDragNewSymbolSentence = (sentence: SymbolSentence) => startDragNewItem(() => ({
     kind: 'symbolSentence',
     symbolSentenceId: sentence.id,
@@ -1125,6 +1197,11 @@ export default function LiteracyManipulatives() {
 
   const startDragPlaced = (instanceId: string) => (e: React.PointerEvent) => {
     e.preventDefault();
+    // Select mode (or shift-click): tapping adds or removes a piece from the multi-selection instead of dragging.
+    if (selectMode || e.shiftKey) {
+      setMultiSel((set) => { const next = new Set(set); if (next.has(instanceId)) next.delete(instanceId); else next.add(instanceId); return next; });
+      return;
+    }
     pushHistory();
     dragInstanceRef.current = instanceId;
     // Direct teacher instruction: picking an item up selects it (so its
@@ -1133,19 +1210,6 @@ export default function LiteracyManipulatives() {
     // anything joined BELOW it still comes along, via getChainDescendantIds.
     setSelectedId(instanceId);
     dragStartRef.current = { x: e.clientX, y: e.clientY, moved: false };
-    // Picking up a piece in the middle or end of a snapped row lifts out just that piece (the row closes the
-    // gap); picking up the first piece moves the whole row. A letter lifted out of a Sound Box leaves it.
-    setPlaced((p) => {
-      const item = p.find((pp) => pp.instanceId === instanceId);
-      if (!item) return p;
-      if (item.inFrameId) return p.map((pp) => (pp.instanceId === instanceId ? { ...pp, inFrameId: undefined, cellIndex: undefined } : pp));
-      if (!item.snapLeftId) return p;
-      return p.map((pp) => {
-        if (pp.instanceId === instanceId) return { ...pp, snapLeftId: undefined };
-        if (pp.snapLeftId === instanceId) return { ...pp, snapLeftId: item.snapLeftId };
-        return pp;
-      });
-    });
     try { (e.target as Element).setPointerCapture(e.pointerId); } catch { /* not supported */ }
   };
 
@@ -1156,13 +1220,39 @@ export default function LiteracyManipulatives() {
     const id = dragInstanceRef.current;
     if (!id) return;
     const start = dragStartRef.current;
-    if (start && !start.moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6) start.moved = true;
+    if (start && !start.moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6) {
+      start.moved = true;
+      // Once a piece really starts moving (a plain tap only selects it): a piece in the middle or end of a
+      // snapped row lifts out on its own and the row closes the gap; the first piece takes the whole row
+      // along. A letter lifted out of a Sound Box leaves it.
+      setPlaced((p) => {
+        const item = p.find((pp) => pp.instanceId === id);
+        if (!item) return p;
+        if (item.inFrameId) return p.map((pp) => (pp.instanceId === id ? { ...pp, inFrameId: undefined, cellIndex: undefined } : pp));
+        if (!item.snapLeftId) return p;
+        return p.map((pp) => {
+          if (pp.instanceId === id) return { ...pp, snapLeftId: undefined };
+          if (pp.snapLeftId === id) return { ...pp, snapLeftId: item.snapLeftId };
+          return pp;
+        });
+      });
+    }
+    if (start && !start.moved) return;
     const { x, y } = canvasRelative(e.clientX, e.clientY);
     setPlaced((p) => {
       const dragged = p.find((pp) => pp.instanceId === id);
       if (!dragged) return p;
       const size = sizeFor(dragged.kind, dragged.boxCount, dragged);
-      return p.map((pp) => (pp.instanceId === id ? { ...pp, x: x - size.w / 2, y: y - size.h / 2 } : pp));
+      const nx = x - size.w / 2;
+      const ny = y - size.h / 2;
+      const dx = nx - dragged.x;
+      const dy = ny - dragged.y;
+      // Everything grouped with the dragged piece moves the same amount.
+      return p.map((pp) => {
+        if (pp.instanceId === id) return { ...pp, x: nx, y: ny };
+        if (dragged.groupId && pp.groupId === dragged.groupId) return { ...pp, x: pp.x + dx, y: pp.y + dy };
+        return pp;
+      });
     });
   };
 
@@ -1341,9 +1431,10 @@ export default function LiteracyManipulatives() {
     const item = placed.find((p) => p.instanceId === id);
     // A tap without moving a morpheme piece opens its meaning card (her request: "a hover or click on ipad
     // needs to show the morpheme meaning").
-    if (item?.kind === 'morpheme' && dragStartRef.current && !dragStartRef.current.moved) openMorphemeCard(item);
+    const tapped = !!dragStartRef.current && !dragStartRef.current.moved;
+    if (item?.kind === 'morpheme' && tapped) openMorphemeCard(item);
     dragStartRef.current = null;
-    if (item) handleDrop(id, item.kind, e.clientX, e.clientY);
+    if (item && !tapped) handleDrop(id, item.kind, e.clientX, e.clientY);
   };
 
   const clearBoard = () => {
@@ -1461,6 +1552,7 @@ export default function LiteracyManipulatives() {
             <span className="lm-toolbar-divider" />
             <button className={`btn btn-sm ${drawOn ? 'btn-primary' : ''}`} onClick={() => setDrawOn((v) => !v)}>🖍️ Draw</button>
             <button className="btn btn-sm" onClick={addTextBoxAtDefault}>⌨️ Text</button>
+            <button className={`btn btn-sm ${selectMode ? 'btn-primary' : ''}`} onClick={() => { setSelectMode((v) => !v); setMultiSel(new Set()); }} title="Pick several pieces to group or line up">☑️ Select</button>
             <button className="btn btn-sm" onClick={undo} disabled={!canUndo}>↩️ Undo</button>
             <button className="btn btn-sm" onClick={redo} disabled={!canRedo}>↪️ Redo</button>
             <button className="btn btn-sm" onClick={clearBoard} disabled={placed.length === 0}>🗑️ Clear</button>
@@ -1519,9 +1611,10 @@ export default function LiteracyManipulatives() {
       {sidebarOpen && !studentViewOnly ? (
         <aside className="lm-sidebar">
           <Category label="🔺 Grammar Symbols" color="#e9d5ff" open={openCategories.shapes} onToggle={() => toggleCategory('shapes')}>
+            <TraySearch value={searchFor('shapes')} onChange={setSearch('shapes')} placeholder="Find a part of speech" />
             <BubbleToggle value={bubbleDefault} onChange={setAllBubbles} />
             <div className="row-wrap" style={{ gap: 8 }}>
-              {(Object.keys(MONTESSORI_WORD_CLASS_INFO) as MontessoriWordClass[]).map((cls) => {
+              {(Object.keys(MONTESSORI_WORD_CLASS_INFO) as MontessoriWordClass[]).filter((cls) => matches('shapes', MONTESSORI_WORD_CLASS_INFO[cls].name, MONTESSORI_WORD_CLASS_INFO[cls].label)).map((cls) => {
                 const info = MONTESSORI_WORD_CLASS_INFO[cls];
                 return (
                   <Draggable key={cls} label={info.label} onPointerDown={startDragNewItem(() => ({ kind: 'shape', wordClass: cls }))}>
@@ -1533,9 +1626,32 @@ export default function LiteracyManipulatives() {
           </Category>
 
           <Category label="📜 Symbol Sentences" color="#ddd6fe" open={openCategories.symbolSentences} onToggle={() => toggleCategory('symbolSentences')}>
-            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Drag a whole sentence onto the board. Tap any word bubble to type your own word.</p>
+            <TraySearch value={searchFor('sentences')} onChange={setSearch('sentences')} placeholder="Type a sentence or parts of speech" />
             <BubbleToggle value={bubbleDefault} onChange={setAllBubbles} />
-            {SYMBOL_SENTENCE_PAGES.map((page) => (
+            {searchFor('sentences').trim() ? (() => {
+              // Her request 2026-10-15: type an example sentence ("the big dog jumped" finds "the small cat
+              // ran") or the parts of speech ("proper noun verb adjective"); matching cards show, and the typed
+              // pattern itself can be dragged out as a row of symbols.
+              const { pattern, matches: found } = searchSymbolSentences(searchFor('sentences'));
+              return (
+                <div className="stack" style={{ gap: 8 }}>
+                  {pattern && (
+                    <Draggable label="Drag out this pattern" onPointerDown={startDragNewRow(pattern)} style={{ width: '100%' }}>
+                      <div className="lm-pattern-card">
+                        <span className="lm-pattern-icons">
+                          {pattern.map((w, i) => <img key={i} src={MONTESSORI_WORD_CLASS_INFO[w.wordClass].imageUrl} alt={MONTESSORI_WORD_CLASS_INFO[w.wordClass].name} draggable={false} />)}
+                        </span>
+                        <span className="lm-pattern-text">{pattern.map((w) => w.word || MONTESSORI_WORD_CLASS_INFO[w.wordClass].name.toLowerCase()).join(' ')}</span>
+                      </div>
+                    </Draggable>
+                  )}
+                  {found.map((sentence) => (
+                    <SymbolSentenceCard key={sentence.id} sentence={sentence} onPointerDown={startDragNewSymbolSentence(sentence)} />
+                  ))}
+                  {found.length === 0 && <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>No card with that pattern yet. Drag the pattern above to build it.</span>}
+                </div>
+              );
+            })() : SYMBOL_SENTENCE_PAGES.map((page) => (
               <SubcategoryRow key={page.id} id={page.id} label={`${page.icon} ${page.label}`} open={openSubcategories[page.id]} onToggle={() => toggleSubcategory(page.id)}>
                 <div className="stack" style={{ gap: 8 }}>
                   {page.sentences.map((sentence) => (
@@ -1550,7 +1666,6 @@ export default function LiteracyManipulatives() {
               Greek/Latin list, sorted into prefixes, suffixes, free bases and Greek & Latin roots. Hover a piece
               to see its meaning; on the board, tap a piece for its card. */}
           <Category label="🧩 Morphemes" color="#bae6fd" open={openCategories.morphemes} onToggle={() => toggleCategory('morphemes')}>
-            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.7 }}>Pieces fit where a knob meets a notch. Build real words or made-up words from real parts!</p>
             <input className="lm-tray-search" type="search" value={morphSearch} onChange={(e) => setMorphSearch(e.target.value)} placeholder="Find a morpheme or meaning" aria-label="Find a morpheme or meaning" />
             {MORPHEME_GROUPS.map((group) => {
               const q = morphSearch.trim().toLowerCase();
@@ -1573,14 +1688,14 @@ export default function LiteracyManipulatives() {
           </Category>
 
           <Category label="🔡 Alphabet" color="#fed7aa" open={openCategories.letters} onToggle={() => toggleCategory('letters')}>
-            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Double-tap a letter to flip its case!</p>
             {/* A23-ROADMAP Phase 2: vowel/consonant coloring toggle,
                 shared with Graphemes below (both are letter tiles). */}
             <button type="button" className={`btn btn-sm ${vowelConsonantColors ? 'btn-primary' : ''}`} style={{ fontSize: '0.7rem', marginBottom: 6 }} onClick={() => setVowelConsonantColors((v) => !v)}>
               🎨 Vowel/consonant colors: {vowelConsonantColors ? 'On' : 'Off'}
             </button>
+            <TraySearch value={searchFor('letters')} onChange={setSearch('letters')} placeholder="Find a letter" />
             <div className="row-wrap" style={{ gap: 6 }}>
-              {LETTERS.map((l) => {
+              {LETTERS.filter((l) => matches('letters', l)).map((l) => {
                 const display = caseFor(l) === 'lower' ? l.toLowerCase() : l;
                 return (
                   <Draggable key={l} label={display} onPointerDown={startDragNewItem(() => ({ kind: 'letter', letter: display }))} onDoubleClick={() => toggleTrayCase(l)}>
@@ -1592,11 +1707,11 @@ export default function LiteracyManipulatives() {
           </Category>
 
           <Category label="🔠 Graphemes" color="#fde68a" open={openCategories.graphemes} onToggle={() => toggleCategory('graphemes')}>
-            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Sorted like the UFLI Foundations scope and sequence. Hover a tile to see its sound. Prefixes and suffixes are in Morphemes.</p>
-            {GRAPHEME_GROUPS.map((group) => (
-              <SubcategoryRow key={group.key} id={`graph-${group.key}`} label={group.label} open={openSubcategories[`graph-${group.key}`]} onToggle={() => toggleSubcategory(`graph-${group.key}`)}>
+            <TraySearch value={searchFor('graphemes')} onChange={setSearch('graphemes')} placeholder="Find a spelling or sound" />
+            {GRAPHEME_GROUPS.filter((group) => group.graphemes.some(({ g, sound }) => matches('graphemes', g, sound))).map((group) => (
+              <SubcategoryRow key={group.key} id={`graph-${group.key}`} label={group.label} open={!!searchFor('graphemes').trim() || openSubcategories[`graph-${group.key}`]} onToggle={() => toggleSubcategory(`graph-${group.key}`)}>
                 <div className="row-wrap" style={{ gap: 4 }}>
-                  {group.graphemes.map(({ g, sound }) => (
+                  {group.graphemes.filter(({ g, sound }) => matches('graphemes', g, sound)).map(({ g, sound }) => (
                     <Draggable key={`${g}-${sound}`} label={`${g}, ${sound}`} onPointerDown={startDragNewItem(() => ({ kind: 'letter', letter: g }))}>
                       <ReferencePopover mode="hover" title={g} body={sound}>
                         <ItemVisual kind="letter" letter={g} vowelConsonantColors={vowelConsonantColors} />
@@ -1613,8 +1728,9 @@ export default function LiteracyManipulatives() {
               it's always on — every tool unlocked for anyone. */}
           {(
             <Category label="❓ Punctuation" color="#cbd5e1" open={openCategories.punctuation} onToggle={() => toggleCategory('punctuation')}>
+              <TraySearch value={searchFor('punct')} onChange={setSearch('punct')} placeholder="Find a mark" />
               <div className="row-wrap" style={{ gap: 8 }}>
-                {PUNCTUATION_MARKS.map((m) => (
+                {PUNCTUATION_MARKS.filter((m) => matches('punct', m.name, m.mark, m.label)).map((m) => (
                   <Draggable key={m.id} label={m.name} onPointerDown={startDragNewItem(() => ({ kind: 'punctuation', punctId: m.id }))}>
                     <ItemVisual kind="punctuation" punctId={m.id} />
                   </Draggable>
@@ -1629,7 +1745,6 @@ export default function LiteracyManipulatives() {
               auto-counting/auto-splitting, matching this sandbox's
               standing "entirely unscripted" rule. */}
           <Category label="🔊 Phonological Awareness" color="#fce7f3" open={openCategories.phono} onToggle={() => toggleCategory('phono')}>
-            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Drag out chips or dividers to work with sounds yourself.</p>
             <div className="row-wrap" style={{ gap: 10, alignItems: 'flex-start' }}>
               <Draggable label="Sound chip" onPointerDown={startDragNewItem(() => ({ kind: 'soundChip' }))}>
                 <ItemVisual kind="soundChip" />
@@ -1651,7 +1766,6 @@ export default function LiteracyManipulatives() {
           </Category>
 
           <Category label="⌨️ Text Box" color="#c7d2fe" open={openCategories.textbox} onToggle={() => toggleCategory('textbox')}>
-            <p style={{ margin: '0 0 6px', fontSize: '0.7rem', opacity: 0.6 }}>Double-tap a text box to type, speak, or resize the text.</p>
             <Draggable label="Add a text box" onPointerDown={startDragNewItem(() => ({ kind: 'textbox', textValue: '', fontSize: 20 }))} style={{ width: '100%' }}>
               <div style={{
                 width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -1666,9 +1780,10 @@ export default function LiteracyManipulatives() {
               writingScaffoldContent.ts for the fade-level judgment call
               logged there. */}
           <Category label="📝 Writing Scaffolds" color={LM_WRITING_SCAFFOLD_COLOR} open={openCategories.writingScaffolds} onToggle={() => toggleCategory('writingScaffolds')}>
-            <SubcategoryRow id="writingFrames" label="Writing Frames" open={openSubcategories.writingFrames} onToggle={() => toggleSubcategory('writingFrames')}>
+            <TraySearch value={searchFor('writing')} onChange={setSearch('writing')} placeholder="Find a frame or starter" />
+            <SubcategoryRow id="writingFrames" label="Writing Frames" open={!!searchFor('writing').trim() || openSubcategories.writingFrames} onToggle={() => toggleSubcategory('writingFrames')}>
               <div className="stack" style={{ gap: 4 }}>
-                {WRITING_FRAMES.map((f) => (
+                {WRITING_FRAMES.filter((f) => matches('writing', f.title, ...f.lines)).map((f) => (
                   <Draggable key={f.id} label={f.title} onPointerDown={startDragNewItem(() => ({ kind: 'writingFrame', writingFrameId: f.id, frameFills: {} }))} style={{ width: '100%' }}>
                     <div style={{ width: '100%', textAlign: 'left', padding: '6px 8px', border: '2px solid var(--ink)', borderRadius: 8, background: 'white', fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: '0.78rem' }}>
                       📝 {f.title}
@@ -1677,9 +1792,9 @@ export default function LiteracyManipulatives() {
                 ))}
               </div>
             </SubcategoryRow>
-            <SubcategoryRow id="sentenceStarters" label="Sentence Starters" open={openSubcategories.sentenceStarters} onToggle={() => toggleSubcategory('sentenceStarters')}>
+            <SubcategoryRow id="sentenceStarters" label="Sentence Starters" open={!!searchFor('writing').trim() || openSubcategories.sentenceStarters} onToggle={() => toggleSubcategory('sentenceStarters')}>
               <div className="stack" style={{ gap: 2 }}>
-                {SENTENCE_STARTERS.map((s) => (
+                {SENTENCE_STARTERS.filter((st) => matches('writing', st)).map((s) => (
                   <WordListRow key={s} word={s} rowId={`starter-${s}`} onDragStart={startDragNewItem(() => ({ kind: 'letter', letter: s }))} tts={tts} />
                 ))}
               </div>
@@ -1690,6 +1805,17 @@ export default function LiteracyManipulatives() {
 
       <div className="lm-main">
         <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+          {(selectMode || multiSel.size > 0) && (
+            <div className="lm-select-bar" role="toolbar" aria-label="Selected pieces">
+              <strong>{multiSel.size ? `${multiSel.size} selected` : 'Tap pieces to select them'}</strong>
+              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={groupSelected}>🔗 Group</button>
+              <button className="btn btn-sm" disabled={!placed.some((pp) => multiSel.has(pp.instanceId) && pp.groupId)} onClick={ungroupSelected}>✂️ Ungroup</button>
+              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('middle')} title="Line up their middles side by side">⬌ Align middles</button>
+              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('center')} title="Line up their centers in a column">⬍ Align centers</button>
+              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('row')} title="Even row, middles lined up">↔ Line up</button>
+              <button className="btn btn-sm" onClick={() => { setSelectMode(false); setMultiSel(new Set()); }}>Done</button>
+            </div>
+          )}
           <div
             ref={canvasRef}
             className="lm-canvas"
@@ -1711,7 +1837,7 @@ export default function LiteracyManipulatives() {
                   onPointerMove={onDragMove}
                   onPointerUp={onDragEnd}
                   onDoubleClick={p.kind === 'letter' ? () => toggleLetterCase(p.instanceId) : undefined}
-                  style={selectedId === p.instanceId ? { boxShadow: '0 0 0 3px rgba(124,58,237,0.35)', borderRadius: 10 } : undefined}
+                  style={multiSel.has(p.instanceId) ? { outline: '3px dashed #7c3aed', outlineOffset: 3, borderRadius: 10 } : selectedId === p.instanceId ? { boxShadow: '0 0 0 3px rgba(124,58,237,0.35)', borderRadius: 10 } : undefined}
                 >
                   <ItemVisual
                     kind={p.kind} pieceId={p.pieceId} wordClass={p.wordClass} letter={p.letter} boxCount={p.boxCount} morphId={p.morphId} punctId={p.punctId}
@@ -1878,7 +2004,7 @@ export default function LiteracyManipulatives() {
                     onPointerDown={startDragPlaced(item.instanceId)}
                     onPointerMove={onDragMove}
                     onPointerUp={onDragEnd}
-                    style={selected ? { boxShadow: '0 0 0 3px rgba(124,58,237,0.35)', borderRadius: 10, padding: 2 } : { padding: 2 }}
+                    style={multiSel.has(item.instanceId) ? { outline: '3px dashed #7c3aed', outlineOffset: 3, borderRadius: 10, padding: 2 } : selected ? { boxShadow: '0 0 0 3px rgba(124,58,237,0.35)', borderRadius: 10, padding: 2 } : { padding: 2 }}
                   >
                     <div className="lm-sentence">
                       {sentenceTokens(sentence).map((t) => {
@@ -1893,6 +2019,10 @@ export default function LiteracyManipulatives() {
                             <img src={info.imageUrl} alt={info.name} draggable={false} />
                             <WordBubble value={fills[t.index] ?? w.word} placeholder={info.name.toLowerCase()} color={info.color} bubbleStyle={item.bubbleStyle ?? bubbleDefault}
                               label={`${info.name} word ${t.index + 1}`} onChange={(v) => setSymbolSentenceWordFill(item.instanceId, t.index, v)} />
+                            {/* Her request 2026-10-15: a random-word die for each word, even inside a whole sentence. */}
+                            {selected && (
+                              <button type="button" className="lm-ctl lm-item-controls" onPointerDown={(e) => e.stopPropagation()} onClick={() => setSymbolSentenceWordFill(item.instanceId, t.index, randomWordFor(w.wordClass))} aria-label={`Random ${info.name.toLowerCase()}`} title={`Random ${info.name.toLowerCase()}`}>🎲</button>
+                            )}
                           </div>
                         );
                       })}
