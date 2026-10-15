@@ -440,6 +440,7 @@ button {
 .lm-float-x { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--ink); background: #fee2e2; color: #991b1b; font-weight: 900; cursor: pointer; flex-shrink: 0; }
 .lm-float-body { padding: 10px 12px; line-height: 1.4; }
 .lm-float-kind { display: inline-block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 1px 8px; border-radius: 999px; background: #ede9fe; margin-bottom: 4px; }
+.lm-float-def { margin: 4px 0 0; font-size: 0.9rem; line-height: 1.35; }
 .lm-float-parts { margin: 6px 0 0; padding-left: 18px; }
 
 /* Morpheme tray search */
@@ -503,3 +504,5 @@ button {
 .lm-welcome-choice:hover { transform: translateY(-2px); box-shadow: 0 4px 0 var(--ink); }
 @media (max-width: 520px) { .lm-welcome-choices { grid-template-columns: 1fr; } }
 .lm-marquee { position: absolute; z-index: 40; border: 2px dashed #7c3aed; background: rgba(124, 58, 237, 0.08); border-radius: 4px; pointer-events: none; }
+.lm-board { overflow: hidden; touch-action: none; background-color: #fdfdfb; }
+.lm-word-symbol { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 0.8rem; text-align: center; }

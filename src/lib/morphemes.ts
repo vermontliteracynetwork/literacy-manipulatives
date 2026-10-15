@@ -227,19 +227,41 @@ const LIST_ROOTS = make('root', undefined, [
 
 const byText = (a: Morpheme, b: Morpheme) => a.text.localeCompare(b.text) || a.meaning.localeCompare(b.meaning);
 
+// In the order a word is built: prefixes, then bases and roots, then suffixes last (her request 2026-10-15).
 export const MORPHEME_GROUPS: { key: string; label: string; items: Morpheme[] }[] = [
   { key: 'prefixes', label: 'Prefixes', items: [...L1U1_PREFIXES, ...LIST_PREFIXES].sort(byText) },
-  { key: 'suffixes', label: 'Suffixes', items: [...L1U1_SUFFIXES, ...LIST_SUFFIXES].sort(byText) },
   { key: 'bases', label: 'Free bases', items: [...L1U1_BASES, ...BOARD_BASES].sort(byText) },
   { key: 'roots', label: 'Greek & Latin roots', items: [...L1U1_LATIN_ROOTS, ...LIST_ROOTS].sort(byText) },
+  { key: 'suffixes', label: 'Suffixes', items: [...L1U1_SUFFIXES, ...LIST_SUFFIXES].sort(byText) },
 ];
+
+// Pastel piece colors (her request 2026-10-15), one per kind of part, always with black text.
+export const KIND_COLOR: Record<MorphemeKind, string> = {
+  prefix: '#DCCFF5', // lavender purple
+  base: '#D3E4CD', // light sage green
+  root: '#FFD3A8', // light creamsicle orange
+  suffix: '#C9E4F8', // baby blue
+};
 
 export const ALL_MORPHEMES: Morpheme[] = MORPHEME_GROUPS.flatMap((g) => g.items);
 export const morphemeById = (id: string | undefined) => ALL_MORPHEMES.find((m) => m.id === id);
 
 // Shape: which sides interlock. A tab (bump) on the right fits into a notch on the left of the next piece.
-export const hasTab = (m: Morpheme) => m.kind !== 'suffix' || !m.endsWord;
-export const hasNotch = (m: Morpheme) => m.kind !== 'prefix';
+// Bases and roots are always two-sided. A suffix is an end cap (flat right side) until another suffix snaps
+// on after it; a prefix is flat on its left until another prefix snaps on in front of it (her request
+// 2026-10-15). `linkedLeft` / `linkedRight` say whether a piece is snapped there right now.
+export const hasTab = (m: Morpheme, linkedRight = false) => m.kind !== 'suffix' || linkedRight;
+export const hasNotch = (m: Morpheme, linkedLeft = false) => m.kind !== 'prefix' || linkedLeft;
+
+// Which part may snap directly after which: prefix > prefix or base/root; base/root > base/root or suffix;
+// suffix > suffix. A prefix never touches a suffix directly, and the whole word must have a base or root
+// (checked on the board, where the whole row is known).
+export function canFollow(left: Morpheme, right: Morpheme): boolean {
+  if (left.kind === 'prefix') return right.kind !== 'suffix';
+  if (left.kind === 'suffix') return right.kind === 'suffix';
+  return right.kind !== 'prefix';
+}
+export const isCore = (m: Morpheme) => m.kind === 'base' || m.kind === 'root';
 export const pieceLabel = (m: Morpheme) => (m.kind === 'prefix' ? `${m.text}-` : m.kind === 'suffix' ? `-${m.text}` : m.text);
 
 export const KIND_LABEL: Record<MorphemeKind, string> = {
@@ -254,8 +276,8 @@ export function rootExplanation(m: Morpheme): string {
 
 export function kindExplanation(m: Morpheme): string {
   if (m.kind === 'root') return rootExplanation(m);
-  if (m.kind === 'prefix') return `A prefix goes at the start of a word and changes its meaning.${m.example ? ` Like "${m.example}."` : ''}`;
-  if (m.kind === 'suffix') return `A suffix goes at the end of a word.${m.endsWord ? ' This one finishes a word, so nothing goes after it.' : ' Another suffix can come after it.'}${m.example ? ` Like "${m.example}."` : ''}`;
+  if (m.kind === 'prefix') return `A prefix goes at the start of a word and changes its meaning. Another prefix can snap on in front of it.${m.example ? ` Like "${m.example}."` : ''}`;
+  if (m.kind === 'suffix') return `A suffix goes at the end of a word. Another suffix can snap on after it.${m.example ? ` Like "${m.example}."` : ''}`;
   return `A free base is a word all on its own. You can add prefixes and suffixes to it.${m.example ? ` Like "${m.example}."` : ''}`;
 }
 
@@ -312,3 +334,41 @@ stroy destroy destroys destroyed destroying destroyer
 press presses pressed pressing pressure presser express expresses expressed expressing expression expressive impress impresses impressed impressing impression impressive depress depresses depressed depressing depression compress compresses compressed compressing compression compressor suppress suppresses suppressed suppressing suppression oppress oppressed oppression oppressive repress repressed pressable
 apathy annual anniversary anthropology antibiotic aquarium archaeologist astrology astrologist audio auditor audience autocrat autocracy beneficial bibliography biology biologist cardiology cardiologist carnivore carnivorous proceed precede recede concede succeed exceed century centimeter centipede cephalopod monochrome chronology chronic chronicle cosmos cosmic incredible credible credit decagon democracy demographic dermatologist diode dictate dictation diction predict contradict dinosaur domestic dormant dormitory dynamic dynamite equator equal floral geography geology geologist telegraph autograph photograph paragraph biography graphic heliocentric hexagon hydrofoil hydrogen hydrology hyperactive ignite intranet incredible interact legislature legal lexicon liberty luminous luminosity macroeconomics mania matriarch megaphone memory meter marine maritime mermaid speedometer thermometer microscope microscopic automobile mobile monopoly monologue morphology multitalented nanometer neoclassic november oligarchy zoology psychology theology omnivore omnivorous synonym antonym homonym acronym orthodontist paleontologist panorama apathy empathy sympathy telepathy patriarch pedestrian pentagon perimeter periscope petrified philosophy claustrophobia telephone microphone phonics symphony phytoplankton metropolis politics polyhedron polygraph population popular postlude prototype pseudoscience psychology public publish science scientist telescope microscope horoscope september insomnia structure subterranean telescope television terrarium terrain tetrahedron theocracy thermostat toxic translate transport triceratops tricycle unicycle uniform vacuum velocity verify herbivore insectivore zoo zoology technologist engineer bilingual linguistics language bibliophile philosopher sophomore megahertz biology geology cosmology
 `.trim().split(/\s+/).map((w) => w.toLowerCase()));
+
+
+// ---- What a made-up word could mean ----
+// Her request 2026-10-15: "for nonsense words, give a small definition of what the word could be if it was
+// real." Built from the parts' own meanings: the bases and roots in the middle, then each prefix wraps it
+// (closest first), then each suffix wraps that (in order).
+const first = (meaning: string) => meaning.split(/[;,(]/)[0].trim();
+
+const PREFIX_PHRASE: Record<string, (x: string) => string> = {
+  un: (x) => `not ${x}`, in: (x) => `not ${x}`, im: (x) => `not ${x}`, a: (x) => `without ${x}`, dis: (x) => `apart from ${x}`,
+  re: (x) => `${x} again`, pre: (x) => `${x} before`, post: (x) => `${x} after`, anti: (x) => `against ${x}`,
+  sub: (x) => `under ${x}`, sup: (x) => `under ${x}`, trans: (x) => `across ${x}`, inter: (x) => `between ${x}`,
+  intra: (x) => `within ${x}`, hyper: (x) => `too much ${x}`, peri: (x) => `around ${x}`, pseudo: (x) => `fake ${x}`,
+  ex: (x) => `out of ${x}`, e: (x) => `out of ${x}`, pro: (x) => `${x} forward`, ob: (x) => `against ${x}`,
+  con: (x) => `${x} together`, com: (x) => `${x} together`, de: (x) => `${x} away`, at: (x) => `toward ${x}`,
+  ad: (x) => `toward ${x}`, tri: (x) => `three ${x}`, uni: (x) => `one ${x}`, di: (x) => `two ${x}`,
+};
+
+const SUFFIX_PHRASE: Record<string, (x: string, m: Morpheme) => string> = {
+  ful: (x) => `full of ${x}`, less: (x) => `without ${x}`, ness: (x) => `the state of being ${x}`,
+  hood: (x) => `the state of being ${x}`, ly: (x) => `in a ${x} way`, or: (x) => `someone who does ${x}`,
+  ist: (x) => `someone who works with ${x}`, eer: (x) => `someone who works with ${x}`,
+  er: (x, m) => (m.meaning.startsWith('comparison') ? `more ${x}` : `someone who does ${x}`),
+  est: (x) => `the most ${x}`, s: (x) => `more than one ${x}`, es: (x) => `more than one ${x}`,
+  ed: (x) => `${x}, in the past`, ing: (x) => `${x}, happening now`, ion: (x) => `the act of ${x}`,
+  ure: (x) => `the act of ${x}`, ive: (x) => `tending to ${x}`, able: (x) => `able to ${x}`, ible: (x) => `able to ${x}`,
+  ology: (x) => `the study of ${x}`, phobia: (x) => `a fear of ${x}`, cracy: (x) => `rule by ${x}`, mania: (x) => `a wild love of ${x}`,
+};
+
+export function madeUpMeaning(parts: Morpheme[]): string {
+  const core = parts.filter(isCore);
+  const prefixes = parts.filter((m) => m.kind === 'prefix');
+  const suffixes = parts.filter((m) => m.kind === 'suffix');
+  let x = core.length ? core.map((m) => first(m.meaning)).join(' and ') : 'something';
+  for (const p of [...prefixes].reverse()) x = (PREFIX_PHRASE[p.text] ?? ((y: string) => `${first(p.meaning)} ${y}`))(x);
+  for (const sfx of suffixes) x = (SUFFIX_PHRASE[sfx.text] ?? ((y: string) => `${y} (${first(sfx.meaning)})`))(x, sfx);
+  return x.charAt(0).toUpperCase() + x.slice(1) + '.';
+}

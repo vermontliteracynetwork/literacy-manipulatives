@@ -120,3 +120,10 @@ export function searchSymbolSentences(query: string): { pattern: PatternWord[] |
   const text = q ? ALL_SYMBOL_SENTENCES.filter((s) => !same.includes(s) && s.sentence.toLowerCase().includes(q)) : [];
   return { pattern: parsed?.words ?? null, matches: [...same, ...text] };
 }
+
+// Grammar Symbols search (her request 2026-10-15): type a word ("jump", "Sam", "quickly") to get its symbol.
+// Each typed word is tagged on its own, so "big dog" gives an adjective and a noun.
+export function symbolsForWords(query: string): PatternWord[] {
+  const raw = query.trim().match(/[A-Za-z']+/g) ?? [];
+  return raw.map((w) => ({ wordClass: tagWord(w, false), word: w }));
+}

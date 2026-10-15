@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { useSyncedTTS, SyncedSpeakButton, HighlightedText, type SyncedTTS } from './components/SyncedSpeakButton';
 import { ReferencePopover } from './components/ReferencePopover';
 import { SANDBOX_PIECES } from './lib/grammarContent';
-import { MORPHEME_GROUPS, KIND_LABEL, buildWord, hasNotch, hasTab, kindExplanation, morphemeById, pieceLabel, type Morpheme } from './lib/morphemes';
+import { MORPHEME_GROUPS, KIND_LABEL, buildWord, canFollow, isCore, kindExplanation, madeUpMeaning, morphemeById, pieceLabel, type Morpheme } from './lib/morphemes';
+import { lookupDefinition, peekDefinition } from './lib/dictionary';
 import { MorphemePiece, pieceBodyWidth, pieceOuterSize } from './components/MorphemePiece';
 import { FloatingCard } from './components/FloatingCard';
 import { Icon } from './components/Icon';
@@ -12,7 +13,7 @@ import { WelcomeChoice } from './components/WelcomeChoice';
 import { diffItems, isJoinRoute, shareConfigured, useHostSession, useStudentSession, type Ops, type Snapshot } from './lib/share';
 import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from './lib/montessoriGrammar';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
-import { searchSymbolSentences, type PatternWord } from './lib/sentenceSearch';
+import { searchSymbolSentences, symbolsForWords, type PatternWord } from './lib/sentenceSearch';
 import { PUNCTUATION_MARKS } from './lib/punctuationContent';
 import { BUBBLE_BLACK, BUBBLE_WHITE, nextPunct, randomWordFor, sentenceTokens, stripPunctuation, textOn, type BubbleStyle } from './lib/wordBubbles';
 import { WRITING_FRAMES, SENTENCE_STARTERS } from './lib/writingScaffoldContent';
@@ -270,9 +271,10 @@ function vcColorFor(text: string | undefined, on: boolean): CSSProperties | unde
   return { color: isVowel ? '#b91c1c' : '#1d4ed8' };
 }
 
-function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compact, punctId, vowelConsonantColors, cellSize, tileSize }: {
+function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compact, punctId, vowelConsonantColors, cellSize, tileSize, linkedLeft, linkedRight }: {
   kind: PlacedKind; pieceId?: string; wordClass?: MontessoriWordClass; letter?: string; boxCount?: number;
   morphId?: string; compact?: boolean; punctId?: string; vowelConsonantColors?: boolean; cellSize?: number; tileSize?: number;
+  linkedLeft?: boolean; linkedRight?: boolean;
 }) {
   if (kind === 'punctuation') {
     // A23-ROADMAP Phase 2: opt-in punctuation tiles. Same bordered-tile
@@ -399,7 +401,7 @@ function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compa
   }
   // morpheme
   const m = morphemeById(morphId);
-  return m ? <MorphemePiece m={m} scale={compact ? 0.72 : 1} /> : null;
+  return m ? <MorphemePiece m={m} scale={compact ? 0.72 : 1} linkedLeft={linkedLeft} linkedRight={linkedRight} /> : null;
 }
 
 // One drag wrapper for every material, in the tray or on the canvas -
@@ -712,7 +714,91 @@ export default function LiteracyManipulatives() {
   const [zoom, setZoom] = useState(1);
   const zoomIn = () => setZoom((z) => Math.min(2, Math.round((z + 0.25) * 100) / 100));
   const zoomOut = () => setZoom((z) => Math.max(0.5, Math.round((z - 0.25) * 100) / 100));
-  const zoomReset = () => setZoom(1);
+  const zoomReset = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
+  // Moving around the board (her request 2026-10-15): two fingers pinch to zoom and slide to move the board on
+  // a touch screen; on a computer, a trackpad pinch (or ctrl + scroll) zooms and a two-finger scroll moves it.
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const boardRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef({ zoom, pan });
+  viewRef.current = { zoom, pan };
+  const pinchRef = useRef(false);
+  useEffect(() => {
+    const board = boardRef.current;
+    if (!board) return;
+    const clampZoom = (z: number) => Math.min(2.5, Math.max(0.4, z));
+    // Zoom so the board point under (sx, sy) on screen stays under it.
+    const zoomAround = (sx: number, sy: number, nextZoom: number, from = viewRef.current) => {
+      const rect = board.getBoundingClientRect();
+      const mx = sx - rect.left, my = sy - rect.top;
+      const z = clampZoom(nextZoom);
+      const px = (mx - from.pan.x) / from.zoom, py = (my - from.pan.y) / from.zoom;
+      setZoom(z);
+      setPan({ x: mx - px * z, y: my - py * z });
+    };
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (e.ctrlKey || e.metaKey) zoomAround(e.clientX, e.clientY, viewRef.current.zoom * Math.exp(-Math.max(-25, Math.min(25, e.deltaY)) * 0.01));
+      else setPan((pp) => ({ x: pp.x - e.deltaX, y: pp.y - e.deltaY }));
+    };
+    // Safari on a Mac reports trackpad pinches as gesture events instead of ctrl + scroll.
+    let gestureStart = viewRef.current;
+    const onGestureStart = (e: Event) => { e.preventDefault(); gestureStart = viewRef.current; };
+    const onGestureChange = (e: Event) => {
+      e.preventDefault();
+      const g = e as Event & { scale: number; clientX: number; clientY: number };
+      zoomAround(g.clientX, g.clientY, gestureStart.zoom * g.scale, gestureStart);
+    };
+    // Touch: two fingers pinch and slide. A second finger landing stops any piece drag or selection box.
+    const touches = new Map<number, { x: number; y: number }>();
+    let start: { dist: number; mx: number; my: number; view: { zoom: number; pan: { x: number; y: number } } } | null = null;
+    const twoFinger = () => {
+      const [a, b] = [...touches.values()];
+      return { dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+    };
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size === 2) {
+        pinchRef.current = true;
+        dragInstanceRef.current = null;
+        setMarquee(null);
+        start = { ...twoFinger(), view: viewRef.current };
+      }
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!touches.has(e.pointerId)) return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size !== 2 || !start) return;
+      const now = twoFinger();
+      const rect = board.getBoundingClientRect();
+      const z = clampZoom(start.view.zoom * (now.dist / start.dist));
+      const px = (start.mx - rect.left - start.view.pan.x) / start.view.zoom;
+      const py = (start.my - rect.top - start.view.pan.y) / start.view.zoom;
+      setZoom(z);
+      setPan({ x: now.mx - rect.left - px * z, y: now.my - rect.top - py * z });
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!touches.delete(e.pointerId)) return;
+      if (touches.size < 2) start = null;
+      if (touches.size === 0) pinchRef.current = false;
+    };
+    board.addEventListener('wheel', onWheel, { passive: false });
+    board.addEventListener('gesturestart', onGestureStart);
+    board.addEventListener('gesturechange', onGestureChange);
+    board.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointermove', onMove, true);
+    window.addEventListener('pointerup', onUp, true);
+    window.addEventListener('pointercancel', onUp, true);
+    return () => {
+      board.removeEventListener('wheel', onWheel);
+      board.removeEventListener('gesturestart', onGestureStart);
+      board.removeEventListener('gesturechange', onGestureChange);
+      board.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', onUp, true);
+    };
+  }, []);
   // Top toolbar (Help/Exit/materials-toggle/Draw/Undo/Redo/Clear/Save) -
   // direct teacher instruction: moved off the sidebar into its own
   // collapsible bar across the top of the screen.
@@ -1018,6 +1104,17 @@ export default function LiteracyManipulatives() {
     })
     .filter((w) => w.parts.length >= 2);
 
+  // Look up each new word's dictionary meaning, then redraw its card.
+  const [, setDefsVersion] = useState(0);
+  const wordsKey = morphemeWords.map((w) => w.word).join('|');
+  useEffect(() => {
+    let alive = true;
+    for (const word of wordsKey.split('|').filter(Boolean)) {
+      if (peekDefinition(word) === undefined) void lookupDefinition(word).then(() => { if (alive) setDefsVersion((v) => v + 1); });
+    }
+    return () => { alive = false; };
+  }, [wordsKey]);
+
   const groupSelected = () => {
     if (multiSel.size < 2) return;
     pushHistory();
@@ -1216,6 +1313,7 @@ export default function LiteracyManipulatives() {
 
   const startDragPlaced = (instanceId: string) => (e: React.PointerEvent) => {
     e.preventDefault();
+    if (pinchRef.current) return;
     // Select mode (or shift-click): tapping adds or removes a piece from the multi-selection instead of dragging.
     if (selectMode || e.shiftKey) {
       setMultiSel((set) => { const next = new Set(set); if (next.has(instanceId)) next.delete(instanceId); else next.add(instanceId); return next; });
@@ -1238,7 +1336,7 @@ export default function LiteracyManipulatives() {
   // Only the picked-up piece moves here; anything snapped to its right follows through the layout effect.
   const onDragMove = (e: React.PointerEvent) => {
     const id = dragInstanceRef.current;
-    if (!id) return;
+    if (!id || pinchRef.current) return;
     const start = dragStartRef.current;
     if (start && !start.moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6) {
       start.moved = true;
@@ -1350,7 +1448,23 @@ export default function LiteracyManipulatives() {
       const fits = (left: PlacedItem, right: PlacedItem) => {
         if (!isMorph) return true;
         const l = morph(left); const r = morph(right);
-        return !!l && !!r && hasTab(l) && hasNotch(r);
+        return !!l && !!r && canFollow(l, r);
+      };
+      // Prefixes and suffixes only join up around a base or root: the word being made must have one.
+      const headOf = (id: string) => {
+        let cur = current.find((c) => c.instanceId === id);
+        const seen = new Set<string>();
+        while (cur?.snapLeftId && !seen.has(cur.instanceId)) {
+          seen.add(cur.instanceId);
+          const left = current.find((c) => c.instanceId === cur!.snapLeftId);
+          if (!left) break;
+          cur = left;
+        }
+        return cur?.instanceId ?? id;
+      };
+      const hasCoreWith = (q: PlacedItem) => {
+        if (!isMorph) return true;
+        return [...row, ...rowFrom(current, headOf(q.instanceId))].some((pp) => { const m = morph(pp); return !!m && isCore(m); });
       };
       const dSize = measured(dragged);
       const tSize = measured(tail);
@@ -1363,12 +1477,12 @@ export default function LiteracyManipulatives() {
         const afterY = isMorph ? q.y : q.y + qs.h - dSize.h;
         const dA = Math.hypot(dragged.x - afterX, dragged.y - afterY);
         const qRight = rightOf(current, q.instanceId);
-        if (dA < LINE_SNAP && fits(q, dragged) && (!qRight || fits(tail, qRight)) && (!best || dA < best.dist)) best = { kind: 'after', target: q, dist: dA };
+        if (dA < LINE_SNAP && fits(q, dragged) && (!qRight || fits(tail, qRight)) && hasCoreWith(q) && (!best || dA < best.dist)) best = { kind: 'after', target: q, dist: dA };
         // Before q (only the first piece of a row): the dragged row's tail ends where q starts.
         if (!q.snapLeftId || !current.some((c) => c.instanceId === q.snapLeftId)) {
           const tailRight = isMorph ? tail.x + (morph(tail) ? pieceBodyWidth(morph(tail)!) : tSize.w) : tail.x + tSize.w + SENTENCE_GAP;
           const dB = Math.hypot(q.x - tailRight, isMorph ? q.y - tail.y : (q.y + qs.h) - (tail.y + tSize.h));
-          if (dB < LINE_SNAP && fits(tail, q) && (!best || dB < best.dist)) best = { kind: 'before', target: q, dist: dB };
+          if (dB < LINE_SNAP && fits(tail, q) && hasCoreWith(q) && (!best || dB < best.dist)) best = { kind: 'before', target: q, dist: dB };
         }
       }
       if (!best) return current;
@@ -1450,7 +1564,7 @@ export default function LiteracyManipulatives() {
     // left of the canvas, so releasing to the left of the canvas's own
     // screen edge (in real screen pixels, not the zoomed logical
     // space) is "dropped back on the tray."
-    const canvasLeft = canvasRef.current?.getBoundingClientRect().left ?? 0;
+    const canvasLeft = boardRef.current?.getBoundingClientRect().left ?? 0;
     if (e.clientX < canvasLeft) {
       removePlacedItem(id);
       return;
@@ -1641,18 +1755,37 @@ export default function LiteracyManipulatives() {
       {sidebarOpen && !studentViewOnly ? (
         <aside className="lm-sidebar">
           <Category label="Grammar Symbols" color="#e9d5ff" open={openCategories.shapes} onToggle={() => toggleCategory('shapes')}>
-            <TraySearch value={searchFor('shapes')} onChange={setSearch('shapes')} placeholder="Find a part of speech" />
+            <TraySearch value={searchFor('shapes')} onChange={setSearch('shapes')} placeholder="Find a grammar symbol" />
             <BubbleToggle value={bubbleDefault} onChange={setAllBubbles} />
-            <div className="row-wrap" style={{ gap: 8 }}>
-              {(Object.keys(MONTESSORI_WORD_CLASS_INFO) as MontessoriWordClass[]).filter((cls) => matches('shapes', MONTESSORI_WORD_CLASS_INFO[cls].name, MONTESSORI_WORD_CLASS_INFO[cls].label)).map((cls) => {
-                const info = MONTESSORI_WORD_CLASS_INFO[cls];
-                return (
-                  <Draggable key={cls} label={info.label} onPointerDown={startDragNewItem(() => ({ kind: 'shape', wordClass: cls }))}>
-                    <ItemVisual kind="shape" wordClass={cls} compact />
-                  </Draggable>
-                );
-              })}
-            </div>
+            {(() => {
+              const byName = (Object.keys(MONTESSORI_WORD_CLASS_INFO) as MontessoriWordClass[]).filter((cls) => matches('shapes', MONTESSORI_WORD_CLASS_INFO[cls].name, MONTESSORI_WORD_CLASS_INFO[cls].label));
+              // Typing a word (not a part of speech name) shows that word's symbol, ready to drag out with the
+              // word already in its bubble.
+              const byWord = byName.length ? [] : symbolsForWords(searchFor('shapes'));
+              return (
+                <div className="row-wrap" style={{ gap: 8 }}>
+                  {byName.map((cls) => {
+                    const info = MONTESSORI_WORD_CLASS_INFO[cls];
+                    return (
+                      <Draggable key={cls} label={info.label} onPointerDown={startDragNewItem(() => ({ kind: 'shape', wordClass: cls }))}>
+                        <ItemVisual kind="shape" wordClass={cls} compact />
+                      </Draggable>
+                    );
+                  })}
+                  {byWord.map((w, i) => {
+                    const info = MONTESSORI_WORD_CLASS_INFO[w.wordClass];
+                    return (
+                      <div key={`${w.word}-${i}`} className="lm-word-symbol">
+                        <Draggable label={`${w.word}: ${info.name}`} onPointerDown={startDragNewItem(() => ({ kind: 'shape', wordClass: w.wordClass, bubbleWord: w.word }))}>
+                          <ItemVisual kind="shape" wordClass={w.wordClass} compact />
+                        </Draggable>
+                        <span><strong>{w.word}</strong> {info.name.toLowerCase()}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </Category>
 
           <Category label="Symbol Sentences" color="#ddd6fe" open={openCategories.symbolSentences} onToggle={() => toggleCategory('symbolSentences')}>
@@ -1835,31 +1968,16 @@ export default function LiteracyManipulatives() {
       ) : null}
 
       <div className="lm-main">
-        <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
-          {(selectMode || multiSel.size > 0) && (
-            <div className="lm-select-bar" role="toolbar" aria-label="Selected pieces">
-              <strong>{multiSel.size ? `${multiSel.size} selected` : 'Tap pieces, or drag a box around them'}</strong>
-              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={groupSelected}>Group</button>
-              <button className="btn btn-sm" disabled={!placed.some((pp) => multiSel.has(pp.instanceId) && pp.groupId)} onClick={ungroupSelected}>Ungroup</button>
-              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('middle')} title="Line up their middles side by side">Align middles</button>
-              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('center')} title="Line up their centers in a column">Align centers</button>
-              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('row')} title="Even row, middles lined up">Line up</button>
-              <button className="btn btn-sm" onClick={() => { setSelectMode(false); setMultiSel(new Set()); }}>Done</button>
-            </div>
-          )}
-          <div
-            ref={canvasRef}
-            className="lm-canvas"
-            style={{ position: 'relative', height: '100%', pointerEvents: drawOn ? 'none' : undefined, transform: `scale(${zoom})`, transformOrigin: '0 0' }}
+        <div ref={boardRef} className="lm-board" style={{ position: 'relative', flex: 1, minHeight: 0 }}
             onPointerDown={(e) => {
-              if (e.target !== e.currentTarget) return;
+              if (drawOn || studentViewOnly || pinchRef.current || (e.target !== e.currentTarget && e.target !== canvasRef.current)) return;
               setSelectedId(null);
               const { x, y } = canvasRelative(e.clientX, e.clientY);
               setMarquee({ x0: x, y0: y, x1: x, y1: y });
               try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* not supported */ }
             }}
             onPointerMove={(e) => {
-              if (!marquee) return;
+              if (!marquee || pinchRef.current) return;
               const { x, y } = canvasRelative(e.clientX, e.clientY);
               setMarquee((m) => (m ? { ...m, x1: x, y1: y } : m));
             }}
@@ -1877,6 +1995,22 @@ export default function LiteracyManipulatives() {
               const groups = new Set(hit.map((pp) => pp.groupId).filter(Boolean));
               setMultiSel(new Set(placed.filter((pp) => hit.includes(pp) || (pp.groupId && groups.has(pp.groupId))).map((pp) => pp.instanceId)));
             }}
+          >
+          {(selectMode || multiSel.size > 0) && (
+            <div className="lm-select-bar" role="toolbar" aria-label="Selected pieces">
+              <strong>{multiSel.size ? `${multiSel.size} selected` : 'Tap pieces, or drag a box around them'}</strong>
+              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={groupSelected}>Group</button>
+              <button className="btn btn-sm" disabled={!placed.some((pp) => multiSel.has(pp.instanceId) && pp.groupId)} onClick={ungroupSelected}>Ungroup</button>
+              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('middle')} title="Line up their middles side by side">Align middles</button>
+              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('center')} title="Line up their centers in a column">Align centers</button>
+              <button className="btn btn-sm" disabled={multiSel.size < 2} onClick={() => alignSelected('row')} title="Even row, middles lined up">Line up</button>
+              <button className="btn btn-sm" onClick={() => { setSelectMode(false); setMultiSel(new Set()); }}>Done</button>
+            </div>
+          )}
+          <div
+            ref={canvasRef}
+            className="lm-canvas"
+            style={{ position: 'relative', height: '100%', overflow: 'visible', pointerEvents: drawOn ? 'none' : undefined, transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0' }}
           >
             {placed.filter((p) => p.kind !== 'textbox' && p.kind !== 'symbolSentence' && p.kind !== 'writingFrame').map((p) => (
               // Sound Boxes sit behind everything else on purpose (a
@@ -1899,6 +2033,8 @@ export default function LiteracyManipulatives() {
                     kind={p.kind} pieceId={p.pieceId} wordClass={p.wordClass} letter={p.letter} boxCount={p.boxCount} morphId={p.morphId} punctId={p.punctId}
                     vowelConsonantColors={vowelConsonantColors} cellSize={p.cellSize}
                     tileSize={p.kind === 'letter' && p.inFrameId ? (placed.find((f) => f.instanceId === p.inFrameId)?.cellSize ?? DEFAULT_CELL) : undefined}
+                    linkedLeft={p.kind === 'morpheme' && !!p.snapLeftId && placed.some((q) => q.instanceId === p.snapLeftId && q.kind === 'morpheme')}
+                    linkedRight={p.kind === 'morpheme' && placed.some((q) => q.snapLeftId === p.instanceId && q.kind === 'morpheme')}
                   />
                 </Draggable>
                 {/* The word bubble is part of the symbol (her picture, 2026-10-15): it sits right under the icon and
@@ -1991,7 +2127,16 @@ export default function LiteracyManipulatives() {
               if (st?.closedWord === w.word) return null;
               const speakId = `word-${w.head.instanceId}`;
               const partsText = w.parts.map((m) => `${pieceLabel(m)} means ${m.meaning}`).join('. ');
-              const spoken = `${w.word}. ${w.real ? 'This is a real word.' : 'This is a made-up word built from real parts.'} ${partsText}.`;
+              // Real words get their dictionary meaning; a made-up word gets what it could mean if it were real.
+              const def = peekDefinition(w.word);
+              const real = w.real || !!def?.text;
+              const looking = def === undefined;
+              const guess = madeUpMeaning(w.parts);
+              const meaningLine = def?.text
+                ? `${def.partOfSpeech ? `(${def.partOfSpeech}) ` : ''}${def.text}`
+                : looking && w.real ? 'Looking up the meaning...' : guess;
+              const meaningLabel = def?.text ? 'Means' : real ? 'From its parts' : 'Could mean';
+              const spoken = `${w.word}. ${real ? 'This is a real word.' : 'This is a made-up word built from real parts.'} ${looking && w.real ? '' : `${meaningLabel}: ${meaningLine}`} ${partsText}.`;
               return (
                 <FloatingCard
                   key={`word-${w.head.instanceId}`}
@@ -2004,9 +2149,10 @@ export default function LiteracyManipulatives() {
                   onClose={() => setWordCardState((s) => ({ ...s, [w.head.instanceId]: { dx: s[w.head.instanceId]?.dx ?? 0, dy: s[w.head.instanceId]?.dy ?? 0, closedWord: w.word } }))}
                 >
                   <div className="space-between" style={{ alignItems: 'center', gap: 6 }}>
-                    <span className="lm-float-kind">{w.real ? 'Real word' : 'Made-up word from real parts'}</span>
+                    <span className="lm-float-kind">{real ? 'Real word' : 'Made-up word from real parts'}</span>
                     <SyncedSpeakButton id={speakId} text={spoken} tts={tts} settings={ttsSettings} style={{ padding: '2px 8px', minHeight: 30 }} ariaLabel={`Hear ${w.word}`} />
                   </div>
+                  <p className="lm-float-def"><strong>{meaningLabel}:</strong> {meaningLine}</p>
                   <ul className="lm-float-parts">
                     {w.parts.map((m, i) => <li key={i}><strong>{pieceLabel(m)}</strong> = {m.meaning}</li>)}
                   </ul>
@@ -2213,7 +2359,7 @@ export default function LiteracyManipulatives() {
               position: 'absolute', inset: 0, width: '100%', height: '100%',
               pointerEvents: drawOn ? 'auto' : 'none',
               touchAction: 'none', cursor: drawOn ? (drawMode === 'eraser' ? 'cell' : 'crosshair') : 'default',
-              transform: `scale(${zoom})`, transformOrigin: '0 0',
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0',
             }}
             onPointerDown={drawOn ? drawStart : undefined}
             onPointerMove={drawOn ? drawMove : undefined}
