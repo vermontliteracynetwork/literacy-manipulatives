@@ -927,17 +927,35 @@ export default function LiteracyManipulatives() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Backspace' && e.key !== 'Delete') return;
-      if (!selectedId) return;
+      if (!selectedId && multiSel.size === 0) return;
       const target = e.target as HTMLElement | null;
       const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
       if (typing) return;
       e.preventDefault();
-      removePlacedItem(selectedId);
+      // A drag-selected set (her request 2026-10-15) goes all at once; otherwise the selected piece, or its group.
+      const gone = new Set<string>(multiSel);
+      if (!gone.size && selectedId) {
+        const sel = placed.find((pp) => pp.instanceId === selectedId);
+        if (sel?.groupId) placed.forEach((pp) => { if (pp.groupId === sel.groupId) gone.add(pp.instanceId); });
+        else gone.add(selectedId);
+      }
+      pushHistory();
+      setPlaced((p) => p.filter((pp) => !gone.has(pp.instanceId)).map((pp) => {
+        if (pp.snapLeftId && gone.has(pp.snapLeftId)) {
+          // Close the gap: re-attach to the nearest piece on the left that stays.
+          let left = p.find((q) => q.instanceId === pp.snapLeftId);
+          while (left && gone.has(left.instanceId)) { const lid: string | undefined = left.snapLeftId; left = lid ? p.find((q) => q.instanceId === lid) : undefined; }
+          return { ...pp, snapLeftId: left?.instanceId };
+        }
+        if (pp.inFrameId && gone.has(pp.inFrameId)) return { ...pp, inFrameId: undefined, cellIndex: undefined };
+        return pp;
+      }));
       setSelectedId(null);
+      setMultiSel(new Set());
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedId]);
+  }, [selectedId, multiSel, placed]);
 
   const setPlacedField = (instanceId: string, patch: Partial<PlacedItem>) => {
     setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, ...patch } : pp)));
@@ -1526,8 +1544,57 @@ export default function LiteracyManipulatives() {
     window.addEventListener('pointerup', up);
   };
 
-  const startDragNewItem = (factory: () => Omit<PlacedItem, 'x' | 'y' | 'instanceId'>) => (e: React.PointerEvent) => {
+  // Touch screens (her request 2026-10-15): in the menu, a tap shows what a piece is (its explanation or example)
+  // and a double tap adds it to the middle of the board; pressing and dragging still drags it out.
+  const lastTrayTap = useRef<{ el: Element; t: number } | null>(null);
+  const trayTouch = (e: React.PointerEvent, begin: () => void, place: () => void): boolean => {
+    if (e.pointerType !== 'touch') return false;
     e.preventDefault();
+    const el = e.currentTarget as HTMLElement;
+    const sx = e.clientX, sy = e.clientY, pid = e.pointerId;
+    const cleanup = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel); };
+    const move = (ev: PointerEvent) => { if (ev.pointerId === pid && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) { cleanup(); el.classList.remove('lm-tip-open'); begin(); } };
+    const cancel = (ev: PointerEvent) => { if (ev.pointerId === pid) cleanup(); };
+    const up = (ev: PointerEvent) => {
+      if (ev.pointerId !== pid) return;
+      cleanup();
+      const now = Date.now();
+      const last = lastTrayTap.current;
+      if (last && last.el === el && now - last.t < 450) { lastTrayTap.current = null; el.classList.remove('lm-tip-open'); place(); return; }
+      lastTrayTap.current = { el, t: now };
+      document.querySelectorAll('.lm-tip-open').forEach((n) => n.classList.remove('lm-tip-open'));
+      el.classList.add('lm-tip-open');
+      window.setTimeout(() => el.classList.remove('lm-tip-open'), 3500);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    return true;
+  };
+  // The middle of what's showing of the board, with a little nudge so repeated adds don't stack exactly.
+  const boardCenter = () => {
+    const r = boardRef.current?.getBoundingClientRect();
+    const c = r ? canvasRelative(r.left + r.width / 2, r.top + r.height / 2) : { x: 300, y: 200 };
+    const nudge = (placed.length % 5) * 18;
+    return { x: c.x + nudge, y: c.y + nudge };
+  };
+  const placeAtCenter = (bases: Omit<PlacedItem, 'x' | 'y' | 'instanceId'>[], asRow = false) => {
+    pushHistory();
+    const { x, y } = boardCenter();
+    const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const items: PlacedItem[] = bases.map((base, i) => {
+      const size = sizeFor(base.kind, base.boxCount, base as Partial<PlacedItem>);
+      return { ...base, instanceId: `add-${stamp}-${i}`, x: x - size.w / 2 + i * 120, y: y - size.h / 2, snapLeftId: asRow && i ? `add-${stamp}-${i - 1}` : undefined } as PlacedItem;
+    });
+    setPlaced((p) => [...p, ...items]);
+  };
+
+  const startDragNewItem = (factory: () => Omit<PlacedItem, 'x' | 'y' | 'instanceId'>) => (e: React.PointerEvent) => {
+    if (trayTouch(e, () => beginDragNewItem(factory, e), () => placeAtCenter([factory()]))) return;
+    e.preventDefault();
+    beginDragNewItem(factory, e);
+  };
+  const beginDragNewItem = (factory: () => Omit<PlacedItem, 'x' | 'y' | 'instanceId'>, e: React.PointerEvent) => {
     pushHistory();
     const { x, y } = canvasRelative(e.clientX, e.clientY);
     const instanceId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -1551,8 +1618,13 @@ export default function LiteracyManipulatives() {
   // A typed pattern from the Symbol Sentences search, dragged out as a row of Grammar Symbols already
   // snapped together (each one still its own symbol with its own word bubble and dice).
   const startDragNewRow = (pattern: PatternWord[]) => (e: React.PointerEvent) => {
-    e.preventDefault();
     if (!pattern.length) return;
+    const bases = () => pattern.map((w, i): Omit<PlacedItem, 'x' | 'y' | 'instanceId'> => ({ kind: 'shape', wordClass: w.wordClass, bubbleWord: caseWord(w.word, w.wordClass, i === 0) || undefined }));
+    if (trayTouch(e, () => beginDragNewRow(pattern, e), () => placeAtCenter(bases(), true))) return;
+    e.preventDefault();
+    beginDragNewRow(pattern, e);
+  };
+  const beginDragNewRow = (pattern: PatternWord[], e: React.PointerEvent) => {
     pushHistory();
     const { x, y } = canvasRelative(e.clientX, e.clientY);
     const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -1688,7 +1760,9 @@ export default function LiteracyManipulatives() {
         const item = p.find((pp) => pp.instanceId === id);
         if (!item) return p;
         if (item.inFrameId) return p.map((pp) => (pp.instanceId === id ? { ...pp, inFrameId: undefined, cellIndex: undefined } : pp));
-        if (!item.snapLeftId) return p;
+        // The first piece of a row lifts out on its own too (her request 2026-10-15), so it's as easy to move
+        // or remove as any other; the rest of the row stays put. Group a row to move it as a whole.
+        if (!item.snapLeftId) return p.map((pp) => (pp.snapLeftId === id && SENTENCE_KINDS.includes(pp.kind) ? { ...pp, snapLeftId: undefined } : pp));
         return p.map((pp) => {
           if (pp.instanceId === id) return { ...pp, snapLeftId: undefined };
           if (pp.snapLeftId === id) return { ...pp, snapLeftId: item.snapLeftId };
