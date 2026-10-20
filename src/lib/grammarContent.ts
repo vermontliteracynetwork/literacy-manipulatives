@@ -1,13 +1,13 @@
 import type { GrammarPiece } from '../types';
 
-// Literacy Workspace — open-exploration sandbox. Direct teacher
+// Literacy Workspace, open-exploration sandbox. Direct teacher
 // instruction: no rungs, no mastery gating, no rewards, no assignment
-// structure — just a pool of draggable word pieces a student can pull
+// structure, just a pool of draggable word pieces a student can pull
 // onto an open canvas and snap together into silly, nonsense-but-
 // grammatically-correct sentences, the "long lists of words, silly fun
 // concepts" the very first brief for this feature asked for. Content
 // grounded in the teacher's own uploaded Sentence Formulas curriculum
-// (docs/curriculum-reference/sentence-formulas/) — same proper nouns,
+// (docs/curriculum-reference/sentence-formulas/), same proper nouns,
 // common nouns, and verbs from that document's word lists, plus her own
 // established classroom characters (Yoga, Azalea, Xander, Geoff, Moxie)
 // for continuity with content she's already using.
@@ -16,7 +16,7 @@ function piece(id: string, text: string, wordClass: 'noun' | 'verb', number: 'si
 }
 
 // Every noun is singular; a piece with number 'plural' is a genuinely
-// different plural noun (not a second form of the same singular one) —
+// different plural noun (not a second form of the same singular one) -
 // unlike the old Rung 1 content, there's no fixed "correct pairing" to
 // hit here, ANY noun and verb that agree in number are meant to snap.
 export const SANDBOX_NOUNS: GrammarPiece[] = [
@@ -69,7 +69,7 @@ export const SANDBOX_VERBS: GrammarPiece[] = [
 
 export const SANDBOX_PIECES: GrammarPiece[] = [...SANDBOX_NOUNS, ...SANDBOX_VERBS];
 
-// Mad Libs mode — Claudia's design pass confirmed this doesn't reopen the
+// Mad Libs mode, Claudia's design pass confirmed this doesn't reopen the
 // "no explicit activity" override: it's a different arrangement affordance
 // for the same unscored SANDBOX_NOUNS/SANDBOX_VERBS pool (no new content,
 // no validation, no correctness feedback, no completion state, no gating),
@@ -77,7 +77,7 @@ export const SANDBOX_PIECES: GrammarPiece[] = [...SANDBOX_NOUNS, ...SANDBOX_VERB
 // her "Yoga Comic Sentence Formulas" as silly Mad-Libs-style content
 // (docs/curriculum-reference/sentence-formulas/README.md). A student taps
 // a tray tile to fill the next empty blank of that word class; any noun
-// fits any noun blank, any verb fits any verb blank — no "correct" answer.
+// fits any noun blank, any verb fits any verb blank, no "correct" answer.
 export type MadlibSegment = { type: 'text'; value: string } | { type: 'blank'; wordClass: 'noun' | 'verb' };
 
 const text = (value: string): MadlibSegment => ({ type: 'text', value });
