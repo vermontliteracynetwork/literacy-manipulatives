@@ -36,7 +36,7 @@ export interface WordClassInfo {
   // Real symbol artwork the teacher designed and uploaded
   // (public/literacy/grammar-symbols/), each shape has its own small
   // icon baked in (a tapping hand for noun, a running figure for verb,
-  // a magnet for article, ...). Colors below were re-measured directly
+  // a pink triangle for article, ...). Colors below were re-measured directly
   // from these PNGs (Canva's default "Bold" palette).
   imageUrl: string;
 }
@@ -46,20 +46,20 @@ export interface WordClassInfo {
 // Symbol set updated again (2026-10-14, teacher uploads "Recreated_Grammar_Symbols_4.zip" and
 // "Grammar_Symbol_Cards.zip", a full replacement of the prior artwork): noun = red pointing hand,
 // adjective = light blue circle with a pencil, verb = green four-way arrows, adverb = dark blue gear
-// with a pencil, article = pink magnet, pronoun = yellow circling arrows, conjunction = purple two-way
+// with a pencil, article = pink triangle (was a magnet until the 2026-10-26 symbol update), pronoun = yellow circling arrows, conjunction = purple two-way
 // arrow, preposition = brown box, interjection = orange exclamation mark, and a new tenth symbol,
 // proper noun = red crown. Definitions are her own words from the key sheet; colors measured from the PNGs.
 export const MONTESSORI_WORD_CLASS_INFO: Record<MontessoriWordClass, WordClassInfo> = {
-  noun: { shape: 'triangle-lg', color: '#D02028', name: 'Noun', label: 'Person, place, thing, animal', imageUrl: '/literacy/grammar-symbols/noun.png' },
-  propernoun: { shape: 'crown', color: '#D02028', name: 'Proper noun', label: 'A specific noun (it has a name)', imageUrl: '/literacy/grammar-symbols/propernoun.png' },
-  article: { shape: 'triangle-sm', color: '#F0B0C8', name: 'Article', label: 'Refers to nouns', imageUrl: '/literacy/grammar-symbols/article.png' },
-  adjective: { shape: 'triangle-md', color: '#48B8E0', name: 'Adjective', label: 'Describes nouns (details for things you can touch)', imageUrl: '/literacy/grammar-symbols/adjective.png' },
-  verb: { shape: 'circle-lg', color: '#40A870', name: 'Verb', label: 'Action words', imageUrl: '/literacy/grammar-symbols/verb.png' },
-  preposition: { shape: 'crescent', color: '#703818', name: 'Preposition', label: 'Identifies time, place, or direction', imageUrl: '/literacy/grammar-symbols/preposition.png' },
-  adverb: { shape: 'circle-sm', color: '#1868A8', name: 'Adverb', label: 'Describes verbs and adjectives', imageUrl: '/literacy/grammar-symbols/adverb.png' },
-  pronoun: { shape: 'triangle-inverted', color: '#F8F000', name: 'Pronoun', label: 'Replaces a noun', imageUrl: '/literacy/grammar-symbols/pronoun.png' },
-  conjunction: { shape: 'double-arrow', color: '#9870B8', name: 'Conjunction', label: 'Connecting words', imageUrl: '/literacy/grammar-symbols/conjunction.png' },
-  interjection: { shape: 'droplet', color: '#F87220', name: 'Interjection', label: 'Something you shout; interrupting words or phrases', imageUrl: '/literacy/grammar-symbols/interjection.png' },
+  noun: { shape: 'triangle-lg', color: '#D02028', name: 'Noun', label: 'Person, place, thing, animal', imageUrl: '/literacy/grammar-symbols/noun.png?v=2' },
+  propernoun: { shape: 'crown', color: '#D02028', name: 'Proper noun', label: 'A specific noun (it has a name)', imageUrl: '/literacy/grammar-symbols/propernoun.png?v=2' },
+  article: { shape: 'triangle-sm', color: '#F7B3CF', name: 'Article', label: 'Refers to nouns', imageUrl: '/literacy/grammar-symbols/article.png?v=2' },
+  adjective: { shape: 'triangle-md', color: '#48B8E0', name: 'Adjective', label: 'Describes nouns (details for things you can touch)', imageUrl: '/literacy/grammar-symbols/adjective.png?v=2' },
+  verb: { shape: 'circle-lg', color: '#40A870', name: 'Verb', label: 'Action words', imageUrl: '/literacy/grammar-symbols/verb.png?v=2' },
+  preposition: { shape: 'crescent', color: '#703818', name: 'Preposition', label: 'Identifies time, place, or direction', imageUrl: '/literacy/grammar-symbols/preposition.png?v=2' },
+  adverb: { shape: 'circle-sm', color: '#1868A8', name: 'Adverb', label: 'Describes verbs and adjectives', imageUrl: '/literacy/grammar-symbols/adverb.png?v=2' },
+  pronoun: { shape: 'triangle-inverted', color: '#F8F000', name: 'Pronoun', label: 'Replaces a noun', imageUrl: '/literacy/grammar-symbols/pronoun.png?v=2' },
+  conjunction: { shape: 'double-arrow', color: '#9870B8', name: 'Conjunction', label: 'Connecting words', imageUrl: '/literacy/grammar-symbols/conjunction.png?v=2' },
+  interjection: { shape: 'droplet', color: '#F87220', name: 'Interjection', label: 'Something you shout; interrupting words or phrases', imageUrl: '/literacy/grammar-symbols/interjection.png?v=2' },
 };
 
 export interface WordOption {
