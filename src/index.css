@@ -351,6 +351,21 @@ button, input, select, textarea {
   opacity: 1;
   visibility: visible;
 }
+/* The tip lives on the page (ReferencePopover HoverTip), so no panel edge clips it. */
+.lm-symbol-tip.lm-symbol-tip-float {
+  position: fixed;
+  bottom: auto;
+  transform: none;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 20px));
+  font-size: 0.85rem;
+  white-space: normal;
+  overflow-wrap: break-word;
+  opacity: 1;
+  visibility: visible;
+  z-index: 10000;
+}
+.lm-symbol-tip.lm-symbol-tip-float strong { font-size: 0.95rem; }
 /* Sentence Formula join, direct teacher instruction: "joined together
    (a connection animation) to stack them into a paragraph form." */
 @keyframes lmFormulaJoinPulse {
