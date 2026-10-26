@@ -47,6 +47,7 @@ function HoverTip({ title, body, children }: { title?: string; body: ReactNode; 
   const wrap = useRef<HTMLDivElement | null>(null);
   const tip = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
+  const touchTimer = useRef<number | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   useLayoutEffect(() => {
     if (!open) { setPos(null); return; }
@@ -64,7 +65,12 @@ function HoverTip({ title, body, children }: { title?: string; body: ReactNode; 
   }, [open]);
   return (
     <div ref={wrap} className="lm-symbol-tip-wrap" tabIndex={-1}
-      onPointerEnter={() => setOpen(true)} onPointerLeave={() => setOpen(false)} onPointerCancel={() => setOpen(false)}
+      onPointerEnter={(e) => {
+        setOpen(true);
+        // A tap on a touch screen keeps the tip up for a few seconds, so it can be read after the finger lifts.
+        if (e.pointerType === 'touch') { if (touchTimer.current) window.clearTimeout(touchTimer.current); touchTimer.current = window.setTimeout(() => setOpen(false), 3500); }
+      }}
+      onPointerLeave={(e) => { if (e.pointerType !== 'touch') setOpen(false); }}
       onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}>
       {children}
       {open && createPortal(
