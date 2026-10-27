@@ -10,6 +10,8 @@ import { Icon } from './components/Icon';
 import { SharePanel } from './components/SharePanel';
 import { JoinScreen } from './components/JoinScreen';
 import { WelcomeChoice } from './components/WelcomeChoice';
+import { Writer } from './components/Writer';
+import { isWriterSettings, readWriterSettings, saveWriterSettings, type WriterSettings } from './lib/writer/settings';
 import { SettingsPanel } from './components/SettingsPanel';
 import { isFontChoice, useFontChoice, type FontChoice } from './lib/fontChoice';
 import { diffItems, isJoinRoute, shareConfigured, studentId as myStudentId, useHostSession, useStudentSession, type Ops, type Snapshot } from './lib/share';
@@ -827,7 +829,14 @@ export default function LiteracyManipulatives() {
     ...(focusSel ? (focusSel.groupId ? placed.filter((pp) => pp.groupId === focusSel.groupId).map((pp) => pp.instanceId) : [focusSel.instanceId]) : []),
     ...multiSel,
   ])].sort();
-  const host = useHostSession<PlacedItem, Stroke>(placed, strokes, applyOps, fontChoice.font, myFocusIds);
+  // The Writer (2026-10-27): its own screen with teacher-set writing settings. Students on a shared board get the
+  // teacher's settings and follow the teacher between the board and the Writer.
+  const [writerOpen, setWriterOpen] = useState(false);
+  const [writerSettings, setWriterSettingsState] = useState<WriterSettings>(readWriterSettings);
+  const setWriterSettings = (w: WriterSettings) => { setWriterSettingsState(w); saveWriterSettings(w); };
+  const [teacherWriter, setTeacherWriter] = useState<WriterSettings | null>(null);
+  const [teacherMode, setTeacherMode] = useState<'board' | 'writer'>('board');
+  const host = useHostSession<PlacedItem, Stroke>(placed, strokes, applyOps, fontChoice.font, myFocusIds, { writer: writerSettings, mode: writerOpen ? 'writer' : 'board' });
   const [shareOpen, setShareOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Every launch opens on the welcome pop-up, "Start a whiteboard" or "Join a board" (her request 2026-10-15).
@@ -844,12 +853,15 @@ export default function LiteracyManipulatives() {
   const student = useStudentSession<PlacedItem, Stroke>((snap: Snapshot<PlacedItem, Stroke>) => {
     fromTeacher.current = true;
     if (isFontChoice(snap.font)) setTeacherFont(snap.font);
+    if (isWriterSettings(snap.writer)) setTeacherWriter(snap.writer);
+    setTeacherMode(snap.mode === 'writer' ? 'writer' : 'board');
     lastSynced.current = { placed: snap.placed, strokes: snap.strokes };
     setPlaced(snap.placed);
     setStrokes(snap.strokes);
   }, myFocusIds);
   const studentCanEdit = joinMode && student.status === 'joined' && student.access === 'edit';
   const studentViewOnly = joinMode && !studentCanEdit;
+  const showWriter = joinMode ? student.status === 'joined' && teacherMode === 'writer' : writerOpen;
   useEffect(() => {
     if (!studentCanEdit) return;
     if (fromTeacher.current) { fromTeacher.current = false; return; }
@@ -2186,7 +2198,31 @@ export default function LiteracyManipulatives() {
       {/* Top toolbar, same collapsible bar as the dashboard's native
           tool, minus Help (tied to a student account) and Exit (there's
           no "home" to leave to in a standalone page). */}
-      <div className="lm-toolbar" style={{ flex: '0 0 auto' }}>
+      {showWriter && (
+        <Writer
+          settings={joinMode ? (teacherWriter ?? writerSettings) : writerSettings}
+          canChangeSettings={!joinMode}
+          onSettings={setWriterSettings}
+          onBack={joinMode ? undefined : () => setWriterOpen(false)}
+          studentName={joinMode ? student.name : undefined}
+          headerExtras={joinMode ? (
+            <span className="lm-share-badge">Writing with your teacher{student.name ? `, ${student.name}` : ''}</span>
+          ) : (
+            <>
+              <button
+                className={`btn btn-sm ${host.status === 'live' ? 'btn-primary' : ''}`}
+                onClick={() => { if (shareOpen) { setShareOpen(false); return; } setShareOpen(true); if (shareConfigured && host.status === 'off') void host.start(); }}
+                aria-expanded={shareOpen}
+                aria-label={host.status === 'live' && host.code ? `Sharing, code ${host.code}` : 'Share'}
+              >
+                {host.status === 'live' && host.code ? host.code : 'Share'}
+              </button>
+              {host.requests.length > 0 && <span className="lm-request-badge" role="status" aria-label={`${host.requests.length} asking for edit access`}>{host.requests.length}</span>}
+            </>
+          )}
+        />
+      )}
+      <div className="lm-toolbar" style={{ flex: '0 0 auto', display: showWriter ? 'none' : undefined }}>
         {studentViewOnly ? (
           // A view-only student just watches: no tools, only who they are and what they can do.
           <>
@@ -2209,6 +2245,7 @@ export default function LiteracyManipulatives() {
             <button className="btn btn-sm" onClick={redo} disabled={!canRedo}>Redo</button>
             <button className="btn btn-sm" onClick={() => setConfirmClear(true)} disabled={placed.length === 0}>Clear</button>
             <span className="lm-toolbar-divider" />
+            {!joinMode && <button className="btn btn-sm" onClick={() => setWriterOpen(true)} title="Open the Writer (word processor)">Writer</button>}
             <button className="btn btn-sm" onClick={zoomOut} disabled={zoom <= 0.5} aria-label="Zoom out">−</button>
             <button className="btn btn-sm" onDoubleClick={zoomReset} aria-label="Double click to go back to the start view" title="Double click to go back to the start view">{Math.round(zoom * 100)}%</button>
             <button className="btn btn-sm" onClick={zoomIn} disabled={zoom >= 2} aria-label="Zoom in">+</button>
@@ -2237,7 +2274,7 @@ export default function LiteracyManipulatives() {
           <button className="btn btn-sm" onClick={() => setTopBarOpen(true)} aria-label="Show toolbar">▼ Show toolbar</button>
         )}
       </div>
-      {topBarOpen && drawOn && (
+      {topBarOpen && drawOn && !showWriter && (
         <div className="lm-toolbar" style={{ flex: '0 0 auto', paddingTop: 0 }}>
           <button className={`btn btn-sm ${drawMode === 'pen' ? 'btn-primary' : ''}`} onClick={() => setDrawModeAndColor('pen')}>Pen</button>
           <button className={`btn btn-sm ${drawMode === 'highlight' ? 'btn-primary' : ''}`} onClick={() => setDrawModeAndColor('highlight')}>Highlight</button>
@@ -2256,7 +2293,7 @@ export default function LiteracyManipulatives() {
         </div>
       )}
 
-      <div className="lm-shell" style={{ flex: 1, minHeight: 0 }}>
+      <div className="lm-shell" style={{ flex: 1, minHeight: 0, display: showWriter ? 'none' : undefined }}>
       {sidebarOpen && !studentViewOnly ? (
         <aside className="lm-sidebar">
           <Category label="Grammar Symbols" color="#E5B9E0" open={openCategories.shapes} onToggle={() => toggleCategory('shapes')}>

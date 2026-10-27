@@ -282,6 +282,116 @@ framing of this project:
 
 ---
 
+## Part 6 — Writer: the word processor (started 2026-10-27)
+
+### The ask (teacher, 2026-10-27, summarized)
+
+A word processor inside Literacy Manipulatives, **separate from the whiteboard**, opened from a button in
+the top toolbar, with a **return button** back to the board. Students write in an environment the
+**teacher defines**:
+
+- **Spell check at a teacher-chosen level.**
+- **Predictive text** that catches what a student meant from how it sounds and the words around it:
+  "cat", "cach", "kach", "katch" typed where *catch* belongs becomes **catch**.
+- **Auto-capitalization** when the teacher turns it on.
+- **No AI add-ons**: Grammarly and similar writing helpers must not work here.
+- **Grammar symbols** from her Symbolic Grammar program shown **above or below** each word, in
+  **small, medium, or large**. Large matches the symbol sentence cards (symbol on top, example word
+  beneath it).
+- **Grammar check from the Symbolic Grammar curriculum**: when a sentence isn't grammatical (for
+  example, no verb), show the matching **sentence formula** and let the student **insert** the missing
+  part. Teacher settings decide whether it shows like a spell/grammar check, and **when** it checks
+  (as they type, or at each end punctuation).
+
+### Teacher settings (the environment)
+
+| Setting | Options | Default |
+|---|---|---|
+| Spell check | Off; Mark mistakes; Mark and suggest | Mark and suggest |
+| Predictive text | Off; Suggest (tap or Tab to accept); Fix automatically | Suggest |
+| Auto-capitalization | On / Off (first word of a sentence, the word I) | On |
+| Grammar check | Off; At end punctuation; As they type | At end punctuation |
+| Grammar symbols | Off; Above words; Below words | Above words |
+| Symbol size | Small; Medium; Large (card-style) | Medium |
+| Block writing add-ons | On / Off (Grammarly, LanguageTool, browser spell check and autocorrect) | On |
+
+Settings belong to the teacher. On a shared board, students get the teacher's Writer settings with the
+board and cannot change them (same path as the shared font).
+
+### How it's built
+
+- **Screen**: `src/components/Writer.tsx`, shown in place of the board (the board stays as it was).
+  The draft is kept per tab like the board (a refresh keeps it; a closed tab starts fresh).
+- **Dictionary**: SCOWL word lists (`wordlist-english`, sizes 10 to 40, about 42,000 words, ranked by
+  how common they are) shipped as `public/writer/words.json` and loaded only when the Writer opens.
+- **Sound-alike matching**: each word gets a "kid spelling key" (c/k/ck/q sound the same, tch = ch,
+  ph = f, silent kn/wr, doubled letters collapse, vowels grouped), so *kach*, *katch* and *catch* share a
+  key. Suggestions rank by key match, edit distance, how common the word is, and **context**: the part
+  of speech the slot needs from the words around it (after *will / can / to / don't* a verb is expected,
+  after *a / the / my* a noun or describing word), using the same tagger as Symbol Sentence search.
+  That context is what lets a real word in the wrong place (*cat* in "I will cat the ball") become *catch*.
+- **Symbols**: a mirror layer under the text area lays out the same text, tags every word, and draws
+  its symbol above or below it; the text area's line height grows to make room.
+- **Grammar check**: per sentence (verb, subject or command, capital, end mark, a/an, subject-verb
+  agreement), reusing the board's checks. The fix shows the closest formula from the 43-card deck
+  with the missing part highlighted, and an Insert button that drops a blank for that part where the
+  formula has it.
+- **Blocking add-ons**: `data-gramm="false"`, `data-gramm_editor="false"`, `data-enable-grammarly="false"`,
+  `data-lt-active="false"`, `spellcheck="false"`, `autocorrect="off"`, `autocapitalize="off"`, and
+  injected helper UI hidden. Honest limit: a browser extension that ignores opt-out attributes can't be
+  stopped by a web page; school-managed Chromebooks can block extensions by policy.
+
+### Curriculum alignment (her Program Overview and Sentence Formulas, 2026-10-27)
+
+- The grammar check **is her Sentence Check**: complete (a Who part and an Action), capital at the start (and
+  names and I), end mark, match (one or many), time (kept the same). Each sentence shows all five with a
+  check or an empty box.
+- Formulas come from her **Sentence Formulas master list** (`src/lib/writer/formulas.ts`, 117 rows: unit,
+  skill, shorthand name, example, required words, code, purpose). The closest one is shown with its symbols
+  and model sentence. Formulas are a teaching map, never a score, so nothing is graded by formula.
+- Wording follows her **levels**: Level A leads with student words (Who part, Action word), Level B uses
+  both, Level C leads with grammar terms (subject, verb). Codes (A-N-V) show at Levels B and C only.
+- Symbols always appear with words (dual coding), above the words by default, like her formula strips.
+
+### Build queue
+
+1. ~~Plan in this log~~ (this section)
+2. ~~Writer shell: toolbar button, separate screen, Back to whiteboard, saved draft~~ (first version)
+3. ~~Teacher settings panel, synced to students~~ (students follow the teacher into the Writer)
+4. ~~Block writing add-ons~~
+5. ~~Spell check + predictive text (sound-alike keys, context, levels)~~ (first version)
+6. ~~Symbols above or below words, three sizes~~
+7. ~~Grammar check with sentence formulas and Insert~~ (first version)
+7a. Share/join from the Writer, same code and join page as the whiteboard (first version in)
+7b. Accessibility tools, with what the teacher defines (research in progress)
+8. Next (after her answers below): printing/export, word bank, read aloud, saving per student, teacher
+   view of student drafts
+
+### 10 questions to steer the build
+
+1. **Who changes the settings?** Only the teacher's own screen (as now), or should students on their own
+   devices without a shared board also be locked out (for example, a teacher PIN)?
+2. **Predictive "fix automatically"**: should it change the word silently, or flash the change with a
+   one-tap undo so students see what changed?
+3. **Spell check for younger writers**: should "Mark mistakes" show only words the student is likely to
+   know (the most common 4,000), or every misspelled word?
+4. **Symbols for every word**, or only content words (nouns, verbs, describing words) at the small size
+   to keep lines readable?
+5. **Large size**: the card style puts the symbol above and the word beneath. With "Below words", should
+   large flip that (word on top, symbol under)?
+6. **Grammar check display**: a list beside the writing, a pop-up at the sentence, or a colored
+   underline the student taps?
+7. **Insert**: should Insert drop a blank to fill ("___"), the symbol itself to type into, or a
+   suggested word?
+8. **Which formulas** count as correct: only the 43-card deck patterns, or any sentence with a subject
+   and a verb?
+9. **Saving and sharing writing**: should the teacher see each student's draft live on a shared board,
+   collect it at the end, or is writing private to the student's screen?
+10. **Extras**: printing/PDF, read aloud (text to speech), word banks from the board's word lists, a
+    word count or sentence count goal?
+
+---
+
 ## 2026-10-14: Her new grammar symbols and the 43-card symbol deck
 
 Teacher request (verbatim): "lets update the literacy manipulatives whiteboard with these", with

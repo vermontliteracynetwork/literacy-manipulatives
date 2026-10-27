@@ -27,7 +27,7 @@ function getClient(): SupabaseClient | null {
 
 export type Access = 'view' | 'edit';
 export interface SharedStudent { id: string; name: string }
-export interface Snapshot<P, S> { placed: P[]; strokes: S[]; access: Record<string, Access>; font?: string }
+export interface Snapshot<P, S> { placed: P[]; strokes: S[]; access: Record<string, Access>; font?: string; writer?: unknown; mode?: 'board' | 'writer' }
 // A student's edits, sent as changes against the last board they saw so two students moving different pieces
 // at once never undo each other.
 export interface Ops<P, S> { from: string; upserts: P[]; removes: string[]; strokeAdds: S[]; strokeRemoves: string[] }
@@ -113,6 +113,7 @@ const BROADCAST_EVERY_MS = 80;
 // ---------- Teacher ----------
 export function useHostSession<P extends { instanceId: string }, S extends { id: string }>(
   placed: P[], strokes: S[], applyOps: (ops: Ops<P, S>) => void, font?: string, focusIds: string[] = [],
+  extra: { writer?: unknown; mode?: 'board' | 'writer' } = {},
 ) {
   const focus = useFocusChannel();
   const [code, setCode] = useState<string | null>(null);
@@ -124,8 +125,9 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
   const channelRef = useRef<RealtimeChannel | null>(null);
   const accessRef = useRef(access);
   const applyRef = useRef(applyOps);
-  const latest = useRef<Snapshot<P, S>>({ placed, strokes, access, font });
-  useEffect(() => { accessRef.current = access; applyRef.current = applyOps; latest.current = { placed, strokes, access, font }; });
+  const latest = useRef<Snapshot<P, S>>({ placed, strokes, access, font, ...extra });
+  useEffect(() => { accessRef.current = access; applyRef.current = applyOps; latest.current = { placed, strokes, access, font, ...extra }; });
+  const extraKey = JSON.stringify(extra);
 
   const sendSnapshot = useCallback(() => {
     const ch = channelRef.current;
@@ -202,7 +204,7 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
     if (status !== 'live') return;
     const t = window.setTimeout(sendSnapshot, BROADCAST_EVERY_MS);
     return () => window.clearTimeout(t);
-  }, [placed, strokes, access, students, status, font, sendSnapshot]);
+  }, [placed, strokes, access, students, status, font, extraKey, sendSnapshot]);
 
   useEffect(() => () => { const ch = channelRef.current; if (ch) void getClient()?.removeChannel(ch); }, []);
 

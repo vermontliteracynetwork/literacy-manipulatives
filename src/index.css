@@ -604,3 +604,51 @@ input.lm-text-pill { cursor: text; user-select: text; }
 .lm-text-area:focus::placeholder { color: transparent; }
 .lm-request-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; margin-left: -4px; border-radius: 999px; background: #D2222E; color: #fff; font-size: 0.75rem; font-weight: 800; }
 .lm-request-dot { display: inline-block; width: 10px; height: 10px; margin-left: 8px; border-radius: 50%; background: #D2222E; vertical-align: middle; }
+
+/* ---------- Writer (word processor, 2026-10-27) ---------- */
+.lm-writer { display: flex; flex-direction: column; height: 100vh; background: var(--brand-sky-soft); }
+.lm-writer-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 16px; background: #fff; border-bottom: 2px solid var(--content-border); }
+.lm-writer-count { font-size: 0.85rem; opacity: 0.75; }
+.lm-writer-body { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 16px; overflow: auto; }
+.lm-writer-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.lm-writer-suggest { min-height: 44px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 10px; background: #fff; border: 2px solid var(--content-border); border-radius: 12px; }
+.lm-writer-suggest-label { font-size: 0.85rem; }
+.lm-writer-suggest kbd { margin-left: 6px; font: inherit; font-size: 0.65rem; padding: 0 4px; border: 1px solid var(--content-border); border-radius: 4px; opacity: 0.7; }
+.muted { opacity: 0.7; font-size: 0.85rem; }
+.lm-writer-page { position: relative; background: #fff; border: 2px solid var(--content-border); border-radius: 14px; }
+.lm-writer-text, .lm-writer-mirror {
+  font-family: var(--lm-font); font-size: var(--wr-font); line-height: var(--wr-line); letter-spacing: 0.01em;
+  padding: 20px 28px; margin: 0; border: 0; box-sizing: border-box; width: 100%;
+  white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; tab-size: 4;
+}
+.lm-writer-mirror { position: absolute; inset: 0; color: transparent; pointer-events: none; overflow: hidden; }
+.lm-writer-text { position: relative; display: block; resize: none; overflow: hidden; background: transparent; color: var(--ink); outline: none; min-height: 320px; caret-color: var(--brand-blue); }
+.lm-writer-mirror .w { position: relative; }
+.lm-writer-mirror .w.bad { text-decoration: underline wavy #D2222E; text-decoration-skip-ink: none; text-underline-offset: 4px; }
+.lm-writer-mirror .w.gram { text-decoration: underline dotted var(--brand-blue); text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.lm-writer-sym { position: absolute; left: 50%; transform: translateX(-50%); width: var(--wr-sym); height: var(--wr-sym); object-fit: contain; }
+.lm-writer-sym.above { bottom: calc(100% + 4px); }
+.lm-writer-sym.below { top: calc(100% + 4px); }
+.lm-writer-popup { position: absolute; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px; max-width: 320px; padding: 6px; background: #fff; border: 2px solid var(--ink); border-radius: 12px; box-shadow: 0 6px 16px rgba(15, 43, 69, 0.18); }
+.lm-writer-check { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
+.lm-writer-check h2 { margin: 0; font-size: 1.1rem; }
+.lm-writer-check-card { background: #fff; border: 2px solid var(--content-border); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.lm-writer-check-text { margin: 0; font-weight: 700; }
+.lm-writer-fixes { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.lm-writer-formula { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; border-top: 1px solid var(--content-border); }
+.lm-writer-formula-name { font-size: 0.85rem; font-weight: 700; }
+.lm-writer-formula-symbols { display: flex; flex-wrap: wrap; gap: 4px; }
+.lm-writer-formula-symbols img { width: 30px; height: 30px; object-fit: contain; }
+.lm-check-box.ok { background: #2F8A5B; border-color: #2F8A5B; }
+.lm-writer-settings { position: fixed; top: 64px; right: 16px; z-index: 60; width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 90px); overflow: auto; background: #fff; border: 3px solid var(--ink); border-radius: 14px; padding: 12px 14px; box-shadow: 0 8px 20px rgba(15, 43, 69, 0.2); }
+.lm-writer-setting { display: flex; flex-direction: column; gap: 4px; padding: 6px 0; border-top: 1px solid var(--content-border); }
+.lm-writer-setting-label { font-weight: 700; font-size: 0.85rem; }
+.lm-writer-choices { display: flex; flex-wrap: wrap; gap: 4px; }
+.lm-writer-choices button { min-height: 34px; padding: 0 10px; border-radius: 999px; border: 2px solid var(--content-border); background: #fff; color: var(--ink); font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+.lm-writer-choices button.on { border-color: var(--brand-blue); background: var(--brand-blue); color: #fff; }
+.lm-writer-choices button:disabled { cursor: default; }
+.lm-writer-choices button:disabled:not(.on) { opacity: 0.5; }
+/* Writing add-ons blocked: hide anything Grammarly, LanguageTool and similar extensions draw on the page. */
+.lm-block-addons grammarly-extension, .lm-block-addons grammarly-popups, .lm-block-addons grammarly-desktop-integration,
+.lm-block-addons lt-toolbar, .lm-block-addons lt-highlighter, .lm-block-addons lt-div { display: none !important; }
+@media (max-width: 860px) { .lm-writer-body { flex-direction: column; } .lm-writer-check { width: auto; } }

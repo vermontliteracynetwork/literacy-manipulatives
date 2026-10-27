@@ -206,3 +206,20 @@ export function agreeWords(words: { word: string; cls: MontessoriWordClass }[]):
     return word;
   });
 }
+
+// For the Writer (2026-10-27): tag a typed sentence word by word (no part-of-speech-name parsing), making sure it
+// has a verb, and list every job a word can do.
+export function tagSentence(text: string): PatternWord[] {
+  const raw = text.match(/[A-Za-z']+/g) ?? [];
+  return ensureVerb(raw.map((w, i) => ({ wordClass: tagWord(w, i === 0), word: w })));
+}
+export function tagWordsPlain(text: string): PatternWord[] {
+  const raw = text.match(/[A-Za-z']+/g) ?? [];
+  return raw.map((w, i) => ({ wordClass: tagWord(w, i === 0), word: w }));
+}
+export function wordJobs(raw: string): Set<MontessoriWordClass> {
+  const key = raw.toLowerCase().replace(/[^a-z']/g, '');
+  const jobs = new Set(JOBS.get(key) ?? []);
+  if (VERBS.has(key)) jobs.add('verb');
+  return jobs;
+}
