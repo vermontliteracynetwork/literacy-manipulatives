@@ -353,6 +353,42 @@ board and cannot change them (same path as the shared font).
   both, Level C leads with grammar terms (subject, verb). Codes (A-N-V) show at Levels B and C only.
 - Symbols always appear with words (dual coding), above the words by default, like her formula strips.
 
+### Accessibility tools (Claudia's research, 2026-10-27)
+
+Rule used to decide who controls each tool: a support that changes **what the student produces** (how words
+get spelled, chosen, checked or entered) changes what the writing sample measures, so the **teacher defines
+it** and the sample counts as **supported** (her "Compare like with like" principle). A support that only
+changes **how the text looks or sounds back** is the **student's choice** and does not mark the sample.
+"Teacher, student may toggle" means the teacher decides whether the student can switch it.
+
+| # | Tool | Who sets it | Evidence | Notes |
+|---|---|---|---|---|
+| 1 | Support record on every draft (settings in effect, predictions accepted, auto-fixes, read-backs) | Always on | Foundation for her data rules | Makes supported vs unsupported samples traceable |
+| 2 | Read aloud with word highlighting (word, sentence, whole piece, speed) | Teacher, student may toggle | Moderate (Wood et al. 2018 meta-analysis) | Browser speech, local voices preferred |
+| 3 | Typing echo (speaks each word or sentence as it's finished) | Teacher, student may toggle | Limited | Same speech engine |
+| 4 | Word prediction upgrades (spoken choices, number keys, teacher topic lists) | Teacher | Moderate for spelling | Builds on the Writer's prediction |
+| 5 | Speech-to-text dictation | Teacher | Moderate to limited | Chrome sends audio to Google; needs opt-in and privacy review |
+| 6 | Teacher word banks with pictures (tap to hear or insert) | Teacher | Limited to moderate | Check picture-symbol licenses |
+| 7 | Sentence frames and word tiles in Symbolic Grammar formula order | Teacher | Moderate (WWC writing guide) | Always a supported sample |
+| 8 | Core-word symbol board for students who can't type yet | Teacher | Limited | Waits on her AAC consultation (Program Overview) |
+| 9 | Planning panel and strategy checklist linked to the Sentence Check | Teacher, student may toggle | Strong (WWC) | |
+| 10 | Letter, word and line spacing; text size | Student | Moderate (Zorzi 2012; Marinus 2016: spacing is what helps) | Also meets WCAG 1.4.12 |
+| 11 | Fonts (Inclusive Sans, OpenDyslexic, cursive) | Student, teacher default | Weak for dyslexia fonts (Wery and Diliberto 2017) | A preference, not a treatment; teacher can lock cursive when reading cursive is the goal |
+| 12 | Contrast themes, thick caret, strong focus ring, zoom | Student | Standards (WCAG) | |
+| 13 | Line focus (reading ruler around the cursor line) | Student | Limited (Niklaus 2023) | |
+| 14 | Background tints | Student | Weak (overlay reviews) | Offered as comfort only, never as a dyslexia fix |
+| 15 | Motor access (keyboard and switch use, large targets, duplicate-key filter for tremor, no time limits) | Teacher, student may toggle | Standards and AT practice | |
+| 16 | Syllable split and homophone help | Teacher, student may toggle | Limited | Off for spelling or grammar probes |
+| 17 | Focus mode (hide panels, one sentence at a time) | Student, teacher default | Limited | Helps attention |
+
+Avoid or handle with care: generative AI rewriting or sentence completion (replaces the student's
+composition; prediction stays one word at a time), silent autocorrect (corrections stay visible with Undo and
+are logged), symbols and Sentence Check during unsupported probes (lock them off), cloud dictation without
+opt-in, presenting fonts or tints as fixes, and speed timers.
+
+Next for assessment: an **assessment mode** that snapshots and locks the settings when a probe starts; that
+snapshot is the accommodation record (her principles 4 and 5).
+
 ### Build queue
 
 1. ~~Plan in this log~~ (this section)
@@ -363,7 +399,10 @@ board and cannot change them (same path as the shared font).
 6. ~~Symbols above or below words, three sizes~~
 7. ~~Grammar check with sentence formulas and Insert~~ (first version)
 7a. Share/join from the Writer, same code and join page as the whiteboard (first version in)
-7b. Accessibility tools, with what the teacher defines (research in progress)
+7b. ~~Accessibility batch 1: who-sets-it model, My tools panel, read aloud with highlighting, typing echo,
+    spacing, line focus, contrast themes, focus mode, support record~~ (first version)
+7c. Accessibility batch 2: word banks with pictures, sentence frames, dictation (opt-in), motor access
+7d. Assessment mode: lock settings, stamp the sample supported or unsupported
 8. Next (after her answers below): printing/export, word bank, read aloud, saving per student, teacher
    view of student drafts
 

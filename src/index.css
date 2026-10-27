@@ -617,7 +617,7 @@ input.lm-text-pill { cursor: text; user-select: text; }
 .muted { opacity: 0.7; font-size: 0.85rem; }
 .lm-writer-page { position: relative; background: #fff; border: 2px solid var(--content-border); border-radius: 14px; }
 .lm-writer-text, .lm-writer-mirror {
-  font-family: var(--lm-font); font-size: var(--wr-font); line-height: var(--wr-line); letter-spacing: 0.01em;
+  font-family: var(--lm-font); font-size: var(--wr-font); line-height: var(--wr-line); letter-spacing: var(--wr-ls, 0.01em); word-spacing: var(--wr-ws, 0);
   padding: 20px 28px; margin: 0; border: 0; box-sizing: border-box; width: 100%;
   white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; tab-size: 4;
 }
@@ -652,3 +652,23 @@ input.lm-text-pill { cursor: text; user-select: text; }
 .lm-block-addons grammarly-extension, .lm-block-addons grammarly-popups, .lm-block-addons grammarly-desktop-integration,
 .lm-block-addons lt-toolbar, .lm-block-addons lt-highlighter, .lm-block-addons lt-div { display: none !important; }
 @media (max-width: 860px) { .lm-writer-body { flex-direction: column; } .lm-writer-check { width: auto; } }
+
+.lm-writer-support { font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: #EEF1F4; color: #50606F; }
+.lm-writer-support.on { background: var(--brand-sky); color: var(--ink); }
+.lm-writer-read { display: inline-flex; gap: 6px; }
+.lm-writer-mirror .w.speaking { background: #FBF2BB; box-shadow: 0 0 0 3px #FBF2BB; border-radius: 3px; }
+.lm-writer-caret-mark { display: inline-block; width: 0; height: 1em; vertical-align: baseline; }
+.lm-writer-shade { position: absolute; left: 0; right: 0; background: rgba(15, 43, 69, 0.38); pointer-events: none; z-index: 2; border-radius: 12px; }
+.lm-writer-suggest.quiet { visibility: hidden; }
+.lm-writer-settings-h { margin: 12px 0 4px; font-size: 0.95rem; }
+.lm-writer-record { margin: 0; padding-left: 18px; font-size: 0.85rem; }
+/* Color themes (student choice). Tints are comfort only, not a dyslexia treatment. */
+.lm-writer.theme-high .lm-writer-page { background: #000; border-color: #fff; }
+.lm-writer.theme-high .lm-writer-text { color: #fff; caret-color: #FAF003; }
+.lm-writer.theme-high .lm-writer-mirror .w.gram { text-decoration-color: #7FD3FF; }
+.lm-writer.theme-high .lm-writer-mirror .w.bad { text-decoration-color: #FF6B6B; }
+.lm-writer.theme-dark .lm-writer-page { background: #1E2430; border-color: #3A4556; }
+.lm-writer.theme-dark .lm-writer-text { color: #F2F4F7; caret-color: #FBF2BB; }
+.lm-writer.theme-cream .lm-writer-page { background: #FDF6E3; }
+.lm-writer .lm-writer-text:focus-visible { outline: none; }
+.lm-writer.focus-mode .lm-writer-bar .lm-writer-count { display: none; }

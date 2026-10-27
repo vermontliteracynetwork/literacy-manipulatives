@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from '../lib/montessoriGrammar';
 import { completionsFor, confidentFix, isWord, loadWords, suggestFor, wordsReady } from '../lib/writer/spell';
 import { checkLabels, checkSentence, splitSentences, tagForCheck, type CheckResult, type SentenceSpan } from '../lib/writer/sentenceCheck';
-import type { WriterSettings } from '../lib/writer/settings';
+import { readStudentTools, saveStudentTools, type StudentTools, type WriterSettings } from '../lib/writer/settings';
 
 // The Writer (teacher, 2026-10-27): a word processor separate from the whiteboard, in an environment the
 // teacher sets: spell check level, predictive text, auto-capitalization, her grammar symbols above or below the
@@ -11,6 +11,14 @@ import type { WriterSettings } from '../lib/writer/settings';
 
 const DOC_KEY = 'lm-writer-doc';
 const readDoc = () => { try { return sessionStorage.getItem(DOC_KEY) ?? ''; } catch { return ''; } };
+// The support record kept with the draft (Claudia's research: every sample notes the supports used, so
+// supported and unsupported writing are compared fairly, as her Program Overview requires).
+type SupportRecord = Record<'predictions' | 'autoFixes' | 'autoCaps' | 'spellingFixes' | 'sentenceFixes' | 'readAlouds' | 'echoes', number>;
+const EMPTY_RECORD: SupportRecord = { predictions: 0, autoFixes: 0, autoCaps: 0, spellingFixes: 0, sentenceFixes: 0, readAlouds: 0, echoes: 0 };
+const REC_KEY = 'lm-writer-record';
+const readRecord = (): SupportRecord => { try { return { ...EMPTY_RECORD, ...JSON.parse(sessionStorage.getItem(REC_KEY) ?? '{}') }; } catch { return EMPTY_RECORD; } };
+const SPACING = { normal: { ls: '0.01em', ws: '0em', extra: 0 }, wide: { ls: '0.06em', ws: '0.18em', extra: 8 }, wider: { ls: '0.12em', ws: '0.36em', extra: 16 } } as const;
+const speechOK = typeof window !== 'undefined' && 'speechSynthesis' in window;
 
 const SYMBOL_PX = { small: 20, medium: 32, large: 56 } as const;
 const FONT_PX = { small: 22, medium: 22, large: 26 } as const;
@@ -57,6 +65,54 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
   const pageRef = useRef<HTMLDivElement>(null);
   const mirrorRef = useRef<HTMLDivElement>(null);
   const pendingCaret = useRef<{ start: number; end: number } | null>(null);
+  const [mine, setMineState] = useState<StudentTools>(readStudentTools);
+  const setMine = (patch: StudentTools) => setMineState((m) => { const next = { ...m, ...patch }; saveStudentTools(next); return next; });
+  const [record, setRecord] = useState<SupportRecord>(readRecord);
+  const bump = (k: keyof SupportRecord) => setRecord((r) => ({ ...r, [k]: r[k] + 1 }));
+  useEffect(() => { try { sessionStorage.setItem(REC_KEY, JSON.stringify(record)); } catch { /* not saved */ } }, [record]);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [speaking, setSpeaking] = useState<{ start: number; end: number } | null>(null);
+  const caretMark = useRef<HTMLSpanElement>(null);
+  const [focusLine, setFocusLine] = useState<number | null>(null);
+
+  // What's actually on: teacher-set tools follow the teacher ('choice' lets the student decide); look-and-feel
+  // tools follow the student's pick, starting from the teacher's default.
+  const readAloudOn = speechOK && (settings.readAloud === 'on' || (settings.readAloud === 'choice' && !!mine.readAloud));
+  const echo = !speechOK ? 'off' : settings.typingEcho === 'choice' ? (mine.typingEcho ?? 'off') : settings.typingEcho;
+  const spacing = mine.spacing ?? settings.spacing;
+  const lineFocusOn = mine.lineFocus ?? settings.lineFocus;
+  const theme = mine.theme ?? settings.theme;
+  const focusModeOn = mine.focusMode ?? settings.focusMode;
+  const rate = mine.rate ?? 0.9;
+
+  // Read aloud, with the word being read highlighted.
+  const speak = (from: number, to: number, kind: 'read' | 'echo') => {
+    if (!speechOK) return;
+    const chunk = text.slice(from, to);
+    if (!chunk.trim()) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(chunk);
+    u.rate = rate;
+    if (kind === 'read') {
+      u.onboundary = (e) => {
+        if (e.name && e.name !== 'word') return;
+        const m = chunk.slice(e.charIndex).match(/^[A-Za-z']+/);
+        if (m) setSpeaking({ start: from + e.charIndex, end: from + e.charIndex + m[0].length });
+      };
+      u.onend = () => setSpeaking(null);
+      u.onerror = () => setSpeaking(null);
+      bump('readAlouds');
+    } else bump('echoes');
+    window.speechSynthesis.speak(u);
+  };
+  const speakNow = (t: string) => {
+    if (!speechOK || !t.trim()) return;
+    const u = new SpeechSynthesisUtterance(t);
+    u.rate = rate;
+    window.speechSynthesis.speak(u);
+    bump('echoes');
+  };
+  useEffect(() => () => { if (speechOK) window.speechSynthesis.cancel(); }, []);
 
   useEffect(() => { void loadWords().then(() => setReady(true)); }, []);
   // Writing add-ons blocked: the page also hides anything they inject while the Writer is open.
@@ -78,8 +134,19 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
 
   const sym = settings.symbols === 'off' ? 0 : SYMBOL_PX[settings.symbolSize];
   const fontPx = settings.symbols === 'off' ? 22 : FONT_PX[settings.symbolSize];
-  const lineHeight = sym ? Math.round(fontPx * 1.2 + 2 * (sym + 8)) : Math.round(fontPx * 1.7);
-  const pageStyle = { '--wr-font': `${fontPx}px`, '--wr-line': `${lineHeight}px`, '--wr-sym': `${sym}px` } as CSSProperties;
+  const lineHeight = (sym ? Math.round(fontPx * 1.2 + 2 * (sym + 8)) : Math.round(fontPx * 1.7)) + SPACING[spacing].extra;
+  const pageStyle = { '--wr-font': `${fontPx}px`, '--wr-line': `${lineHeight}px`, '--wr-sym': `${sym}px`, '--wr-ls': SPACING[spacing].ls, '--wr-ws': SPACING[spacing].ws } as CSSProperties;
+
+  // Line focus: find the line the cursor is on, from a marker in the mirror.
+  useLayoutEffect(() => {
+    if (!lineFocusOn) { if (focusLine !== null) setFocusLine(null); return; }
+    const mk = caretMark.current, page = pageRef.current;
+    if (!mk || !page) return;
+    const pad = 20;
+    const y = mk.getBoundingClientRect().top + mk.getBoundingClientRect().height / 2 - page.getBoundingClientRect().top;
+    const line = Math.max(0, Math.floor((y - pad) / lineHeight));
+    if (line !== focusLine) setFocusLine(line);
+  });
 
   // Sentences, their checks, and each word's symbol.
   const sentences = useMemo(() => splitSentences(text), [text]);
@@ -115,22 +182,30 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
     let wi = 0;
     const re = /[A-Za-z']+|[^A-Za-z']+/g;
     let m: RegExpExecArray | null;
+    let markPlaced = false;
+    const mark = () => { markPlaced = true; return <span key="caret-mark" ref={caretMark} className="lm-writer-caret-mark" />; };
     while ((m = re.exec(text))) {
       const tok = m[0];
       const start = m.index;
-      if (!/^[A-Za-z']/.test(tok)) { mirror.push(tok); continue; }
+      if (!/^[A-Za-z']/.test(tok)) {
+        if (!markPlaced && caret >= start && caret <= start + tok.length) { mirror.push(tok.slice(0, caret - start), mark(), tok.slice(caret - start)); continue; }
+        mirror.push(tok);
+        continue;
+      }
+      if (!markPlaced && caret === start) mirror.push(mark());
       const cls = wordClasses[wi++];
       const info = cls ? MONTESSORI_WORD_CLASS_INFO[cls] : undefined;
       const bad = misspelled(tok, start);
       const gram = !bad && flagged.some((s) => start >= s.start && start < s.end);
       mirror.push(
-        <span key={start} className={`w${bad ? ' bad' : ''}${gram ? ' gram' : ''}`} data-start={start}>
+        <span key={start} className={`w${bad ? ' bad' : ''}${gram ? ' gram' : ''}${speaking && start === speaking.start ? ' speaking' : ''}`} data-start={start}>
           {tok}
           {sym > 0 && info && <img className={`lm-writer-sym ${settings.symbols}`} src={info.imageUrl} alt="" draggable={false} />}
         </span>,
       );
     }
-    mirror.push('​');
+    if (!markPlaced) mirror.push(mark());
+    mirror.push('\u200b');
   }
 
   // Replace text and put the cursor (or a selection) where it belongs.
@@ -154,14 +229,22 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
         let next = word;
         if (settings.predict === 'auto') {
           const fix = confidentFix(word, lastWordBefore(v, ws), wordsAfter(v, pos));
-          if (fix && fix !== word) { next = fix; setUndo({ start: ws, from: word, to: fix }); }
+          if (fix && fix !== word) { next = fix; setUndo({ start: ws, from: word, to: fix }); bump('autoFixes'); }
         }
         if (settings.autoCap) {
+          const before = next;
           if (/^i(['’].*)?$/.test(next)) next = 'I' + next.slice(1);
           if (startsSentenceAt(v, ws)) next = capFirst(next);
+          if (next !== before) bump('autoCaps');
         }
+        if (echo === 'words') speakNow(next);
         if (next !== word) { v = v.slice(0, ws) + next + v.slice(ws + word.length); pos += next.length - word.length; pendingCaret.current = { start: pos, end: pos }; }
       }
+    }
+    // Typing echo for a whole sentence once its end mark goes in.
+    if (typed && /[.!?]/.test(typed) && (echo === 'sentences' || echo === 'words')) {
+      const sentence = v.slice(0, pos).match(/[^.!?\n]*[.!?]$/)?.[0];
+      if (sentence && echo === 'sentences') speakNow(sentence);
     }
     setPopup(null);
     setText(v);
@@ -192,6 +275,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
     if (!suggestions) return;
     const add = suggestions.end === caret ? ' ' : '';
     replaceRange(suggestions.start, suggestions.end, w + add);
+    bump('predictions');
   };
 
   // Spell check "Mark and suggest": tapping a marked word lists what it might be.
@@ -224,14 +308,43 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
     : {};
 
   const update = (patch: Partial<WriterSettings>) => onSettings({ ...settings, ...patch });
+  // A draft is "supported" when tools that shape what the student writes were on or were used.
+  const supportsOn = [
+    settings.spell !== 'off' && 'spell check', settings.predict !== 'off' && 'predictive text', settings.autoCap && 'auto-capitals',
+    settings.grammar !== 'off' && 'Sentence Check', settings.symbols !== 'off' && 'grammar symbols', readAloudOn && 'read aloud', echo !== 'off' && 'typing echo',
+  ].filter(Boolean) as string[];
+  const used = Object.values(record).some((n) => n > 0);
+  const supported = supportsOn.length > 0 || used;
+  const caretSentenceSpan = sentences.find((sp) => caret >= sp.start && caret <= sp.end + 1);
+  const newDraft = () => {
+    if (text.trim() && !window.confirm('Start a new draft? This writing will be cleared from this screen.')) return;
+    setText(''); setRecord(EMPTY_RECORD); setUndo(null); setPopup(null);
+  };
 
   return (
-    <div className={`lm-writer${settings.blockAddons ? ' lm-no-addons' : ''}`}>
+    <div className={`lm-writer theme-${theme}${focusModeOn ? ' focus-mode' : ''}`}>
       <header className="lm-writer-bar">
         {onBack && <button type="button" className="btn btn-sm" onClick={onBack}>← Whiteboard</button>}
         <span className="lm-sidebar-title">Writer{studentName ? `: ${studentName}` : ''}</span>
         <span className="lm-writer-count">{wordCount} {wordCount === 1 ? 'word' : 'words'} · {sentences.length} {sentences.length === 1 ? 'sentence' : 'sentences'}</span>
+        <span className={`lm-writer-support ${supported ? 'on' : ''}`} title={supported ? `Supported writing: ${supportsOn.join(', ') || 'supports used'}` : 'No writing supports on'}>
+          {supported ? 'Supported writing' : 'Unsupported writing'}
+        </span>
         <span style={{ flex: 1 }} />
+        {readAloudOn && (
+          <span className="lm-writer-read" role="group" aria-label="Read aloud">
+            {speaking ? (
+              <button type="button" className="btn btn-sm" onClick={() => { window.speechSynthesis.cancel(); setSpeaking(null); }}>Stop</button>
+            ) : (
+              <>
+                <button type="button" className="btn btn-sm" disabled={!caretSentenceSpan} onClick={() => caretSentenceSpan && speak(caretSentenceSpan.start, caretSentenceSpan.end, 'read')}>Read sentence</button>
+                <button type="button" className="btn btn-sm" disabled={!text.trim()} onClick={() => speak(0, text.length, 'read')}>Read all</button>
+              </>
+            )}
+          </span>
+        )}
+        <button type="button" className={`btn btn-sm${toolsOpen ? ' btn-primary' : ''}`} onClick={() => setToolsOpen((o) => !o)}>My tools</button>
+        <button type="button" className="btn btn-sm" onClick={newDraft}>New draft</button>
         {headerExtras}
         <button type="button" className={`btn btn-sm${settingsOpen ? ' btn-primary' : ''}`} onClick={() => setSettingsOpen((o) => !o)}>
           {canChangeSettings ? 'Writing settings' : 'Settings (set by your teacher)'}
@@ -240,7 +353,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
 
       <div className="lm-writer-body">
         <main className="lm-writer-main">
-          <div className="lm-writer-suggest" aria-live="polite">
+          <div className={`lm-writer-suggest${focusModeOn && !suggestions && !undo ? ' quiet' : ''}`} aria-live="polite">
             {suggestions ? (
               <>
                 <span className="lm-writer-suggest-label">Did you mean</span>
@@ -264,6 +377,12 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
           </div>
           <div className={`lm-writer-page${sym ? ` sym-${settings.symbols}` : ''}`} ref={pageRef} style={pageStyle}>
             <div className="lm-writer-mirror" ref={mirrorRef} aria-hidden="true">{mirror}</div>
+            {lineFocusOn && focusLine !== null && (
+              <>
+                <div className="lm-writer-shade" style={{ top: 0, height: 20 + focusLine * lineHeight }} aria-hidden="true" />
+                <div className="lm-writer-shade" style={{ top: 20 + (focusLine + 1) * lineHeight, bottom: 0 }} aria-hidden="true" />
+              </>
+            )}
             <textarea
               ref={taRef}
               className="lm-writer-text"
@@ -289,7 +408,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
             {popup && (
               <div className="lm-writer-popup" style={{ left: popup.left, top: popup.top }} role="dialog" aria-label={`Spelling of ${popup.word}`}>
                 {popup.options.length ? popup.options.map((o) => (
-                  <button key={o} type="button" className="lm-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => { replaceRange(popup.start, popup.start + popup.word.length, o); setPopup(null); }}>{o}</button>
+                  <button key={o} type="button" className="lm-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => { replaceRange(popup.start, popup.start + popup.word.length, o); setPopup(null); bump('spellingFixes'); }}>{o}</button>
                 )) : <span className="muted">No ideas for this one. Try sounding it out.</span>}
                 <button type="button" className="lm-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setPopup(null)}>Keep</button>
               </div>
@@ -297,7 +416,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
           </div>
         </main>
 
-        {settings.grammar !== 'off' && (
+        {settings.grammar !== 'off' && !(focusModeOn && flagged.length === 0) && (
           <aside className="lm-writer-check" aria-label="Sentence Check">
             <h2>Sentence Check</h2>
             {flagged.length === 0 && (
@@ -314,6 +433,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
                 const insert = target ? `${blank} ` : ` ${blank}`;
                 const startSel = target ? at : at + 1;
                 replaceRange(at, at, insert, [startSel, startSel + blank.length]);
+                bump('sentenceFixes');
               };
               const formulaClasses = r.formula ? r.formula.code.split(/[-,;:·“”"!?\s]+/).filter(Boolean).map((c) => CODE_CLASS[c]).filter(Boolean) : [];
               return (
@@ -333,13 +453,15 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
                       let fixed = s.text.replace(/\bi\b/g, 'I');
                       if (i >= 0 && !/[A-Z]/.test(s.text.slice(0, i))) fixed = fixed.slice(0, i) + fixed[i].toUpperCase() + fixed.slice(i + 1);
                       replaceRange(s.start, s.end, fixed, [s.end, s.end]);
+                      bump('sentenceFixes');
                     }}>Fix capitals</button>}
-                    {p.endMark && <button type="button" className="lm-tool-btn" onClick={() => replaceRange(s.end, s.end, '.')}>Add an end mark</button>}
+                    {p.endMark && <button type="button" className="lm-tool-btn" onClick={() => { replaceRange(s.end, s.end, '.'); bump('sentenceFixes'); }}>Add an end mark</button>}
                     {p.match && r.match.from && r.match.to && (
                       <button type="button" className="lm-tool-btn" onClick={() => {
                         const w = wordsInS[r.match.index!];
                         const at = s.start + (w.index ?? 0);
                         replaceRange(at, at + r.match.from!.length, r.match.to!, [s.end, s.end]);
+                        bump('sentenceFixes');
                       }}>Change {r.match.from} to {r.match.to}</button>
                     )}
                     {p.time && <span className="muted">Keep the Actions in the same time: past, present or future.</span>}
@@ -360,6 +482,22 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
         )}
       </div>
 
+      {toolsOpen && (
+        <div className="lm-writer-settings" role="dialog" aria-label="My tools">
+          <div className="space-between" style={{ marginBottom: 8 }}>
+            <strong>My tools</strong>
+            <button type="button" className="lm-float-x" onClick={() => setToolsOpen(false)} aria-label="Close my tools">×</button>
+          </div>
+          {settings.readAloud === 'choice' && speechOK && <Choice label="Read aloud" value={mine.readAloud ? 'on' : 'off'} disabled={false} onChange={(v) => setMine({ readAloud: v === 'on' })} options={[['off', 'Off'], ['on', 'On']]} />}
+          {(readAloudOn || echo !== 'off') && <Choice label="Reading speed" value={String(rate)} disabled={false} onChange={(v) => setMine({ rate: Number(v) })} options={[['0.7', 'Slow'], ['0.9', 'Medium'], ['1.1', 'Fast']]} />}
+          {settings.typingEcho === 'choice' && speechOK && <Choice label="Say my words back" value={mine.typingEcho ?? 'off'} disabled={false} onChange={(v) => setMine({ typingEcho: v })} options={[['off', 'Off'], ['words', 'Each word'], ['sentences', 'Each sentence']]} />}
+          <Choice label="Spacing" value={spacing} disabled={false} onChange={(v) => setMine({ spacing: v })} options={[['normal', 'Normal'], ['wide', 'Wide'], ['wider', 'Wider']]} />
+          <Choice label="Line focus" value={lineFocusOn ? 'on' : 'off'} disabled={false} onChange={(v) => setMine({ lineFocus: v === 'on' })} options={[['off', 'Off'], ['on', 'On']]} />
+          <Choice label="Colors" value={theme} disabled={false} onChange={(v) => setMine({ theme: v })} options={[['default', 'Standard'], ['high', 'High contrast'], ['dark', 'Dark'], ['cream', 'Cream']]} />
+          <Choice label="Focus mode" value={focusModeOn ? 'on' : 'off'} disabled={false} onChange={(v) => setMine({ focusMode: v === 'on' })} options={[['off', 'Off'], ['on', 'On']]} />
+          <p className="muted" style={{ margin: '8px 0 0' }}>These change how the page looks or sounds, not your writing.</p>
+        </div>
+      )}
       {settingsOpen && (
         <div className="lm-writer-settings" role="dialog" aria-label="Writing settings">
           <div className="space-between" style={{ marginBottom: 8 }}>
@@ -375,6 +513,24 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
           <Choice label="Symbol size" value={settings.symbolSize} disabled={!canChangeSettings} onChange={(v) => update({ symbolSize: v })} options={[['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']]} />
           <Choice label="Level" value={settings.level} disabled={!canChangeSettings} onChange={(v) => update({ level: v })} options={[['A', 'A (student words)'], ['B', 'B (both)'], ['C', 'C (grammar terms)']]} />
           <Choice label="Block writing add-ons (Grammarly and others)" value={settings.blockAddons ? 'on' : 'off'} disabled={!canChangeSettings} onChange={(v) => update({ blockAddons: v === 'on' })} options={[['on', 'Blocked'], ['off', 'Allowed']]} />
+          <h3 className="lm-writer-settings-h">Accessibility</h3>
+          <p className="muted" style={{ margin: '0 0 4px' }}>"Student choice" puts the tool in the student's My tools. Spacing, line focus, colors and focus mode are always the student's choice; you set where they start.</p>
+          <Choice label="Read aloud with highlighting" value={settings.readAloud} disabled={!canChangeSettings} onChange={(v) => update({ readAloud: v })} options={[['off', 'Off'], ['on', 'On'], ['choice', 'Student choice']]} />
+          <Choice label="Typing echo (say words back)" value={settings.typingEcho} disabled={!canChangeSettings} onChange={(v) => update({ typingEcho: v })} options={[['off', 'Off'], ['words', 'Each word'], ['sentences', 'Each sentence'], ['choice', 'Student choice']]} />
+          <Choice label="Spacing (starts at)" value={settings.spacing} disabled={!canChangeSettings} onChange={(v) => update({ spacing: v })} options={[['normal', 'Normal'], ['wide', 'Wide'], ['wider', 'Wider']]} />
+          <Choice label="Line focus (starts)" value={settings.lineFocus ? 'on' : 'off'} disabled={!canChangeSettings} onChange={(v) => update({ lineFocus: v === 'on' })} options={[['off', 'Off'], ['on', 'On']]} />
+          <Choice label="Colors (starts at)" value={settings.theme} disabled={!canChangeSettings} onChange={(v) => update({ theme: v })} options={[['default', 'Standard'], ['high', 'High contrast'], ['dark', 'Dark'], ['cream', 'Cream']]} />
+          <Choice label="Focus mode (starts)" value={settings.focusMode ? 'on' : 'off'} disabled={!canChangeSettings} onChange={(v) => update({ focusMode: v === 'on' })} options={[['off', 'Off'], ['on', 'On']]} />
+          <h3 className="lm-writer-settings-h">This draft's support record</h3>
+          <p style={{ margin: '0 0 4px' }}><strong>{supported ? 'Supported writing' : 'Unsupported writing'}</strong>{supportsOn.length ? `: ${supportsOn.join(', ')} on` : ''}.</p>
+          <ul className="lm-writer-record">
+            <li>Predictions picked: {record.predictions}</li>
+            <li>Words fixed automatically: {record.autoFixes}</li>
+            <li>Capitals added automatically: {record.autoCaps}</li>
+            <li>Spelling suggestions used: {record.spellingFixes}</li>
+            <li>Sentence Check fixes used: {record.sentenceFixes}</li>
+            <li>Read alouds: {record.readAlouds} · Words or sentences said back: {record.echoes}</li>
+          </ul>
         </div>
       )}
     </div>
