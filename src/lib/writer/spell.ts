@@ -161,6 +161,14 @@ export function confidentFix(typed: string, prev?: string, next?: string[]): str
   return clear && close ? matchCase(typed, a.word) : null;
 }
 
+// Spell check "Common words only" (her answer 2026-10-28): a word is marked only when it's a misspelling of one
+// of the ~4,000 most common words (tier 0), so younger writers aren't flooded with marks on harder words.
+export function missesCommonWord(typed: string, prev?: string, next?: string[]): boolean {
+  if (!wordsReady() || isWord(typed)) return false;
+  const top = rank(typed, slotAfter(prev), 1, next)[0];
+  return !!top && RANK.get(top.word) === 0 && (top.soundMatch || top.distance <= 2);
+}
+
 // Finishing the word being typed: common words that start the same way and fit the spot.
 export function completionsFor(prefix: string, prev?: string, limit = 3): string[] {
   if (!wordsReady() || prefix.length < 2 || !/^[a-z']+$/i.test(prefix)) return [];

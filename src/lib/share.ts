@@ -27,7 +27,9 @@ function getClient(): SupabaseClient | null {
 
 export type Access = 'view' | 'edit';
 export interface SharedStudent { id: string; name: string }
-export interface Snapshot<P, S> { placed: P[]; strokes: S[]; access: Record<string, Access>; font?: string; writer?: unknown; mode?: 'board' | 'writer' }
+export interface Snapshot<P, S> { placed: P[]; strokes: S[]; access: Record<string, Access>; font?: string; writer?: unknown; mode?: 'board' | 'writer'; pages?: unknown }
+// The Writer's shared pages travel as their own messages (event 'w'): see lib/writer/pages.ts.
+export type WriterHandler = (m: { t: string } & Record<string, unknown>) => void;
 // A student's edits, sent as changes against the last board they saw so two students moving different pieces
 // at once never undo each other.
 export interface Ops<P, S> { from: string; upserts: P[]; removes: string[]; strokeAdds: S[]; strokeRemoves: string[] }
@@ -113,8 +115,10 @@ const BROADCAST_EVERY_MS = 80;
 // ---------- Teacher ----------
 export function useHostSession<P extends { instanceId: string }, S extends { id: string }>(
   placed: P[], strokes: S[], applyOps: (ops: Ops<P, S>) => void, font?: string, focusIds: string[] = [],
-  extra: { writer?: unknown; mode?: 'board' | 'writer' } = {},
+  extra: { writer?: unknown; mode?: 'board' | 'writer'; pages?: unknown } = {}, onWriter?: WriterHandler,
 ) {
+  const writerRef = useRef(onWriter);
+  useEffect(() => { writerRef.current = onWriter; });
   const focus = useFocusChannel();
   const [code, setCode] = useState<string | null>(null);
   const [students, setStudents] = useState<SharedStudent[]>([]);
@@ -160,7 +164,8 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
         setRequests((r) => r.filter((id) => list.some((st) => st.id === id)));
         focus.prune(Object.keys(ch.presenceState()));
       });
-      ch.on('broadcast', { event: 'hello' }, () => sendSnapshot());
+      ch.on('broadcast', { event: 'hello' }, () => { sendSnapshot(); writerRef.current?.({ t: 'hello' }); });
+      ch.on('broadcast', { event: 'w' }, ({ payload }) => writerRef.current?.(payload as { t: string }));
       ch.on('broadcast', { event: 'request' }, ({ payload }) => {
         const from = (payload as { from?: string }).from;
         if (from) setRequests((r) => (r.includes(from) ? r : [...r, from]));
@@ -232,7 +237,8 @@ export function useHostSession<P extends { instanceId: string }, S extends { id:
   useSendFocus(channelRef, status === 'live', code ? `teacher-${code}` : null, 'Teacher', focusIds);
 
   const setStudentAccess = (id: string, a: Access) => { setAccess((m) => ({ ...m, [id]: a })); setRequests((r) => r.filter((x) => x !== id)); };
-  return { code, students, access, status, error, start, stop, setStudentAccess, sendPointer, remoteFocus: focus.remote, requests };
+  const sendWriter = useCallback((m: object) => { void channelRef.current?.send({ type: 'broadcast', event: 'w', payload: m }); }, []);
+  return { code, students, access, status, error, start, stop, setStudentAccess, sendPointer, remoteFocus: focus.remote, requests, sendWriter };
 }
 
 // ---------- Student ----------
@@ -249,8 +255,10 @@ export const studentId = (() => {
 })();
 
 export function useStudentSession<P extends { instanceId: string }, S extends { id: string }>(
-  onSnapshot: (snap: Snapshot<P, S>) => void, focusIds: string[] = [],
+  onSnapshot: (snap: Snapshot<P, S>) => void, focusIds: string[] = [], onWriter?: WriterHandler,
 ) {
+  const writerRef = useRef(onWriter);
+  useEffect(() => { writerRef.current = onWriter; });
   const focus = useFocusChannel();
   const [status, setStatus] = useState<'idle' | 'checking' | 'joined' | 'not-found' | 'ended' | 'error'>('idle');
   const [access, setAccess] = useState<Access>('view');
@@ -292,6 +300,7 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
       snapRef.current(snap);
     });
     ch.on('broadcast', { event: 'ended' }, () => setStatus('ended'));
+    ch.on('broadcast', { event: 'w' }, ({ payload }) => writerRef.current?.(payload as { t: string }));
     focus.listen(ch);
     ch.on('broadcast', { event: 'pointer' }, ({ payload }) => setTeacherPointer((payload as { p: TeacherPointer }).p ?? null));
     const problem = await joinChannel(ch);
@@ -328,7 +337,8 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
     setRequested(true);
   }, []);
 
-  return { status, access, name, error, checkCode, join, sendOps, teacherPointer, remoteFocus: focus.remote, requested, requestAccess };
+  const sendWriter = useCallback((m: object) => { void channelRef.current?.send({ type: 'broadcast', event: 'w', payload: m }); }, []);
+  return { status, access, name, error, checkCode, join, sendOps, teacherPointer, remoteFocus: focus.remote, requested, requestAccess, sendWriter };
 }
 
 // Changes from `before` to `after`, by id. Positions of pieces that are snapped into a row or a Sound Box are

@@ -403,8 +403,9 @@ snapshot is the accommodation record (her principles 4 and 5).
     spacing, line focus, contrast themes, focus mode, support record~~ (first version)
 7c. Accessibility batch 2: word banks with pictures, sentence frames, dictation (opt-in), motor access
 7d. Assessment mode: lock settings, stamp the sample supported or unsupported
-8. Next (after her answers below): printing/export, word bank, read aloud, saving per student, teacher
-   view of student drafts
+8. ~~Her answers to the 10 questions (2026-10-28)~~: see "Her answers" below
+9. Next: word banks from the board's word lists, sentence frames, motor access, sentence or word-count
+   goals, assessment mode (7c, 7d)
 
 ### 10 questions to steer the build
 
@@ -428,6 +429,25 @@ snapshot is the accommodation record (her principles 4 and 5).
    collect it at the end, or is writing private to the student's screen?
 10. **Extras**: printing/PDF, read aloud (text to speech), word banks from the board's word lists, a
     word count or sentence count goal?
+
+### Her answers (2026-10-28) and what was built
+
+| # | Her answer | Built |
+|---|---|---|
+| 1 | No PIN. Off a teacher's shared board, students have full access to the settings they define. | Unchanged: own device = every setting; joined to a board = the teacher's settings plus "Student choice" tools in My tools. |
+| 2 | Students stay in charge of automatic corrections: approve, undo, redo. | "Fix automatically" now waits for the student: Changed X to Y, **Keep** or **Undo**; after Undo, **Redo**. Nothing times out. Undos are counted in the support record. |
+| 3 | Levels of spell check. | Spell check: Off, **Common words only** (marks only misspellings of the ~4,000 most common words), All words. Spelling help is separate: Mark, or Mark and suggest. |
+| 4 | Symbols on or off, always above the words; large = the symbol sentence cards. | Symbols: Off, On, Student choice. Always above, centered on the word. Large is 72px, the card size, with wider word gaps so each word has its own column. "Below words" removed. |
+| 5 | Symbol centered, above the word. | Done (same as 4). |
+| 6 | A movable Sentence Check the student can tick; if they tick something that isn't done, show an open spot where it's needed; setting dependent. | The Sentence Check is a window the student drags anywhere. Setting "Who ticks the list": the Writer, the student, or student choice. When the student ticks an item that isn't done, it shows "Not yet" and dashed open spots appear in the writing: a slot where a missing subject or verb goes, a box where end punctuation goes, outlines on letters to capitalize, verbs that don't agree or change tense. |
+| 7 | Insert drops the symbol (a blank if symbols are off). Use the true grammar terms. | "Add a verb" / "Add a subject" drops a blank with the part's symbol over it. All check wording now uses subject, verb, capital letters, end punctuation, subject-verb agreement, verb tense, at every level. Levels now only change whether formula codes show. |
+| 8 | A correct sentence that isn't a formula yet: keep a list of these patterns for future formulas, and let students "add formula to my book". | Sentences that pass all five checks but match no formula are collected as **Formula ideas** (with examples and who wrote them; students' reach the teacher on a shared board). Students get **Add formula to my book** and a **Formula book** to look back at. |
+| 9 | Shared pages like tabs; the teacher and up to five students typing at once; per page and per student: pencil (edit), eye (view), X (hidden); e.g. an example page everyone can read and a page only one student sees. | **Pages** (tabs) in the Writer. The teacher adds pages, names them, and sets each student's access with pencil, eye or X, or "A page for each student". Everyone with edit access types in the same page at once, live, with each person's cursor and name shown in their color. Built on Yjs (a CRDT) over the board's Supabase channel; the teacher's copy is the true one and only accepts edits from students who may edit that page. |
+| 10 | Dictation first, then print. | **Dictate** (speech to text, "period", "comma", "question mark", "new line" spoken as marks), set Off / On / Student choice and counted in the support record. **Print** prints only the page with its symbols and a header: page name, student, date, supported or unsupported writing. |
+
+Honest limits: hidden pages are hidden in the student's screen, but their text still travels on the shared
+channel (a classroom setting, not a privacy guarantee). Dictation needs a browser with speech recognition
+(Chrome, Edge, Safari). Live co-editing needs the Supabase share setup, as the whiteboard does.
 
 ---
 

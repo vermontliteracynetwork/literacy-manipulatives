@@ -618,7 +618,7 @@ input.lm-text-pill { cursor: text; user-select: text; }
 .lm-writer-page { position: relative; background: #fff; border: 2px solid var(--content-border); border-radius: 14px; }
 .lm-writer-text, .lm-writer-mirror {
   font-family: var(--lm-font); font-size: var(--wr-font); line-height: var(--wr-line); letter-spacing: var(--wr-ls, 0.01em); word-spacing: var(--wr-ws, 0);
-  padding: 20px 28px; margin: 0; border: 0; box-sizing: border-box; width: 100%;
+  padding: 20px var(--wr-padx, 28px); margin: 0; border: 0; box-sizing: border-box; width: 100%;
   white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; tab-size: 4;
 }
 .lm-writer-mirror { position: absolute; inset: 0; color: transparent; pointer-events: none; overflow: hidden; }
@@ -627,11 +627,8 @@ input.lm-text-pill { cursor: text; user-select: text; }
 .lm-writer-mirror .w.bad { text-decoration: underline wavy #D2222E; text-decoration-skip-ink: none; text-underline-offset: 4px; }
 .lm-writer-mirror .w.gram { text-decoration: underline dotted var(--brand-blue); text-decoration-thickness: 2px; text-underline-offset: 5px; }
 .lm-writer-sym { position: absolute; left: 50%; transform: translateX(-50%); width: var(--wr-sym); height: var(--wr-sym); object-fit: contain; }
-.lm-writer-sym.above { bottom: calc(100% + 4px); }
-.lm-writer-sym.below { top: calc(100% + 4px); }
+.lm-writer-sym { bottom: calc(100% + 4px); }
 .lm-writer-popup { position: absolute; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px; max-width: 320px; padding: 6px; background: #fff; border: 2px solid var(--ink); border-radius: 12px; box-shadow: 0 6px 16px rgba(15, 43, 69, 0.18); }
-.lm-writer-check { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
-.lm-writer-check h2 { margin: 0; font-size: 1.1rem; }
 .lm-writer-check-card { background: #fff; border: 2px solid var(--content-border); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .lm-writer-check-text { margin: 0; font-weight: 700; }
 .lm-writer-fixes { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -651,7 +648,6 @@ input.lm-text-pill { cursor: text; user-select: text; }
 /* Writing add-ons blocked: hide anything Grammarly, LanguageTool and similar extensions draw on the page. */
 .lm-block-addons grammarly-extension, .lm-block-addons grammarly-popups, .lm-block-addons grammarly-desktop-integration,
 .lm-block-addons lt-toolbar, .lm-block-addons lt-highlighter, .lm-block-addons lt-div { display: none !important; }
-@media (max-width: 860px) { .lm-writer-body { flex-direction: column; } .lm-writer-check { width: auto; } }
 
 .lm-writer-support { font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: #EEF1F4; color: #50606F; }
 .lm-writer-support.on { background: var(--brand-sky); color: var(--ink); }
@@ -672,3 +668,59 @@ input.lm-text-pill { cursor: text; user-select: text; }
 .lm-writer.theme-cream .lm-writer-page { background: #FDF6E3; }
 .lm-writer .lm-writer-text:focus-visible { outline: none; }
 .lm-writer.focus-mode .lm-writer-bar .lm-writer-count { display: none; }
+
+/* Writer pages, shared live (2026-10-28) */
+.lm-writer-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.lm-writer-tab { position: relative; display: inline-flex; align-items: stretch; border: 2px solid var(--content-border); border-radius: 10px; background: #fff; }
+.lm-writer-tab.on { border-color: var(--brand-blue); box-shadow: 0 0 0 2px rgba(25, 104, 171, 0.2); }
+.lm-writer-tab > button[role="tab"] { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 0; background: none; font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; }
+.lm-writer-tab-menu { border: 0; border-left: 1px solid var(--content-border); background: none; padding: 0 8px; cursor: pointer; color: var(--ink); display: inline-flex; align-items: center; }
+.lm-writer-tab-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.lm-writer-tab-add { min-height: 36px; padding: 0 12px; border: 2px dashed var(--content-border); border-radius: 10px; background: transparent; font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; }
+.lm-writer-pagemenu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; width: min(360px, 90vw); display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: #fff; border: 3px solid var(--ink); border-radius: 12px; box-shadow: 0 8px 20px rgba(15, 43, 69, 0.2); }
+.lm-writer-input { display: block; width: 100%; margin-top: 4px; min-height: 36px; padding: 0 10px; border: 2px solid var(--content-border); border-radius: 8px; font: inherit; }
+.lm-writer-access-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 600; }
+.lm-writer-access-row .lm-share-toggle button { min-width: 40px; min-height: 32px; }
+.lm-writer-empty { display: flex; align-items: center; justify-content: center; min-height: 240px; }
+.lm-writer-fix { display: inline-flex; align-items: center; gap: 6px; padding: 2px 6px; border-radius: 10px; background: #FBF2BB; }
+
+/* Sentence Check window (movable) */
+.lm-writer-checkwin { position: fixed; z-index: 55; width: min(340px, calc(100vw - 32px)); max-height: calc(100vh - 160px); overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; background: #fff; border: 3px solid var(--ink); border-radius: 14px; box-shadow: 0 8px 20px rgba(15, 43, 69, 0.2); }
+.lm-writer-checkwin-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: move; touch-action: none; user-select: none; }
+.lm-writer-tick { display: inline-flex; align-items: center; gap: 8px; border: 0; background: none; padding: 0; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; text-align: left; }
+.lm-checklist li:has(.lm-writer-notyet) { flex-wrap: wrap; }
+.lm-writer-notyet { flex-basis: 100%; margin-left: 28px; font-size: 0.8rem; font-weight: 700; color: #B54708; }
+.lm-check-box.warn { border-color: #F76B15; border-style: dashed; background: #FEF3E7; }
+button.lm-writer-check-text { border: 0; background: none; padding: 0; text-align: left; font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; }
+.lm-writer-check-card.new { border-color: #30A46C; background: #F0FAF4; }
+.lm-writer-book-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--content-border); }
+.lm-writer-book-row > span:not(.lm-writer-formula-symbols) { flex: 1; }
+
+/* Open spots: where a checked item still needs work. Zero-width, so the words don't move. */
+.lm-writer-mirror .w.spot { outline: 2px dashed #F76B15; outline-offset: 3px; border-radius: 4px; }
+.lm-writer-gap { position: relative; display: inline-block; width: 0; height: 1em; vertical-align: baseline; }
+.lm-writer-gap > i { position: absolute; bottom: -0.2em; height: 1.2em; border: 2px dashed #F76B15; border-radius: 5px; background: rgba(247, 107, 21, 0.1); box-sizing: border-box; }
+/* A missing word: a slot in the space before the next word. A missing end mark: a box right after the last word. */
+.lm-writer-gap.part > i { left: -0.42em; width: 0.4em; }
+.lm-writer-gap.end > i { left: 1px; width: 0.55em; }
+.lm-writer-gap > .lm-writer-sym { left: -0.22em; }
+.lm-writer-mirror .w.blank { color: transparent; }
+/* Other people's cursors on a shared page */
+.lm-writer-rcaret { position: relative; display: inline-block; width: 0; height: 1em; vertical-align: baseline; }
+.lm-writer-rcaret > i { position: absolute; left: -1px; top: -0.15em; width: 2px; height: 1.3em; background: var(--c); }
+.lm-writer-rcaret > b { position: absolute; left: -1px; top: 1.15em; font-size: 11px; line-height: 1.4; font-weight: 700; padding: 0 5px; border-radius: 4px; color: #fff; background: var(--c); white-space: nowrap; letter-spacing: 0; word-spacing: 0; }
+
+/* Printing the Writer: just the page, with a header naming the writing and its supports. */
+.lm-writer-print-head { display: none; }
+@media print {
+  body * { visibility: hidden; }
+  .lm-writer, .lm-writer * { visibility: visible; }
+  .lm-writer { position: absolute; inset: 0; height: auto; background: #fff; }
+  .lm-writer-bar, .lm-writer-tabs, .lm-writer-suggest, .lm-writer-checkwin, .lm-writer-settings, .lm-writer-shade, .lm-writer-rcaret, .lm-writer-popup { display: none !important; }
+  .lm-writer-print-head { display: block; margin-bottom: 8px; font-size: 12pt; }
+  .lm-writer-body { padding: 0; overflow: visible; }
+  .lm-writer-page { border: 0; }
+  .lm-writer-mirror .w.bad, .lm-writer-mirror .w.gram { text-decoration: none; }
+  .lm-writer-mirror .w.spot { outline: none; }
+  .lm-writer-gap { display: none; }
+}

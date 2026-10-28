@@ -137,11 +137,8 @@ export function checkSentence(s: SentenceSpan): CheckResult {
   return { complete, missing, insertAt, capital, endMark: s.ended, match, time, code: codes.join('-'), formula, exact, words };
 }
 
-// The words a level uses (Program Overview, "One curriculum, three levels"): Level A leads with student
-// words, Level B uses both, Level C leads with grammar terms.
+// The words the check uses (her answer 2026-10-28): the true grammar terms at every level (verb, subject,
+// adjective), never stand-ins like "Action word". Levels change only whether formula codes show.
 export type Level = 'A' | 'B' | 'C';
-export function checkLabels(level: Level) {
-  if (level === 'A') return { complete: 'Who part and Action', capital: 'Capital at the start', endMark: 'End mark', match: 'Match (one or many)', time: 'Same time', who: 'a Who part', action: 'an Action word' };
-  if (level === 'C') return { complete: 'Complete sentence (subject and predicate)', capital: 'Capitalization', endMark: 'End punctuation', match: 'Subject-verb agreement', time: 'Consistent tense', who: 'a subject', action: 'a verb' };
-  return { complete: 'Complete (Who part and Action)', capital: 'Capital at the start', endMark: 'End mark', match: 'Match: subject and verb', time: 'Same time (tense)', who: 'a Who part (subject)', action: 'an Action word (verb)' };
-}
+export const CHECK_LABELS = { complete: 'Complete sentence (subject and verb)', capital: 'Capital letters', endMark: 'End punctuation', match: 'Subject-verb agreement', time: 'Same verb tense', who: 'a subject', action: 'a verb' } as const;
+export type CheckItem = 'complete' | 'capital' | 'endMark' | 'match' | 'time';

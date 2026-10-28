@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { useSyncedTTS, SyncedSpeakButton } from './components/SyncedSpeakButton';
 import { ReferencePopover } from './components/ReferencePopover';
 import { SANDBOX_PIECES } from './lib/grammarContent';
@@ -11,10 +11,12 @@ import { SharePanel } from './components/SharePanel';
 import { JoinScreen } from './components/JoinScreen';
 import { WelcomeChoice } from './components/WelcomeChoice';
 import { Writer } from './components/Writer';
-import { isWriterSettings, readWriterSettings, saveWriterSettings, type WriterSettings } from './lib/writer/settings';
+import { isWriterSettings, normalizeWriterSettings, readWriterSettings, saveWriterSettings, type WriterSettings } from './lib/writer/settings';
+import { PageStore, type PageMeta, type WriterMsg } from './lib/writer/pages';
+import { addIdea } from './lib/writer/formulaBook';
 import { SettingsPanel } from './components/SettingsPanel';
 import { isFontChoice, useFontChoice, type FontChoice } from './lib/fontChoice';
-import { diffItems, isJoinRoute, shareConfigured, studentId as myStudentId, useHostSession, useStudentSession, type Ops, type Snapshot } from './lib/share';
+import { diffItems, isJoinRoute, myColor, shareConfigured, studentId as myStudentId, useHostSession, useStudentSession, type Ops, type Snapshot } from './lib/share';
 import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from './lib/montessoriGrammar';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
 import { agreeWords, isKnownWord, patternFor, searchSymbolSentences, symbolsForWords, wordMismatch, type PatternWord } from './lib/sentenceSearch';
@@ -836,7 +838,14 @@ export default function LiteracyManipulatives() {
   const setWriterSettings = (w: WriterSettings) => { setWriterSettingsState(w); saveWriterSettings(w); };
   const [teacherWriter, setTeacherWriter] = useState<WriterSettings | null>(null);
   const [teacherMode, setTeacherMode] = useState<'board' | 'writer'>('board');
-  const host = useHostSession<PlacedItem, Stroke>(placed, strokes, applyOps, fontChoice.font, myFocusIds, { writer: writerSettings, mode: writerOpen ? 'writer' : 'board' });
+  // The Writer's pages (2026-10-28): the teacher's (or a student's own) are saved on this device; a joined
+  // student's come from the teacher.
+  const writerPages = useRef<PageStore | null>(null);
+  writerPages.current ??= new PageStore(joinMode ? 'student' : 'host', joinMode ? undefined : 'lm-writer-pages');
+  const pages = writerPages.current;
+  useSyncExternalStore(pages.subscribe, () => pages.version);
+  const host = useHostSession<PlacedItem, Stroke>(placed, strokes, applyOps, fontChoice.font, myFocusIds,
+    { writer: writerSettings, mode: writerOpen ? 'writer' : 'board', pages: joinMode ? undefined : pages.pages }, (m) => pages.receive(m as unknown as WriterMsg));
   const [shareOpen, setShareOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Every launch opens on the welcome pop-up, "Start a whiteboard" or "Join a board" (her request 2026-10-15).
@@ -853,12 +862,25 @@ export default function LiteracyManipulatives() {
   const student = useStudentSession<PlacedItem, Stroke>((snap: Snapshot<PlacedItem, Stroke>) => {
     fromTeacher.current = true;
     if (isFontChoice(snap.font)) setTeacherFont(snap.font);
-    if (isWriterSettings(snap.writer)) setTeacherWriter(snap.writer);
+    if (isWriterSettings(snap.writer)) setTeacherWriter(normalizeWriterSettings(snap.writer));
+    if (Array.isArray(snap.pages)) pages.setSharedPages(snap.pages as PageMeta[]);
     setTeacherMode(snap.mode === 'writer' ? 'writer' : 'board');
     lastSynced.current = { placed: snap.placed, strokes: snap.strokes };
     setPlaced(snap.placed);
     setStrokes(snap.strokes);
-  }, myFocusIds);
+  }, myFocusIds, (m) => pages.receive(m as unknown as WriterMsg));
+  // Writer pages travel on the board's channel while it's shared.
+  const writerLive = joinMode ? student.status === 'joined' : host.status === 'live';
+  useEffect(() => {
+    pages.me = joinMode ? { id: myStudentId, name: student.name || 'Student', color: myColor } : { id: 'teacher', name: 'Teacher', color: myColor };
+    pages.send = writerLive ? (joinMode ? student.sendWriter : host.sendWriter) : null;
+    if (!joinMode) pages.onFormula = (m) => { addIdea(m.code, m.sentence, m.name); };
+    if (!writerLive || joinMode) return;
+    // Now and then the teacher re-sends every page, so a student who missed a change catches up.
+    pages.syncAll();
+    const t = window.setInterval(() => pages.syncAll(), 20000);
+    return () => window.clearInterval(t);
+  }, [writerLive, joinMode, student.name, student.sendWriter, host.sendWriter, pages]);
   const studentCanEdit = joinMode && student.status === 'joined' && student.access === 'edit';
   const studentViewOnly = joinMode && !studentCanEdit;
   const showWriter = joinMode ? student.status === 'joined' && teacherMode === 'writer' : writerOpen;
@@ -2205,6 +2227,9 @@ export default function LiteracyManipulatives() {
           onSettings={setWriterSettings}
           onBack={joinMode ? undefined : () => setWriterOpen(false)}
           studentName={joinMode ? student.name : undefined}
+          pages={pages}
+          students={joinMode ? [] : host.students}
+          sharing={writerLive}
           headerExtras={joinMode ? (
             <span className="lm-share-badge">Writing with your teacher{student.name ? `, ${student.name}` : ''}</span>
           ) : (
