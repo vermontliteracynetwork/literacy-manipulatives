@@ -768,3 +768,27 @@ button.lm-writer-check-text { border: 0; background: none; padding: 0; text-alig
 .lm-formula-version { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .lm-formula-tense { min-width: 60px; font-weight: 700; font-size: 0.8rem; }
 .lm-formulas-grip { position: absolute; right: 4px; bottom: 2px; font-size: 18px; line-height: 1; cursor: nwse-resize; user-select: none; touch-action: none; color: var(--ink); opacity: 0.7; }
+
+/* Her formula cards (2026-10-28) */
+.lm-writer-card { display: block; width: 100%; max-width: 520px; height: auto; border: 1px solid var(--content-border); border-radius: 10px; background: #fff; }
+.lm-formula-card { display: block; width: 100%; padding: 0; border: 1px solid var(--content-border); border-radius: 10px; background: #fff; cursor: pointer; }
+.lm-formula-card img { display: block; width: 100%; height: auto; border-radius: 10px; }
+.lm-formula-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 0.85rem; }
+.lm-formula-code { margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: #EEF1F4; font-weight: 700; font-size: 0.75rem; }
+.lm-formula-same { padding: 1px 8px; border-radius: 999px; background: #E5F4E4; color: #2F8A5B; font-weight: 700; font-size: 0.75rem; }
+.lm-formula-pattern { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px; }
+.lm-writer-formula-symbols.labeled { gap: 10px; align-items: flex-end; }
+.lm-formula-slot { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; }
+.lm-formula-slot-label { font-size: 0.7rem; font-weight: 700; white-space: nowrap; }
+.lm-writer-formula-symbols.labeled img { width: 34px; height: 34px; }
+
+/* Write with this formula: her card's slots above the page, filling in as the sentence is written */
+.lm-writer-frame { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 10px 44px 10px 12px; background: #fff; border: 2px dashed var(--brand-blue); border-radius: 12px; }
+.lm-writer-frame.done { border-style: solid; border-color: #2F8A5B; background: #F0FAF4; }
+.lm-writer-frame > .lm-float-x { position: absolute; top: 8px; right: 8px; }
+.lm-writer-frame-slots { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.lm-writer-frame-slot { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; min-width: 64px; padding: 4px 6px; border: 2px solid transparent; border-radius: 10px; font-size: 0.72rem; font-weight: 700; opacity: 0.55; }
+.lm-writer-frame-slot img { width: 36px; height: 36px; object-fit: contain; }
+.lm-writer-frame-slot.filled { opacity: 1; border-color: #2F8A5B; background: #F0FAF4; }
+.lm-writer-frame-slot.next { opacity: 1; border-color: var(--brand-blue); box-shadow: 0 0 0 2px rgba(25, 104, 171, 0.2); }
+.lm-writer-frame-word { min-height: 1em; font-size: 0.8rem; color: var(--ink); }

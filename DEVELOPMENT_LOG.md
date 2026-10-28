@@ -489,7 +489,7 @@ snapshot is the accommodation record (her principles 4 and 5).
 4. **Recheck.** Every open-word job is checked against the dictionary again, and every article, number or
    my/your/their must lead to a noun (describing words in a row, with commas or "and", end in one).
 
-Tested on all 117 of her formula sentences (116 match her codes) and 30 everyday sentences (all match).
+Tested on her formula model sentences and 32 everyday sentences (all match).
 
 ### How spelling suggestions are ordered (her note 2026-10-28: "the most likely word first")
 
@@ -511,6 +511,32 @@ sentence clearly ended (a describing or how word, a capital letter, or "is/was" 
 isn't marked. Commands ("Close the door.", "First, wash your hands.") and short replies ("Yes.", "Thank you.")
 aren't fragments. Tested: 24 example sentences right, none of her 117 formula sentences marked. Also: "Dr. Lee"
 no longer splits into two sentences.
+
+### Her formula cards power Write mode (2026-10-28)
+
+Her Symbolic Grammar Formula Cards folder (Formula Master List PDF: 118 formulas, Units 1-10, plus a formula card and
+a sentence card for each) replaces the earlier 117-row list. `scripts/import-formula-cards.py` reads the PDF and the
+cards and writes `src/lib/writer/formulas.ts` (lesson, her code, the card's words, slots, model sentence, card
+images) and small WebP copies of the 236 cards in `public/literacy/formula-cards/` (2.2 MB).
+
+- **Matching reads a sentence the way her cards do** (`src/lib/writer/formulaMatch.ts`): one card per word, a
+  prepositional phrase as one card ("to the park"), required words named on the card (be, will, do, not, feel,
+  and, because, that...), contractions as two cards. All 118 model sentences match their own card except one
+  ("According to the book, frogs swallow food whole": "whole" reads as a describing word).
+- **Her codes for new sentences**: a sentence that matches no card gets a code in her notation (S1-S6, Sn, Q1-Q3,
+  C1/C2/Cn, E1/E3; A, PN, P, N's, V, J, B, PRP, C, I; (X)+(Y), (X)C(Y), C(X)(Y), (X);(Y), B(X), PRP(X), PN(X),
+  P'V and V'B for contractions). Her own codes come out the same for 112 of her 118 model sentences; the rest use
+  notation for relative clauses ([1.P]), quotes and appositives that isn't built yet.
+- **Sentence formulas** shows each formula card (tap for the sentence card), her code (Levels B and C), the card
+  words, the model sentence and its past, present and future; search by words, code or lesson, or type a
+  sentence to find the cards with its pattern ("Same as your sentence").
+- **Write with this formula** puts the card's slots above the page; each slot fills in (with the student's word)
+  as the sentence is written, the next one is highlighted, and the frame turns green when the sentence matches.
+- **Sentence Check, Formula tab** shows the matching formula card, or the closest card's sentence card to try,
+  or "A new formula" with her code and the symbols, to add to the student's formula book.
+- Symbol accuracy work done for this: possessives ("the dog's bone", "her hands"), "Which dog", "more exciting",
+  "as hot as", "until the bus came" (a joining word), questions with be, "isn't wet", "so that", and a sentence
+  always gets a verb when one of its words can be one.
 
 Honest limits: hidden pages are hidden in the student's screen, but their text still travels on the shared
 channel (a classroom setting, not a privacy guarantee). Dictation needs a browser with speech recognition

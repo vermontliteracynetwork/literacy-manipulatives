@@ -10,6 +10,7 @@ import { LOCAL, accessFor, type PageAccess, type PageStore } from '../lib/writer
 import { addIdea, addToBook, readBook, readIdeas, type BookEntry, type FormulaIdea } from '../lib/writer/formulaBook';
 import { addMyWord, myWords, myWordsVersion, removeMyWord, subscribeMyWords } from '../lib/writer/myWords';
 import type { TaggedWord } from '../lib/writer/tagger';
+import { sentenceSlots, slotClass as slotClassOf, slotDistance, slotLabel, slotMatches } from '../lib/writer/formulaMatch';
 import type { FontChoice } from '../lib/fontChoice';
 
 // Write mode (teacher, 2026-10-27; named "Write" 2026-10-28): a word processor separate from the whiteboard, in
@@ -143,6 +144,8 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
   const caretMark = useRef<HTMLSpanElement>(null);
   const [focusLine, setFocusLine] = useState<number | null>(null);
   const [newWord, setNewWord] = useState({ word: '', cls: 'propernoun' as MontessoriWordClass });
+  // "Write with this formula": her formula card above the page, each slot lighting up as the sentence fills it.
+  const [frame, setFrame] = useState<{ slots: string[]; sentence: string; code: string; card?: string } | null>(null);
   const checkWin = useDragSpot('lm-writer-checkpos', { x: Math.max(16, (typeof window === 'undefined' ? 1200 : window.innerWidth) - 400), y: 140 });
 
   // The page's text lives in the shared document; other people's typing moves this person's cursor along.
@@ -622,8 +625,8 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
       const r = checkSentence(s);
       if (!r.formula || r.exact || !r.complete || !r.capital || !r.match.ok || !r.time) continue;
       logged.current.add(s.text);
-      setIdeas(addIdea(r.code, s.text, studentName ?? ''));
-      if (sharing && !canChangeSettings) store.send?.({ t: 'formula', from: store.me.id, name: studentName ?? '', code: r.code, sentence: s.text });
+      setIdeas(addIdea(r.code, s.text, studentName ?? '', r.slots));
+      if (sharing && !canChangeSettings) store.send?.({ t: 'formula', from: store.me.id, name: studentName ?? '', code: r.code, sentence: s.text, slots: r.slots });
     }
   }, [sentences, sharing, canChangeSettings, studentName, store]);
 
@@ -815,6 +818,31 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
               </span>
             ))}
           </div>
+          {frame && (() => {
+            const s = sentences.find((sp) => caret >= sp.start && caret <= sp.end + 1) ?? (text.trim() ? undefined : { start: 0, end: 0, text: '', ended: false });
+            const mineSlots = s && s.text ? sentenceSlots(tagForCheck(s.text), s.text) : [];
+            let filled = 0;
+            while (filled < frame.slots.length && filled < mineSlots.length && slotMatches(frame.slots[filled], mineSlots[filled])) filled++;
+            const done = mineSlots.length > 0 && slotDistance(frame.slots, mineSlots) === 0 && !!s?.ended;
+            return (
+              <div className={`lm-writer-frame${done ? ' done' : ''}`} role="group" aria-label="Formula to write with">
+                <div className="lm-writer-frame-slots">
+                  {frame.slots.map((slot, i) => {
+                    const info = MONTESSORI_WORD_CLASS_INFO[slotClassOf(slot)];
+                    return (
+                      <span key={i} className={`lm-writer-frame-slot${i < filled ? ' filled' : i === filled ? ' next' : ''}`}>
+                        <span style={{ color: info.color }}>{slotLabel(slot)}</span>
+                        <img src={info.imageUrl} alt="" />
+                        <span className="lm-writer-frame-word">{i < filled ? mineSlots[i].word : ''}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+                <span className="muted">{done ? 'This sentence matches the formula.' : `Model: ${frame.sentence}`}{settings.level !== 'A' ? ` · ${frame.code}` : ''}</span>
+                <button type="button" className="lm-float-x" onClick={() => setFrame(null)} aria-label="Stop writing with this formula">×</button>
+              </div>
+            );
+          })()}
           <div className="lm-writer-print-head">
             <strong>{page?.title ?? 'Writing'}</strong>{studentName ? ` · ${studentName}` : ''} · {today} · {supported ? `Supported writing (${supportsOn.join(', ') || 'supports used'})` : 'Unsupported writing'}
           </div>
@@ -943,27 +971,27 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
                 </div>
               ) : (
                 <div className="lm-writer-check-card">
+                  {/* Her formula cards: the card this sentence matches, or the closest one to try. */}
                   {cr.formula && cr.exact && (
                     <>
-                      <span className="lm-writer-formula-name">Formula: {cr.formula.name}{settings.level !== 'A' ? ` (${cr.formula.code})` : ''}</span>
-                      <FormulaSymbols code={cr.formula.code} />
+                      <span className="lm-writer-formula-name">Formula {cr.formula.lesson}: {cr.formula.formula}{settings.level !== 'A' ? ` (${cr.formula.code})` : ''}</span>
+                      <img className="lm-writer-card" src={cr.formula.card} alt={cr.formula.formula} />
                     </>
                   )}
                   {cr.formula && !cr.exact && Object.values(cp).some(Boolean) && (
                     <>
-                      <span className="lm-writer-formula-name">Try this formula: {cr.formula.name}{settings.level !== 'A' ? ` (${cr.formula.code})` : ''}</span>
-                      <FormulaSymbols code={cr.formula.code} />
-                      <span className="muted">Model: {cr.formula.sentence}</span>
+                      <span className="lm-writer-formula-name">Try formula {cr.formula.lesson}: {cr.formula.formula}{settings.level !== 'A' ? ` (${cr.formula.code})` : ''}</span>
+                      <img className="lm-writer-card" src={cr.formula.sentenceCard} alt={cr.formula.sentence} />
                     </>
                   )}
                   {cr.formula && !cr.exact && !Object.values(cp).some(Boolean) && (
                     <>
                       <span className="lm-writer-formula-name">A new formula{settings.level !== 'A' ? `: ${cr.code}` : ''}</span>
-                      <FormulaSymbols code={cr.code} />
-                      <span className="muted">This sentence is correct and isn't in the formula list yet.</span>
+                      <FormulaSymbols slots={cr.slots} labels />
+                      <span className="muted">This sentence is correct and isn't one of the formula cards yet.</span>
                       {book.some((e) => e.code === cr.code)
                         ? <span className="muted">It's in your formula book.</span>
-                        : <button type="button" className="lm-tool-btn" onClick={() => setBook(addToBook(cr.code, cs.text))}>Add formula to my book</button>}
+                        : <button type="button" className="lm-tool-btn" onClick={() => setBook(addToBook(cr.code, cs.text, cr.slots))}>Add formula to my book</button>}
                     </>
                   )}
                   <button type="button" className="lm-tool-btn" onClick={() => setFormulasOpen(true)}>Open Sentence formulas</button>
@@ -975,7 +1003,8 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
       )}
 
       {formulasOpen && (
-        <SentenceFormulas level={settings.level} book={book} onBook={setBook} ideas={ideas} onIdeas={setIdeas} showIdeas={canChangeSettings} onClose={() => setFormulasOpen(false)} />
+        <SentenceFormulas level={settings.level} book={book} onBook={setBook} ideas={ideas} onIdeas={setIdeas} showIdeas={canChangeSettings} onClose={() => setFormulasOpen(false)}
+          onUse={(f) => { setFrame(f); setFormulasOpen(false); taRef.current?.focus(); }} />
       )}
 
       {/* One Settings menu: what the teacher sets and what's the student's own choice, each marked. */}

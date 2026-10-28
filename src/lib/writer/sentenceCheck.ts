@@ -1,7 +1,8 @@
-import { agreeWords, wordJobs, type PatternWord } from '../sentenceSearch';
+import { agreeWords, type PatternWord } from '../sentenceSearch';
 import { tagInContext, type TaggedWord } from './tagger';
 import type { MontessoriWordClass } from '../montessoriGrammar';
-import { SENTENCE_FORMULAS, type SentenceFormula } from './formulas';
+import type { SentenceFormula } from './formulas';
+import { cardSlotsOf, closestFormula, formulaCode, sentenceSlots } from './formulaMatch';
 
 // The Writer's grammar check is her Sentence Check (Symbolic Grammar Program Overview, principle 9): every
 // sentence, every time, five things: complete (a Who part and an Action), capital at the start (and on names
@@ -51,19 +52,10 @@ const isWho = (c: MontessoriWordClass) => c === 'noun' || c === 'propernoun' || 
 // counts as the Action, so a new verb isn't called missing; known nouns and describing words never do.
 const MODALS = new Set(['will', 'would', 'can', 'could', 'should', 'must', 'may', 'might', 'shall', "won't", "can't", "don't", "doesn't", "didn't"]);
 export function tagForCheck(text: string): TaggedWord[] {
-  // Each word's job from the word itself and its place in the sentence (tagger.ts); helping words (will, can,
-  // don't...) are part of the verb, as in her A-N-V-V formulas.
-  const words = tagInContext(text).map((w) => (MODALS.has(w.word.toLowerCase()) ? { ...w, wordClass: 'verb' as MontessoriWordClass } : w));
-  if (words.some((w) => w.wordClass === 'verb')) return words;
-  const who = words.findIndex((w) => isWho(w.wordClass));
-  if (who < 0) return words;
-  for (let i = who + 1; i < words.length; i++) {
-    if (wordJobs(words[i].word).size === 0 && !/^[A-Z]/.test(words[i].word)) {
-      return words.map((w, k) => (k === i ? { ...w, wordClass: 'verb' } : w));
-    }
-    if (isWho(words[i].wordClass)) continue;
-  }
-  return words;
+  // Each word's job from the word itself and its place in the sentence (tagger.ts, which also makes sure a
+  // sentence gets a verb when one of its words can be one); helping words (will, can, don't...) are verbs, as in
+  // her formulas.
+  return tagInContext(text).map((w) => (MODALS.has(w.word.toLowerCase()) ? { ...w, wordClass: 'verb' as MontessoriWordClass } : w));
 }
 
 export interface CheckResult {
@@ -75,33 +67,10 @@ export interface CheckResult {
   match: { ok: boolean; index?: number; from?: string; to?: string };
   time: boolean;
   code: string;
+  slots: string[];
   formula: SentenceFormula | null;
   exact: boolean;
   words: PatternWord[];
-}
-
-const codeTokens = (code: string) => code.split(/[-,;:·“”"!?\s]+/).filter(Boolean);
-function tokenDistance(a: string[], b: string[]): number {
-  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
-  for (let j = 1; j <= b.length; j++) d[0][j] = j;
-  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-  return d[a.length][b.length];
-}
-const unitNumber = (f: SentenceFormula) => parseInt(f.unit, 10) || 99;
-
-// The closest formula from her list: an exact match if there is one, otherwise the nearest complete formula
-// (fewest slots to add, change or take out), preferring earlier units.
-export function closestFormula(codes: string[]): { formula: SentenceFormula | null; exact: boolean } {
-  let best: SentenceFormula | null = null;
-  let bestScore = Infinity;
-  for (const f of SENTENCE_FORMULAS) {
-    const ft = codeTokens(f.code);
-    const dist = tokenDistance(codes, ft);
-    const score = dist * 10 + unitNumber(f) * 0.1;
-    if (score < bestScore) { bestScore = score; best = f; }
-  }
-  const exact = !!best && tokenDistance(codes, codeTokens(best.code)) === 0;
-  return { formula: best, exact };
 }
 
 export function checkSentence(s: SentenceSpan): CheckResult {
@@ -155,9 +124,10 @@ export function checkSentence(s: SentenceSpan): CheckResult {
   });
   const time = !(times.has('past') && times.has('present'));
   // Her formulas write a contraction like "doesn't" as one verb (A-N-V-V) and "Let's" as a verb and a pronoun.
-  const codes = words.flatMap((w) => (w.parts && w.parts[1] !== 'adverb' ? w.parts : [w.wordClass]).map((c) => CODE[c] ?? 'N'));
-  const { formula, exact } = closestFormula(codes);
-  return { complete, missing, insertAt, capital, endMark: s.ended, match, time, code: codes.join('-'), formula, exact, words };
+  // Her formula cards: the closest card, and her code for this sentence (a new formula when no card matches).
+  const mine = sentenceSlots(words, s.text);
+  const { formula, exact } = closestFormula(mine);
+  return { complete, missing, insertAt, capital, endMark: s.ended, match, time, code: formulaCode(mine, s.text), slots: cardSlotsOf(mine), formula, exact, words };
 }
 
 // The words the check uses (her answer 2026-10-28): the true grammar terms at every level (verb, subject,
@@ -187,7 +157,7 @@ export function sentenceIssue(s: SentenceSpan): SentenceIssue {
   const lower = words.map((w) => w.word.toLowerCase());
   const cls = words.map((w) => w.wordClass);
   // One-word answers and exclamations ("Yes.", "Wow!") are fine on their own.
-  if (words.every((w) => w.wordClass === 'interjection' || w.wordClass === 'adverb') || (words.length <= 2 && REPLIES.test(lower.join(' ')))) return null;
+  if ((words.length === 1 && /!\s*["”']?$/.test(s.text)) || words.every((w) => w.wordClass === 'interjection' || w.wordClass === 'adverb') || (words.length <= 2 && REPLIES.test(lower.join(' ')))) return null;
   const r = checkSentence(s);
   if (!r.complete) return { kind: 'fragment', why: r.missing === 'who' ? 'subject' : 'verb' };
   // "Because I was tired." : a joining word starts it, and no main idea follows.

@@ -20,7 +20,7 @@ export type WriterMsg =
   | { t: 'upd'; page: string; update: string; from: string }
   | { t: 'rel'; page: string; update: string }
   | { t: 'caret'; from: string; name: string; color: string; page: string; rel: unknown }
-  | { t: 'formula'; from: string; name: string; code: string; sentence: string };
+  | { t: 'formula'; from: string; name: string; code: string; sentence: string; slots?: string[] };
 
 export const LOCAL = 'local';
 const REMOTE = 'remote';

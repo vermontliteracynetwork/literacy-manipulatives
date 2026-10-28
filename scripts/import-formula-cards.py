@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+"""Imports her Symbolic Grammar formula cards (2026-10-28) into Write mode.
+
+Reads the folder from her "Symbolic_Grammar_Formula_Cards" zip: the Formula Master List PDF (118 formulas, Units
+1-10: lesson, code, formula, example) and one formula card and one sentence card per formula. Writes
+src/lib/writer/formulas.ts and small WebP copies of the cards in public/literacy/formula-cards/.
+
+Usage: python3 scripts/import-formula-cards.py "<path to Symbolic_Grammar_Formula_Cards folder>"
+Needs pdftotext (poppler) and ImageMagick's convert.
+"""
+import collections, json, os, re, subprocess, sys
+
+src = sys.argv[1]
+repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+text = subprocess.run(['pdftotext', '-layout', os.path.join(src, 'Symbolic_Grammar_Formula_Master_List.pdf'), '-'], capture_output=True, text=True, check=True).stdout
+
+# The PDF is a table; a long cell wraps onto the lines above and below its row, so each blank-line-separated block
+# holds one or more rows, and every wrapped line goes to the neighbouring row whose same cell is empty.
+HEAD = re.compile(r'\s*(\d+\.\d+\.\d+)\s+(\S+)')
+rows, unit, cols, block = [], None, None, []
+def cell(line, c):
+    f, e = cols
+    return (line[f - 1:e - 1] if c == 'formula' else line[e - 1:]).strip()
+def flush():
+    global block
+    if block and cols:
+        heads = [i for i, l in enumerate(block) if HEAD.match(l)]
+        recs = {i: {'unit': unit, 'lesson': HEAD.match(block[i]).group(1), 'code': HEAD.match(block[i]).group(2), 'formula': [], 'example': []} for i in heads}
+        for c in ('formula', 'example'):
+            for k, l in enumerate(block):
+                v = cell(l, c)
+                if not v:
+                    continue
+                if k in recs:
+                    recs[k][c].append((k, v)); continue
+                cands = [h for h in (max([h for h in heads if h < k], default=None), min([h for h in heads if h > k], default=None)) if h is not None]
+                empty = [h for h in cands if not cell(block[h], c)]
+                target = empty[0] if len(empty) == 1 else min(cands, key=lambda h: (abs(h - k), -h))
+                recs[target][c].append((k, v))
+        for i in heads:
+            r = recs[i]
+            for c in ('formula', 'example'):
+                r[c] = re.sub(r'\s+', ' ', ' '.join(v for _, v in sorted(r[c])))
+            r['formula'] = r['formula'].replace(' v erb', ' verb').replace('ve rb', 'verb')
+            rows.append(r)
+    block = []
+for line in text.split('\n'):
+    m = re.match(r'\s*Unit (\d+): (.+?)\s*$', line)
+    if m:
+        flush(); unit = f'{m.group(1)} {m.group(2)}'; continue
+    if re.match(r'\s*Lesson\s+Code', line):
+        flush(); cols = (line.index('Formula'), line.index('Example')); continue
+    if not line.strip() or 'Symbolic Grammar ·' in line:
+        flush(); continue
+    block.append(line)
+flush()
+assert len(rows) == 118, len(rows)
+
+# Cards are named <lesson>-<n>_<code>_formula.png / _sentence.png, n counting formulas within a lesson.
+cards = collections.defaultdict(dict)
+for d in os.listdir(src):
+    p = os.path.join(src, d)
+    if os.path.isdir(p):
+        for f in os.listdir(p):
+            m = re.match(r'(\d+\.\d+\.\d+)-(\d+)_.+_(formula|sentence)\.png$', f)
+            if m:
+                cards[(m.group(1), int(m.group(2)))][m.group(3)] = os.path.join(p, f)
+out_dir = os.path.join(repo, 'public', 'literacy', 'formula-cards')
+os.makedirs(out_dir, exist_ok=True)
+seen = collections.Counter()
+for r in rows:
+    seen[r['lesson']] += 1
+    key = (r['lesson'], seen[r['lesson']])
+    for kind in ('formula', 'sentence'):
+        name = f'{key[0]}-{key[1]}-{kind}.webp'
+        subprocess.run(['convert', cards[key][kind], '-resize', '1000x', '-strip', '-quality', '80', os.path.join(out_dir, name)], check=True)
+        r['card' if kind == 'formula' else 'sentenceCard'] = f'/literacy/formula-cards/{name}'
+
+# Slots: the formula's words, one per card. Two-word names join up; a contraction ("pronoun'be") is two slots.
+NAMES = {'article': 'article', 'noun': 'noun', 'proper noun': 'propernoun', 'pronoun': 'pronoun', 'verb': 'verb', 'adjective': 'adjective',
+         'adverb': 'adverb', 'preposition': 'preposition', 'prepositional phrase': 'phrase', 'conjunction': 'conjunction', 'interjection': 'interjection'}
+def slots(formula):
+    words = formula.replace("'", " ' ").split()
+    out, i = [], 0
+    while i < len(words):
+        two = ' '.join(words[i:i + 2])
+        if two in NAMES:
+            out.append(NAMES[two]); i += 2; continue
+        if words[i] != "'":
+            out.append(NAMES.get(words[i], words[i]))
+        i += 1
+    return out
+for r in rows:
+    r['slots'] = slots(r['formula'])
+
+lines = [
+    '// Her Symbolic Grammar Formula Master List (2026-10-28): 118 formulas, Units 1-10, each with its formula card and',
+    '// sentence card. Generated by scripts/import-formula-cards.py from her formula card folder; edit there, not here.',
+    '// code: her formula code (S1.A, (S1.A)+(S1.A)...). formula: the words above the symbols on the card (a required',
+    '// word replaces the part-of-speech name, and any form of be is "be"). slots: the same, one per card, with',
+    '// "phrase" for a prepositional phrase.',
+    'export interface SentenceFormula { unit: string; lesson: string; code: string; formula: string; slots: string[]; sentence: string; card: string; sentenceCard: string }',
+    '',
+    'export const SENTENCE_FORMULAS: SentenceFormula[] = [',
+]
+for r in rows:
+    rec = {'unit': r['unit'], 'lesson': r['lesson'], 'code': r['code'], 'formula': r['formula'], 'slots': r['slots'], 'sentence': r['example'], 'card': r['card'], 'sentenceCard': r['sentenceCard']}
+    lines.append('  ' + json.dumps(rec, ensure_ascii=False) + ',')
+lines.append('];')
+open(os.path.join(repo, 'src', 'lib', 'writer', 'formulas.ts'), 'w').write('\n'.join(lines) + '\n')
+print(f'{len(rows)} formulas, {2 * len(rows)} cards')

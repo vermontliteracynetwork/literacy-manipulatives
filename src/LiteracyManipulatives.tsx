@@ -874,7 +874,7 @@ export default function LiteracyManipulatives() {
   useEffect(() => {
     pages.me = joinMode ? { id: myStudentId, name: student.name || 'Student', color: myColor } : { id: 'teacher', name: 'Teacher', color: myColor };
     pages.send = writerLive ? (joinMode ? student.sendWriter : host.sendWriter) : null;
-    if (!joinMode) pages.onFormula = (m) => { addIdea(m.code, m.sentence, m.name); };
+    if (!joinMode) pages.onFormula = (m) => { addIdea(m.code, m.sentence, m.name, m.slots); };
     if (!writerLive || joinMode) return;
     // Now and then the teacher re-sends every page, so a student who missed a change catches up.
     pages.syncAll();
