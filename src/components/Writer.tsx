@@ -263,7 +263,14 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
 
   // Sentences and each word's job (from the word and its place in the sentence).
   const sentences = useMemo(() => splitSentences(text), [text]);
-  const tagged = useMemo(() => sentences.flatMap((s) => tagForCheck(s.text)), [sentences]);
+  const sentenceTags = useMemo(() => sentences.map((s) => tagForCheck(s.text)), [sentences]);
+  const tagged = useMemo(() => sentenceTags.flat(), [sentenceTags]);
+  // Prepositional phrases ("under the old bridge"): one cube over the whole phrase, as on her cards.
+  const phrases = useMemo(() => sentences.flatMap((s, k) => {
+    const spans = [...s.text.matchAll(WORD_RE)];
+    return sentenceSlots(sentenceTags[k], s.text).flatMap((x) => (x.slot === 'phrase' && x.from !== undefined && x.to !== undefined && x.to > x.from && spans[x.to]
+      ? [{ start: s.start + (spans[x.from].index ?? 0), end: s.start + (spans[x.to].index ?? 0) + spans[x.to][0].length }] : []));
+  }), [sentences, sentenceTags]);
   // Incomplete sentences (fragments) get a red wavy line and run-ons a blue one, once the sentence has its end
   // mark and the student has moved on from it (her request 2026-10-28).
   const issues = useMemo(() => (settings.grammar === 'off' ? [] : sentences.filter((s) => s.ended).flatMap((s) => {
@@ -357,17 +364,27 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
     // Everything inside a sentence with a problem goes into one span carrying its wavy line.
     const ranges = shownIssues.map(({ s, issue }) => ({ start: s.start, end: s.end, kind: issue.kind }));
     let group: { end: number; nodes: ReactNode[] } | null = null;
+    // Inside that, the words of a prepositional phrase go into one span carrying one cube. Each word's own
+    // symbol waits in `held` until the phrase ends: one cube if the whole phrase is finished and spelled right,
+    // otherwise each word's symbol as usual.
+    type Phrase = { end: number; nodes: ReactNode[]; held: { into: ReactNode[]; sym: ReactNode | null }[] };
+    let phrase: Phrase | null = null;
     const emit = (at: number, ...nodes: ReactNode[]) => {
+      if (phrase && at >= phrase.end) phrase = null;
       if (group && at >= group.end) group = null;
       if (!group) {
         const r = ranges.find((x) => at >= x.start && at < x.end);
         if (r) { group = { end: r.end, nodes: [] }; mirror.push(<span key={`issue${r.start}`} className={`lm-writer-issue ${r.kind}`}>{group.nodes}</span>); }
       }
-      (group ? group.nodes : mirror).push(...nodes);
+      if (!phrase) {
+        const p = phrases.find((x) => at >= x.start && at < x.end);
+        if (p) { phrase = { end: p.end, nodes: [], held: [] }; (group ? group.nodes : mirror).push(<span key={`ph${p.start}`} className="lm-writer-phrase">{phrase.nodes}</span>); }
+      }
+      (phrase ? phrase.nodes : group ? group.nodes : mirror).push(...nodes);
     };
     const cuts = ranges.flatMap((r) => [r.start, r.end]);
     const symRow = (classes: MontessoriWordClass[]) => (
-      <span className={`lm-writer-sym${classes.length > 1 ? ' two' : ''}`}>
+      <span key="sym" className={`lm-writer-sym${classes.length > 1 ? ' two' : ''}`}>
         {classes.map((c, k) => <img key={k} src={MONTESSORI_WORD_CLASS_INFO[c].imageUrl} alt="" draggable={false} />)}
       </span>
     );
@@ -417,12 +434,21 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
       // ball"): the symbol would teach the wrong job. The second gets a dotted line when spell check is on.
       const wrongWord = !bad && finished && wordsReady() && isWord(tok) && suggestFor(tok, lastWordBefore(text, start), 1, wordsAfter(text, end)).length > 0;
       const noSymbol = bad || tw?.unsure || wrongWord || (wordsReady() && !isWord(tok) && !/^[A-Z]/.test(tok));
+      const symSpot: ReactNode[] = [];
+      const own = sym > 0 && finished && !noSymbol && classes.length > 0 ? symRow(classes) : null;
       emit(start,
         <span key={start} className={`w${bad ? ' bad' : ''}${wrongWord && settings.spell !== 'off' ? ' unsure' : ''}${wordSpots.has(start) ? ' spot' : ''}${speaking && start === speaking.start ? ' speaking' : ''}`} data-start={start}>
           {piece(tok, start)}
-          {sym > 0 && finished && !noSymbol && classes.length > 0 && symRow(classes)}
+          {symSpot}
         </span>,
       );
+      const ph = phrase as Phrase | null; // set inside emit
+      if (!ph) { if (own) symSpot.push(own); continue; }
+      ph.held.push({ into: symSpot, sym: own });
+      if (end === ph.end) {
+        if (sym > 0 && ph.held.every((h) => h.sym)) ph.nodes.push(symRow(['preposition']));
+        else for (const h of ph.held) if (h.sym) h.into.push(h.sym);
+      }
     }
     const endGap = gapAt(text.length);
     if (endGap) mirror.push(endGap);
@@ -551,14 +577,15 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
       const prev = lastWordBefore(text, start);
       const fixesFor = isWord(m[1]) ? [] : suggestFor(m[1], prev, 2);
       const words = [...new Set([...fixesFor, ...completionsFor(m[1], prev, 3)])].slice(0, 4);
-      return words.length ? { start, end: caret, words } : null;
+      // A real word still being typed gets ways to finish it, not "Did you mean".
+      return words.length ? { start, end: caret, words, fix: fixesFor.length > 0 } : null;
     }
     const prevM = text.slice(0, caret).match(/([A-Za-z']+)[\s,;:]+$/);
     if (prevM) {
       const end = caret - (prevM[0].length - prevM[1].length);
       const start = end - prevM[1].length;
       const words = suggestFor(prevM[1], lastWordBefore(text, start), 3, wordsAfter(text, end));
-      return words.length ? { start, end, words } : null;
+      return words.length ? { start, end, words, fix: true } : null;
     }
     return null;
   })();
@@ -788,7 +815,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
               <span className="lm-writer-suggest-label">Hearing: <em>{heard}</em></span>
             ) : suggestions ? (
               <>
-                <span className="lm-writer-suggest-label">Did you mean</span>
+                <span className="lm-writer-suggest-label">{suggestions.fix ? 'Did you mean' : 'Finish the word'}</span>
                 {suggestions.words.map((w, i) => (
                   <button key={w} type="button" className="lm-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => acceptSuggestion(w)}>
                     {w}{i === 0 && <kbd>Tab</kbd>}

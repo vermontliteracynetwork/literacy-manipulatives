@@ -7,7 +7,7 @@ import type { MontessoriWordClass } from '../montessoriGrammar';
 // and required words (be, will, do, not, feel, and, because...) named on the card itself. Contractions are two
 // cards ("We're": pronoun, be).
 
-export interface Slot { slot: string; word: string; key?: string; comma: boolean; semi?: boolean; contracted?: 'not' | 'pronoun' }
+export interface Slot { slot: string; word: string; key?: string; comma: boolean; semi?: boolean; contracted?: 'not' | 'pronoun'; from?: number; to?: number }
 
 const BE = new Set(['am', 'is', 'are', 'was', 'were', 'be', 'been', 'being']);
 const DO = new Set(['do', 'does', 'did']);
@@ -63,7 +63,8 @@ export function sentenceSlots(words: TaggedWord[], text: string): Slot[] {
       while (j < words.length && ['article', 'adjective', 'adverb'].includes(words[j].wordClass) && !NOUNISH.has(words[j].wordClass)) j++;
       if (j < words.length && (NOUNISH.has(words[j].wordClass) || (words[j].wordClass === 'pronoun'))) {
         while (j + 1 < words.length && words[j + 1].wordClass === 'noun' && !/[,;]/.test(gap(j + 1))) j++;
-        out.push({ slot: 'phrase', word: words.slice(i, j + 1).map((x) => x.word.toLowerCase()).join(' '), comma, semi });
+        const from = words[i - 1]?.word.toLowerCase() === 'according' && lower === 'to' ? i - 1 : i;
+        out.push({ slot: 'phrase', word: words.slice(i, j + 1).map((x) => x.word.toLowerCase()).join(' '), comma, semi, from, to: j });
         i = j;
         continue;
       }

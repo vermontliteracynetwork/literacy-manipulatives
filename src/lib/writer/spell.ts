@@ -135,15 +135,17 @@ function editDistance(a: string, b: string): number {
 
 // What kind of word the spot calls for, from the word just before it.
 // After will / can / to / don't the action is in its base form (catch, not caught or catches).
-const BEFORE_BASE = new Set(['will', 'would', 'can', 'could', 'should', 'must', 'may', 'might', 'shall', 'to', 'do', 'does', 'did', "don't", "doesn't", "didn't", "can't", "won't", "let's", 'please']);
+const BEFORE_BASE = new Set(['will', 'would', 'can', 'could', 'should', 'must', 'may', 'might', 'shall', 'do', 'does', 'did', "don't", "doesn't", "didn't", "can't", "won't", "let's", 'please']);
 const BEFORE_VERB = new Set(['i', 'you', 'we', 'they', 'he', 'she', 'it']);
 const IRREGULAR_PAST = new Set(['was', 'were', 'had', 'did', 'went', 'came', 'saw', 'got', 'made', 'took', 'gave', 'said', 'told', 'knew', 'thought', 'felt', 'ran', 'ate', 'drank', 'slept', 'sat', 'stood', 'swam', 'flew', 'wrote', 'drew', 'sang', 'rode', 'threw', 'caught', 'found', 'kept', 'built', 'brought', 'bought', 'sold', 'wore', 'held', 'hid', 'fell', 'grew', 'taught', 'won', 'lost', 'left', 'met', 'paid', 'sent', 'spent', 'woke', 'dug', 'fought', 'sank', 'shone', 'spun', 'swung', 'began', 'broke', 'chose', 'drove', 'forgot', 'heard', 'meant', 'spoke', 'stole', 'understood']);
 const isBaseForm = (w: string) => !/(ed|ing)$/.test(w) && !IRREGULAR_PAST.has(w) && !(/[^s]s$/.test(w) && wordJobs(w.slice(0, -1)).has('verb'));
 const BEFORE_NOUN = new Set(['a', 'an', 'the', 'my', 'your', 'his', 'her', 'our', 'their', 'this', 'that', 'these', 'those', 'some', 'every', 'each', 'many', 'its']);
-export type Slot = 'base' | 'verb' | 'noun' | null;
+// After "to": a base verb is likeliest ("to play"), but "to the park" and "to town" are right too.
+export type Slot = 'base' | 'to' | 'verb' | 'noun' | null;
 export function slotAfter(prev: string | undefined): Slot {
   const p = (prev ?? '').toLowerCase();
   if (BEFORE_BASE.has(p)) return 'base';
+  if (p === 'to') return 'to';
   if (BEFORE_VERB.has(p)) return 'verb';
   if (BEFORE_NOUN.has(p)) return 'noun';
   return null;
@@ -151,11 +153,11 @@ export function slotAfter(prev: string | undefined): Slot {
 const fitsSlot = (w: string, slot: Slot): boolean => {
   if (!slot) return true;
   const jobs = new Set([...wordJobs(w), ...(commonDictionaryJobs(w) ?? [])]);
-  if (slot === 'base') return jobs.has('verb') && isBaseForm(w.toLowerCase());
+  if (slot === 'base' || slot === 'to') return jobs.has('verb') && isBaseForm(w.toLowerCase());
   if (slot === 'verb') return jobs.has('verb');
   return jobs.has('noun') || jobs.has('adjective') || (!jobs.size && !/(ly|ed|ing)$/.test(w));
 };
-const knownJobsDontFit = (w: string, slot: Slot) => !!slot && wordJobs(w).size > 0 && !fitsSlot(w, slot);
+const knownJobsDontFit = (w: string, slot: Slot) => !!slot && slot !== 'to' && wordJobs(w).size > 0 && !fitsSlot(w, slot);
 
 export function debugRank(typed: string, prev?: string, next?: string[]) { return rank(typed, slotAfter(prev), 6, next); }
 // Actions that go with everyday things, so the words after a spot help too ("cat the ball" -> catch).

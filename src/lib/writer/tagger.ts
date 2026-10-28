@@ -58,6 +58,8 @@ const endsInHelper = (lower: string) => /('ll|'d|n't)$/.test(lower.replace(/’/
 const clean = (w: string) => w.replace(/^'+|'+$/g, '');
 const isNounish = (c: C | undefined) => c === 'noun' || c === 'propernoun' || c === 'pronoun';
 
+// Words for going somewhere: "went to school", "drove to town".
+const MOVING = /^(go|goes|went|gone|come|comes|came|run|runs|ran|walk|walks|walked|drive|drives|drove|fly|flies|flew|ride|rides|rode|move|moves|moved|return|returns|returned|get|gets|got|swim|swims|swam|travel|travels|traveled|hurry|hurried|rush|rushed|head|headed|race|raced|sail|sailed|hike|hiked|skip|skipped|hop|hopped|climb|climbed)$/;
 interface Tok { gapAfter?: string; word: string; lower: string; jobs: Set<C>; dict: C[]; known: boolean; unknown: boolean; unsure: boolean; clauseStart: boolean; afterComma: boolean; next?: Tok }
 const CLOSED = (w: string) => PREPOSITION.has(w) || SUBORDINATE_OR_PREP.has(w) || ADVERB.has(w) || WH_ADVERB.has(w) || CONJUNCTION.has(w) || SUBJECT.has(w)
   || OBJECT.has(w) || POSSESSIVE.has(w) || WH_PRONOUN.has(w) || ARTICLE.has(w) || w === 'so' || BE.has(w) || DO.has(w) || HAVE.has(w) || HELPERS.has(w) || DETERMINER.has(w) || NUMBER.test(w);
@@ -100,7 +102,7 @@ const nounAhead = (t?: Tok): boolean => {
   if (t.jobs.has('adjective')) return nounAhead(t.next);
   return false;
 };
-const startsNounPhrase = (t?: Tok) => !!t && (ARTICLE.has(t.lower) || POSSESSIVE.has(t.lower) || OBJECT.has(t.lower) || SUBJECT.has(t.lower) || DETERMINER.has(t.lower) || NUMBER.test(t.lower) || /^[A-Z]/.test(t.word) || nounAhead(t));
+const startsNounPhrase = (t?: Tok) => !!t && (ARTICLE.has(t.lower) || POSSESSIVE.has(t.lower) || OBJECT.has(t.lower) || SUBJECT.has(t.lower) || DETERMINER.has(t.lower) || NUMBER.test(t.lower) || /^[A-Z]/.test(t.word) || nounAhead(t) || (t.dict[0] === 'noun' && !t.next?.jobs.has('noun')));
 
 export interface TaggedWord extends PatternWord { parts?: C[]; unsure?: boolean }
 
@@ -215,7 +217,8 @@ export function tagInContext(text: string): TaggedWord[] {
     if (PREPOSITION.has(w)) { pick(startsNounPhrase(next) ? 'preposition' : 'adverb'); continue; }
     if (FLEX.has(w) && (t.clauseStart || t.afterComma || prevWord === 'please') && next && (ARTICLE.has(next.lower) || POSSESSIVE.has(next.lower))) { pick('verb'); continue; }
     if (FLEX.has(w)) { pick(prev === 'article' || prev === 'adjective' || nounAhead(next) ? 'adjective' : prev === 'verb' && !BE.has(prevWord) && !LINKING.has(prevWord) ? 'adverb' : 'adjective'); continue; }
-    if (ADVERB.has(w)) { pick('adverb'); continue; }
+    // "from home", "until tomorrow": after a preposition these name a place or time.
+    if (ADVERB.has(w)) { pick(prev === 'preposition' && t.dict.includes('noun') ? 'noun' : 'adverb'); continue; }
     if (wordJobs(w).has('interjection') && t.clauseStart) { pick('interjection'); continue; }
 
     // A capital letter where a sentence or quote doesn't start means a name. At the start, a capitalized word
@@ -231,9 +234,16 @@ export function tagInContext(text: string): TaggedWord[] {
     // Open words (nouns, verbs, describing words, how words): decided by the words around them.
     const can = (c: C) => t.jobs.has(c);
     const afterHelper = HELPERS.has(prevWord) || DO.has(prevWord) || endsInHelper(prevWord) || prevWord === 'to' || prevWord === "let's" || (prevWord === 'not' && (DO.has(toks[i - 2]?.lower ?? '') || HELPERS.has(toks[i - 2]?.lower ?? '')));
-    if (afterHelper && (can('verb') || t.unknown)) { pick('verb'); continue; }
+    // "want to fish" is a verb, but "went to school" is a place: after a moving word and "to", a word the
+    // dictionary knows best as a noun.
+    const toPlace = prevWord === 'to' && t.dict[0] === 'noun' && (out[i - 2] !== 'verb' || MOVING.test(toks[i - 2]?.lower ?? ''));
+    if (afterHelper && (can('verb') || t.unknown) && !toPlace) { pick('verb'); continue; }
     // "chases the ball daily.": an -ly word ending the sentence tells how or when.
     if (/ly$/.test(w) && t.dict.includes('adverb') && (!next || next.clauseStart)) { pick('adverb'); continue; }
+    // "Go.", "Go dog go.", "Stop!": a sentence that opens with a word the dictionary knows best as a verb is a
+    // command, unless the next word is that word's verb ("Work is hard", "Love helps").
+    if (t.clauseStart && !t.afterComma && t.dict[0] === 'verb' && !/(ed|ing)$/.test(w)
+      && !(next && !next.clauseStart && (aux(next.lower) || (/[^s]s$/.test(next.lower) && next.jobs.has('verb'))))) { pick('verb'); continue; }
     // "Did the dog bark?": after a question's helper and its subject, the next word that can be a verb is.
     if (questionHelper && !questionVerbDone && isNounish(prev) && (can('verb') || t.unknown) && (!BE.has(toks[0].lower) && !BE.has(toks[1]?.lower ?? '') || /ing$/.test(w))) { questionVerbDone = true; pick('verb'); continue; }
     // "runs and jumps", "big and red": the word after "and" or "or" does the same job as the word before it.

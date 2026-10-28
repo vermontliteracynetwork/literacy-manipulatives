@@ -538,6 +538,26 @@ images) and small WebP copies of the 236 cards in `public/literacy/formula-cards
   "as hot as", "until the bus came" (a joining word), questions with be, "isn't wet", "so that", and a sentence
   always gets a verb when one of its words can be one.
 
+### One cube over a prepositional phrase, and "Go. Go dog go." (2026-10-28)
+
+Her requests: "yes, show one cube over the prepositional phrase" and, with a picture of "Go. Go dog go" showing
+a noun on "Go.", a describing word on "Go", and a fragment line under "Go.": "this is clearly wrong".
+
+- **Phrase cube:** a finished prepositional phrase ("under the old bridge", "to the park") shows one preposition
+  cube centered over the whole phrase instead of a symbol on each word, as on her cards. While the phrase is still
+  being typed, or if a word in it is misspelled, each word keeps its own symbol (or none) until it is fixed.
+  `Slot` in `formulaMatch.ts` now carries the phrase's word range (`from`, `to`).
+- **Commands:** a sentence that opens with a word the dictionary knows best as a verb is a command: "Go." "Stop!"
+  "Go dog go." (verb, noun, verb), "Walk to school." Not when the next word is that word's verb ("Work is hard",
+  "Love helps us"). "Go." is no longer marked as a fragment.
+- **After "to":** "went to school", "ran to town" (a place after a moving word) are nouns; "want to fish" stays a
+  verb. "the", "town" and other words after "to" are no longer flagged as the wrong word. "from home", "until
+  tomorrow": a noun after a preposition.
+- The suggestion bar says "Finish the word" (not "Did you mean") when the word being typed is already spelled
+  right.
+- `scripts/import-formula-cards.py` now takes any number of formulas and units, finds the Master List PDF by
+  name, and names any formula whose cards are missing instead of stopping.
+
 Honest limits: hidden pages are hidden in the student's screen, but their text still travels on the shared
 channel (a classroom setting, not a privacy guarantee). Dictation needs a browser with speech recognition
 (Chrome, Edge, Safari). Live co-editing needs the Supabase share setup, as the whiteboard does.
