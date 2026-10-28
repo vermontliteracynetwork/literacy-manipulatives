@@ -241,7 +241,7 @@ export function tagInContext(text: string): TaggedWord[] {
     if (isNounish(prev) && !verbInClause && (can('verb') || t.unknown || SUBJECT.has(prevWord))) { pick('verb'); continue; }
     // Start of a clause: a describing word before a noun, a command verb ("Thank you", "Close the door"), or a noun.
     if (t.clauseStart || t.afterComma || prev === 'conjunction' || prevWord === 'please') {
-      const commandAhead = next && (ARTICLE.has(next.lower) || OBJECT.has(next.lower) || POSSESSIVE.has(next.lower) || next.lower === 'you' || next.lower === 'it');
+      const commandAhead = next && (ARTICLE.has(next.lower) || OBJECT.has(next.lower) || POSSESSIVE.has(next.lower) || DETERMINER.has(next.lower) || next.lower === 'you' || next.lower === 'it');
       if (can('adjective') && nounAhead(next)) pick('adjective');
       else if ((can('verb') || t.unknown) && commandAhead && !(can('noun') && !can('verb'))) pick('verb');
       else if (can('noun')) pick('noun');

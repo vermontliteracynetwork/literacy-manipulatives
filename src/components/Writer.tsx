@@ -4,7 +4,7 @@ import { Icon } from './Icon';
 import { SentenceFormulas, FormulaSymbols } from './SentenceFormulas';
 import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from '../lib/montessoriGrammar';
 import { completionsFor, confidentFix, isWord, loadWords, missesCommonWord, suggestFor, wordsReady } from '../lib/writer/spell';
-import { CHECK_LABELS, checkSentence, splitSentences, tagForCheck, type CheckItem, type CheckResult, type SentenceSpan } from '../lib/writer/sentenceCheck';
+import { CHECK_LABELS, checkSentence, sentenceIssue, splitSentences, tagForCheck, type CheckItem, type CheckResult, type SentenceIssue, type SentenceSpan } from '../lib/writer/sentenceCheck';
 import { readStudentTools, saveStudentTools, type Spacing, type StudentTools, type WriterSettings } from '../lib/writer/settings';
 import { LOCAL, accessFor, type PageAccess, type PageStore } from '../lib/writer/pages';
 import { addIdea, addToBook, readBook, readIdeas, type BookEntry, type FormulaIdea } from '../lib/writer/formulaBook';
@@ -53,8 +53,8 @@ const ITEM_HELP: Record<CheckItem, string> = {
 
 // "Add a verb" drops in a blank with the part's symbol over it (a blank alone when symbols are off). The blank is
 // three underscores and an invisible marker naming the part, so the symbol stays with it.
-const PLACEHOLDER_MARK = { verb: '​', noun: '‌' } as const;
-const MARK_CLASS: Record<string, MontessoriWordClass> = { '​': 'verb', '‌': 'noun' };
+const PLACEHOLDER_MARK = { verb: '\u200b', noun: '\u200c' } as const;
+const MARK_CLASS: Record<string, MontessoriWordClass> = { '\u200b': 'verb', '\u200c': 'noun' };
 const DICTIONARY_TYPES: [MontessoriWordClass, string][] = [['propernoun', 'Name (proper noun)'], ['noun', 'Noun'], ['verb', 'Verb'], ['adjective', 'Adjective'], ['adverb', 'Adverb'], ['interjection', 'Interjection']];
 
 const WORD_RE = /[A-Za-z']+/g;
@@ -126,6 +126,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
   const [fixes, setFixes] = useState<Fix[]>([]);
   const fixId = useRef(0);
   const [popup, setPopup] = useState<{ start: number; word: string; options: string[]; left: number; top: number; adding: boolean } | null>(null);
+  const [issuePop, setIssuePop] = useState<{ s: SentenceSpan; issue: NonNullable<SentenceIssue>; left: number; top: number } | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
   const mirrorRef = useRef<HTMLDivElement>(null);
@@ -260,6 +261,15 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
   // Sentences and each word's job (from the word and its place in the sentence).
   const sentences = useMemo(() => splitSentences(text), [text]);
   const tagged = useMemo(() => sentences.flatMap((s) => tagForCheck(s.text)), [sentences]);
+  // Incomplete sentences (fragments) get a red wavy line and run-ons a blue one, once the sentence has its end
+  // mark and the student has moved on from it (her request 2026-10-28).
+  const issues = useMemo(() => (settings.grammar === 'off' ? [] : sentences.filter((s) => s.ended).flatMap((s) => {
+    const issue = sentenceIssue(s);
+    return issue ? [{ s, issue }] : [];
+  })), [sentences, settings.grammar]);
+  // Not while the student is still writing that sentence.
+  const [lastEdit, setLastEdit] = useState(-1);
+  const shownIssues = issues.filter(({ s }) => !(focused && caret >= s.start && caret <= s.end && lastEdit >= s.start && lastEdit <= s.end + 1));
   const labels = CHECK_LABELS;
 
   // ---------- Sentence Check: only when someone asks, on the sentence(s) they choose ----------
@@ -337,10 +347,22 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
   const mirror: ReactNode[] = [];
   {
     let wi = 0;
-    const re = /_{3}[​‌]|[A-Za-z']+|[^A-Za-z'_]+|_+/g;
+    const re = /_{3}[\u200b\u200c]|[A-Za-z']+|[^A-Za-z'_]+|_+/g;
     let m: RegExpExecArray | null;
     let markPlaced = false;
     const marks = [...remoteCarets].sort((a, b) => a.index - b.index);
+    // Everything inside a sentence with a problem goes into one span carrying its wavy line.
+    const ranges = shownIssues.map(({ s, issue }) => ({ start: s.start, end: s.end, kind: issue.kind }));
+    let group: { end: number; nodes: ReactNode[] } | null = null;
+    const emit = (at: number, ...nodes: ReactNode[]) => {
+      if (group && at >= group.end) group = null;
+      if (!group) {
+        const r = ranges.find((x) => at >= x.start && at < x.end);
+        if (r) { group = { end: r.end, nodes: [] }; mirror.push(<span key={`issue${r.start}`} className={`lm-writer-issue ${r.kind}`}>{group.nodes}</span>); }
+      }
+      (group ? group.nodes : mirror).push(...nodes);
+    };
+    const cuts = ranges.flatMap((r) => [r.start, r.end]);
     const symRow = (classes: MontessoriWordClass[]) => (
       <span className={`lm-writer-sym${classes.length > 1 ? ' two' : ''}`}>
         {classes.map((c, k) => <img key={k} src={MONTESSORI_WORD_CLASS_INFO[c].imageUrl} alt="" draggable={false} />)}
@@ -368,12 +390,20 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
       const tok = m[0];
       const start = m.index;
       const g = gapAt(start);
-      if (g) mirror.push(g);
-      if (/^_{3}[​‌]$/.test(tok)) {
-        mirror.push(<span key={start} className="w blank" data-start={start}>{piece(tok, start)}{sym > 0 && symRow([MARK_CLASS[tok[3]]])}</span>);
+      if (g) emit(start, g);
+      if (/^_{3}[\u200b\u200c]$/.test(tok)) {
+        emit(start, <span key={start} className="w blank" data-start={start}>{piece(tok, start)}{sym > 0 && symRow([MARK_CLASS[tok[3]]])}</span>);
         continue;
       }
-      if (!/^[A-Za-z']/.test(tok)) { mirror.push(...piece(tok, start)); continue; }
+      if (!/^[A-Za-z']/.test(tok)) {
+        // Split at a problem sentence's start or end, so the wavy line covers exactly the sentence.
+        let from = 0;
+        for (const c of [...cuts.filter((x) => x > start && x < start + tok.length), start + tok.length].sort((a, b) => a - b)) {
+          emit(start + from, ...piece(tok.slice(from, c - start), start + from));
+          from = c - start;
+        }
+        continue;
+      }
       const tw: TaggedWord | undefined = tagged[wi++];
       // A word's symbol shows once the word is finished: a space or mark typed after it.
       const end = start + tok.length;
@@ -384,7 +414,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
       // ball"): the symbol would teach the wrong job. The second gets a dotted line when spell check is on.
       const wrongWord = !bad && finished && wordsReady() && isWord(tok) && suggestFor(tok, lastWordBefore(text, start), 1, wordsAfter(text, end)).length > 0;
       const noSymbol = bad || tw?.unsure || wrongWord || (wordsReady() && !isWord(tok) && !/^[A-Z]/.test(tok));
-      mirror.push(
+      emit(start,
         <span key={start} className={`w${bad ? ' bad' : ''}${wrongWord && settings.spell !== 'off' ? ' unsure' : ''}${wordSpots.has(start) ? ' spot' : ''}${speaking && start === speaking.start ? ' speaking' : ''}`} data-start={start}>
           {piece(tok, start)}
           {sym > 0 && finished && !noSymbol && classes.length > 0 && symRow(classes)}
@@ -395,7 +425,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
     if (endGap) mirror.push(endGap);
     if (!markPlaced) mirror.push(<span key="caret-mark" ref={caretMark} className="lm-writer-caret-mark" />);
     for (const c of marks) if (c.index >= text.length) mirror.push(<span key={`rc${c.from}`} className="lm-writer-rcaret" style={{ '--c': c.color } as CSSProperties}><i /><b>{c.name}</b></span>);
-    mirror.push('​');
+    mirror.push('\u200b');
   }
 
   // Replace text and put the cursor (or a selection) where it belongs.
@@ -460,8 +490,10 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
       if (sentence) speakNow(sentence);
     }
     setPopup(null);
+    setIssuePop(null);
     setText(v);
     setCaret(pos);
+    setLastEdit(pos);
   };
 
   // Dictation: spoken words go in at the cursor ("period", "comma", "question mark" and "new line" become marks).
@@ -537,6 +569,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
   // Tapping a marked word: what it might be (Mark and suggest), and "Add to my dictionary" for a word that's
   // right but unknown, like a name.
   const openSpellPopup = () => {
+    setIssuePop(null);
     if (readOnly) return;
     const ta = taRef.current;
     if (!ta) return;
@@ -544,7 +577,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
     for (const m of text.matchAll(WORD_RE)) {
       const i = m.index ?? 0;
       if (at >= i && at <= i + m[0].length) {
-        if (!misspelled(m[0], i) || i === typingWordStart) { setPopup(null); return; }
+        if (!misspelled(m[0], i) || i === typingWordStart) { setPopup(null); openIssuePop(at); return; }
         const el = mirrorRef.current?.querySelector(`[data-start="${i}"]`);
         const pg = pageRef.current?.getBoundingClientRect();
         const r = el?.getBoundingClientRect();
@@ -555,6 +588,29 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
       }
     }
     setPopup(null);
+  };
+
+  // Tapping a sentence with a wavy line says what's wrong, with a way to fix it.
+  const openIssuePop = (at: number) => {
+    const hit = shownIssues.find(({ s }) => at >= s.start && at <= s.end);
+    if (!hit) return;
+    const el = mirrorRef.current?.querySelector(`[data-start="${hit.s.start}"]`);
+    const pg = pageRef.current?.getBoundingClientRect();
+    const r = el?.getBoundingClientRect();
+    if (!r || !pg) return;
+    setIssuePop({ ...hit, left: r.left - pg.left, top: r.bottom - pg.top + 4 });
+  };
+  // A run-on split in two: end punctuation where the second sentence starts, and a capital letter on it.
+  const splitRunOn = (s: SentenceSpan, at: number) => {
+    const abs = s.start + at;
+    let cut = abs;
+    while (cut > s.start && /[\s,]/.test(text[cut - 1])) cut--;
+    const rest = text.slice(abs);
+    setText(`${text.slice(0, cut)}. ${rest.charAt(0).toUpperCase()}${rest.slice(1)}`);
+    pendingCaret.current = { start: cut + 2, end: cut + 2 };
+    taRef.current?.focus();
+    setIssuePop(null);
+    bump('sentenceFixes');
   };
 
   // New formulas: a sentence that passes all five checks but isn't one of her formulas yet is collected as a
@@ -815,6 +871,20 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
                   )}
                 </div>
               )}
+              {issuePop && (
+                <div className="lm-writer-popup lm-writer-issue-pop" style={{ left: issuePop.left, top: issuePop.top }} role="dialog" aria-label={issuePop.issue.kind === 'fragment' ? 'Incomplete sentence' : 'Run-on sentence'}>
+                  {issuePop.issue.kind === 'fragment' ? (
+                    <span className="lm-writer-suggest-label"><strong>Incomplete sentence.</strong> {issuePop.issue.why === 'verb' ? 'It needs a verb.' : issuePop.issue.why === 'subject' ? 'It needs a subject.' : 'It starts with a joining word, so it needs a main idea too.'}</span>
+                  ) : (
+                    <>
+                      <span className="lm-writer-suggest-label"><strong>Run-on sentence.</strong> {issuePop.issue.comma ? 'Two sentences are joined with only a comma.' : 'Two sentences run together.'} End the first one, or join them with a word like and, but or so.</span>
+                      <button type="button" className="lm-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => issuePop.issue.kind === 'runon' && splitRunOn(issuePop.s, issuePop.issue.at)}>Split into two sentences</button>
+                    </>
+                  )}
+                  <button type="button" className="lm-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => { setCheckRange({ a: issuePop.s.start, b: issuePop.s.end }); setCheckIdx(0); setCheckTab('complete'); setTicks(new Set()); setIssuePop(null); }}>Check sentence</button>
+                  <button type="button" className="lm-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => setIssuePop(null)}>OK</button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="lm-writer-page lm-writer-empty"><p className="muted">Your teacher hasn't shared a page with you yet.</p></div>
@@ -841,7 +911,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
                   <button type="button" className="lm-tool-btn" disabled={ci >= checkedSentences.length - 1} onClick={() => setCheckIdx(ci + 1)} aria-label="Next sentence">›</button>
                 </div>
               )}
-              <button type="button" className="lm-writer-check-text" onClick={() => selectSentence(cs)} title="Show this sentence">"{cs.text.replace(/[​‌]/g, '')}"</button>
+              <button type="button" className="lm-writer-check-text" onClick={() => selectSentence(cs)} title="Show this sentence">"{cs.text.replace(/[\u200b\u200c]/g, '')}"</button>
               <div className="lm-writer-check-tabs" role="tablist" aria-label="Checks">
                 {ITEMS.map((it) => {
                   const st = status(it);

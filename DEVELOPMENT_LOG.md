@@ -499,6 +499,19 @@ Tested on all 117 of her formula sentences (116 match her codes) and 30 everyday
 changes, with left-out letters counting least (the most common slip: frend, fether); 4. same first letter;
 5. more common words first.
 
+### Fragments and run-ons (her request 2026-10-28)
+
+Once a sentence has its end mark and the student has moved on from it, `sentenceIssue` in
+`src/lib/writer/sentenceCheck.ts` marks it: a **red wavy line** under an incomplete sentence (no verb: "A man.";
+no subject: "Named Rob."; only a joining-word clause: "Because I was tired.") and a **blue wavy line** under a
+run-on (two sentences with only a comma between them: "The cat sat on the mat, it was soft."; or nothing between
+them: "I like dogs they are fun."). Tapping the sentence says what's wrong, with **Split into two sentences** for
+a run-on and **Check sentence**. Run-ons with nothing between the sentences are marked only when the first
+sentence clearly ended (a describing or how word, a capital letter, or "is/was" next), so "the book he gave me"
+isn't marked. Commands ("Close the door.", "First, wash your hands.") and short replies ("Yes.", "Thank you.")
+aren't fragments. Tested: 24 example sentences right, none of her 117 formula sentences marked. Also: "Dr. Lee"
+no longer splits into two sentences.
+
 Honest limits: hidden pages are hidden in the student's screen, but their text still travels on the shared
 channel (a classroom setting, not a privacy guarantee). Dictation needs a browser with speech recognition
 (Chrome, Edge, Safari). Live co-editing needs the Supabase share setup, as the whiteboard does.
