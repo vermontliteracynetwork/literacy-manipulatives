@@ -1,5 +1,6 @@
 import { wordJobs } from '../sentenceSearch';
 import type { MontessoriWordClass } from '../montessoriGrammar';
+import { myWordClass } from './myWords';
 
 // The Writer's spelling help (teacher, 2026-10-27): a dictionary of about 42,000 common English words
 // (SCOWL lists, public/writer/words.json, ranked 0 = most common to 3 = less common), loaded only when the
@@ -32,11 +33,14 @@ export function loadWords(): Promise<void> {
   return loading;
 }
 export const wordsReady = () => RANK.size > 0;
+// How common a word is (0 = most common), or undefined when the list doesn't have it.
+export const wordRank = (raw: string) => RANK.get(raw.toLowerCase());
 
 const CONTRACTIONS = new Set(["i'm", "i've", "i'll", "i'd", "you're", "you've", "you'll", "you'd", "he's", "she's", "it's", "we're", "we've", "we'll", "they're", "they've", "they'll", "that's", "there's", "what's", "who's", "let's", "don't", "doesn't", "didn't", "can't", "won't", "isn't", "aren't", "wasn't", "weren't", "couldn't", "shouldn't", "wouldn't", "haven't", "hasn't", "hadn't"]);
 
 // Is this a real word? Unknown until the list has loaded (then nothing is marked wrong).
 export function isWord(raw: string): boolean {
+  if (myWordClass(raw)) return true;
   if (!wordsReady()) return true;
   const w = raw.toLowerCase();
   if (RANK.has(w) || CONTRACTIONS.has(w)) return true;

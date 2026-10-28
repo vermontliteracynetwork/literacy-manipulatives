@@ -626,8 +626,10 @@ input.lm-text-pill { cursor: text; user-select: text; }
 .lm-writer-mirror .w { position: relative; }
 .lm-writer-mirror .w.bad { text-decoration: underline wavy #D2222E; text-decoration-skip-ink: none; text-underline-offset: 4px; }
 .lm-writer-mirror .w.gram { text-decoration: underline dotted var(--brand-blue); text-decoration-thickness: 2px; text-underline-offset: 5px; }
-.lm-writer-sym { position: absolute; left: 50%; transform: translateX(-50%); width: var(--wr-sym); height: var(--wr-sym); object-fit: contain; }
-.lm-writer-sym { bottom: calc(100% + 4px); }
+.lm-writer-sym { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% + 4px); display: flex; gap: 2px; }
+.lm-writer-sym img { width: var(--wr-sym); height: var(--wr-sym); object-fit: contain; }
+/* A contraction does two jobs ("We've": pronoun and verb), so it shows two symbols side by side. */
+.lm-writer-sym.two img { width: calc(var(--wr-sym) * 0.75); height: calc(var(--wr-sym) * 0.75); }
 .lm-writer-popup { position: absolute; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px; max-width: 320px; padding: 6px; background: #fff; border: 2px solid var(--ink); border-radius: 12px; box-shadow: 0 6px 16px rgba(15, 43, 69, 0.18); }
 .lm-writer-check-card { background: #fff; border: 2px solid var(--content-border); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .lm-writer-check-text { margin: 0; font-weight: 700; }
@@ -724,3 +726,33 @@ button.lm-writer-check-text { border: 0; background: none; padding: 0; text-alig
   .lm-writer-mirror .w.spot { outline: none; }
   .lm-writer-gap { display: none; }
 }
+
+/* One Settings menu: who sets each setting */
+.lm-who { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; vertical-align: middle; }
+.lm-who.teacher { background: #E7F1FB; color: #1968AB; }
+.lm-who.yours { background: #E5F4E4; color: #2F8A5B; }
+.lm-who.locked { background: #F0EFEC; color: #50606F; }
+
+/* Sentence Check tabs */
+.lm-writer-check-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }
+.lm-writer-check-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.lm-writer-check-tabs button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 10px; border: 2px solid var(--content-border); border-radius: 999px; background: #fff; font: inherit; font-size: 0.8rem; font-weight: 700; color: var(--ink); cursor: pointer; }
+.lm-writer-check-tabs button.on { border-color: var(--brand-blue); box-shadow: 0 0 0 2px rgba(25, 104, 171, 0.2); }
+.lm-writer-check-tabs .lm-check-box { width: 16px; height: 16px; }
+.lm-writer-done { font-weight: 700; color: #2F8A5B; }
+
+/* Sentence formulas window */
+.lm-formulas { position: fixed; z-index: 58; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: #fff; border: 3px solid var(--ink); border-radius: 14px; box-shadow: 0 8px 20px rgba(15, 43, 69, 0.2); overflow: hidden; }
+.lm-formulas.full { inset: 12px; }
+.lm-formulas-head-btns { display: inline-flex; align-items: center; gap: 6px; }
+.lm-formulas-tabs { display: flex; gap: 4px; overflow-x: auto; flex-shrink: 0; padding-bottom: 2px; }
+.lm-formulas-tabs button { flex-shrink: 0; min-height: 34px; padding: 0 12px; border: 2px solid var(--content-border); border-radius: 999px; background: #fff; font: inherit; font-size: 0.8rem; font-weight: 700; color: var(--ink); cursor: pointer; }
+.lm-formulas-tabs button.on { border-color: var(--brand-blue); background: var(--brand-blue); color: #fff; }
+.lm-formulas-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
+.lm-formula-row { display: flex; gap: 12px; padding: 10px 0; border-top: 1px solid var(--content-border); }
+.lm-formula-row > .lm-writer-formula-symbols { flex-shrink: 0; min-width: 120px; flex-wrap: wrap; align-content: flex-start; }
+.lm-formula-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.lm-formula-versions { display: flex; flex-direction: column; gap: 6px; width: 100%; margin: 4px 0 0; padding: 8px 10px; background: var(--brand-sky-soft); border-radius: 10px; }
+.lm-formula-version { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lm-formula-tense { min-width: 60px; font-weight: 700; font-size: 0.8rem; }
+.lm-formulas-grip { position: absolute; right: 4px; bottom: 2px; font-size: 18px; line-height: 1; cursor: nwse-resize; user-select: none; touch-action: none; color: var(--ink); opacity: 0.7; }

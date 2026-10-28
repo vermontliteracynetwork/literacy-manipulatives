@@ -2228,6 +2228,9 @@ export default function LiteracyManipulatives() {
           onBack={joinMode ? undefined : () => setWriterOpen(false)}
           studentName={joinMode ? student.name : undefined}
           pages={pages}
+          font={fontChoice.font}
+          onFont={fontChoice.setFont}
+          fontLocked={joinMode}
           students={joinMode ? [] : host.students}
           sharing={writerLive}
           headerExtras={joinMode ? (
@@ -2270,7 +2273,7 @@ export default function LiteracyManipulatives() {
             <button className="btn btn-sm" onClick={redo} disabled={!canRedo}>Redo</button>
             <button className="btn btn-sm" onClick={() => setConfirmClear(true)} disabled={placed.length === 0}>Clear</button>
             <span className="lm-toolbar-divider" />
-            {!joinMode && <button className="btn btn-sm" onClick={() => setWriterOpen(true)} title="Open the Writer (word processor)">Writer</button>}
+            {!joinMode && <button className="btn btn-sm" onClick={() => setWriterOpen(true)} title="Open Write mode (word processor)">Write</button>}
             <button className="btn btn-sm" onClick={zoomOut} disabled={zoom <= 0.5} aria-label="Zoom out">−</button>
             <button className="btn btn-sm" onDoubleClick={zoomReset} aria-label="Double click to go back to the start view" title="Double click to go back to the start view">{Math.round(zoom * 100)}%</button>
             <button className="btn btn-sm" onClick={zoomIn} disabled={zoom >= 2} aria-label="Zoom in">+</button>

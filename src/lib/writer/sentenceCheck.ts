@@ -1,4 +1,5 @@
-import { agreeWords, tagWordsPlain, wordJobs, type PatternWord } from '../sentenceSearch';
+import { agreeWords, wordJobs, type PatternWord } from '../sentenceSearch';
+import { tagInContext, type TaggedWord } from './tagger';
 import type { MontessoriWordClass } from '../montessoriGrammar';
 import { SENTENCE_FORMULAS, type SentenceFormula } from './formulas';
 
@@ -38,9 +39,10 @@ const isWho = (c: MontessoriWordClass) => c === 'noun' || c === 'propernoun' || 
 // Tag a sentence. A word the board doesn't know that sits where the Action belongs (right after the Who part)
 // counts as the Action, so a new verb isn't called missing; known nouns and describing words never do.
 const MODALS = new Set(['will', 'would', 'can', 'could', 'should', 'must', 'may', 'might', 'shall', "won't", "can't", "don't", "doesn't", "didn't"]);
-export function tagForCheck(text: string): PatternWord[] {
-  // Helping words (will, can, don't...) are part of the Action, as in her A-N-V-V formulas.
-  const words = tagWordsPlain(text).map((w) => (MODALS.has(w.word.toLowerCase()) ? { ...w, wordClass: 'verb' as MontessoriWordClass } : w));
+export function tagForCheck(text: string): TaggedWord[] {
+  // Each word's job from the word itself and its place in the sentence (tagger.ts); helping words (will, can,
+  // don't...) are part of the verb, as in her A-N-V-V formulas.
+  const words = tagInContext(text).map((w) => (MODALS.has(w.word.toLowerCase()) ? { ...w, wordClass: 'verb' as MontessoriWordClass } : w));
   if (words.some((w) => w.wordClass === 'verb')) return words;
   const who = words.findIndex((w) => isWho(w.wordClass));
   if (who < 0) return words;
@@ -95,12 +97,16 @@ export function checkSentence(s: SentenceSpan): CheckResult {
   const words = tagForCheck(s.text);
   const classes = words.map((w) => w.wordClass);
   const lower = words.map((w) => w.word.toLowerCase());
-  const hasAction = classes.includes('verb');
-  const whoIndex = classes.findIndex(isWho);
-  const firstVerb = classes.indexOf('verb');
+  // A contraction does both its jobs: "We've" is the subject and the verb.
+  const does = (i: number, test: (c: MontessoriWordClass) => boolean) => test(classes[i]) || !!words[i].parts?.some(test);
+  const isVerb = (c: MontessoriWordClass) => c === 'verb';
+  const hasAction = words.some((_, i) => does(i, isVerb));
+  const whoIndex = words.findIndex((_, i) => does(i, isWho));
+  const firstVerb = words.findIndex((_, i) => does(i, isVerb) && !(words[i].parts && words[i].parts![0] !== 'verb' && i === whoIndex));
+  const firstVerbAt = firstVerb < 0 ? words.findIndex((_, i) => does(i, isVerb)) : firstVerb;
   const question = /\?["'”’)]*$/.test(s.text) || QUESTION_START.has(lower[0] ?? '');
-  const command = firstVerb === 0 || (classes[0] === 'interjection' && firstVerb === 1) || (lower[0] === 'please' && firstVerb === 1);
-  const hasWho = whoIndex >= 0 && (whoIndex < firstVerb || question || firstVerb < 0);
+  const command = (firstVerb === 0 && !words[0]?.parts?.some(isWho)) || (classes[0] === 'interjection' && firstVerb === 1) || (lower[0] === 'please' && firstVerb === 1);
+  const hasWho = whoIndex >= 0 && (whoIndex <= firstVerbAt || question || firstVerbAt < 0);
   let missing: CheckResult['missing'] = null;
   let insertAt = 0;
   if (!hasAction) {
@@ -118,7 +124,7 @@ export function checkSentence(s: SentenceSpan): CheckResult {
   const capital = /^[^A-Za-z]*[A-Z]/.test(s.text) && !/\bi\b/.test(s.text);
   // Match: does each Action agree with its Who? (one or many)
   const agreed = agreeWords(words.map((w) => ({ word: w.word, cls: w.wordClass })));
-  const mi = words.findIndex((w, i) => w.wordClass === 'verb' && agreed[i] !== w.word && !MODALS.has(lower[i]) && !HELPERS.has(lower[i - 1] ?? ''));
+  const mi = words.findIndex((w, i) => w.wordClass === 'verb' && !w.parts && agreed[i] !== w.word && !MODALS.has(lower[i]) && !HELPERS.has(lower[i - 1] ?? ''));
   const match = mi >= 0 ? { ok: false, index: mi, from: words[mi].word, to: agreed[mi] } : { ok: true };
   // Time: the Actions all tell past, or all tell present (a helper like will or did sets the time itself).
   const times = new Set<string>();
@@ -132,7 +138,8 @@ export function checkSentence(s: SentenceSpan): CheckResult {
     else if (!/ing$/.test(lw)) times.add('present');
   });
   const time = !(times.has('past') && times.has('present'));
-  const codes = classes.map((c) => CODE[c] ?? 'N');
+  // Her formulas write a contraction like "doesn't" as one verb (A-N-V-V) and "Let's" as a verb and a pronoun.
+  const codes = words.flatMap((w) => (w.parts && w.parts[1] !== 'adverb' ? w.parts : [w.wordClass]).map((c) => CODE[c] ?? 'N'));
   const { formula, exact } = closestFormula(codes);
   return { complete, missing, insertAt, capital, endMark: s.ended, match, time, code: codes.join('-'), formula, exact, words };
 }

@@ -445,6 +445,31 @@ snapshot is the accommodation record (her principles 4 and 5).
 | 9 | Shared pages like tabs; the teacher and up to five students typing at once; per page and per student: pencil (edit), eye (view), X (hidden); e.g. an example page everyone can read and a page only one student sees. | **Pages** (tabs) in the Writer. The teacher adds pages, names them, and sets each student's access with pencil, eye or X, or "A page for each student". Everyone with edit access types in the same page at once, live, with each person's cursor and name shown in their color. Built on Yjs (a CRDT) over the board's Supabase channel; the teacher's copy is the true one and only accepts edits from students who may edit that page. |
 | 10 | Dictation first, then print. | **Dictate** (speech to text, "period", "comma", "question mark", "new line" spoken as marks), set Off / On / Student choice and counted in the support record. **Print** prints only the page with its symbols and a header: page name, student, date, supported or unsupported writing. |
 
+### Write mode changes (her notes, 2026-10-28, later)
+
+- **Name**: the Writer is now **Write** ("write mode"); the toolbar button reads Write.
+- **Symbols** appear only once a word is finished (a space or mark typed after it).
+- **Word jobs from the word and its place in the sentence** (`src/lib/writer/tagger.ts`): neighbors decide
+  between a word's possible jobs ("down the path" preposition, "fell down" adverb, "How" at the start of a
+  quote an adverb not a name, "two jobs" adjective, "like" verb or preposition, capitalized sentence starts
+  are names only when the word list doesn't know them). Checked against all 117 of her formula sentences:
+  116 match her codes (the miss: "Some people think recess wastes time...").
+- **Contractions do two jobs** and show two symbols: "We've" pronoun + verb, "can't" verb + adverb (her
+  formulas still count "doesn't" as one V when matching), "Let's" verb + pronoun.
+- **My dictionary**: tap a marked word, "Add to my dictionary", choose its job (Name, Noun, Verb...). Added
+  words are never marked and take the chosen symbol. Listed and editable in Settings.
+- **One Settings menu** (My tools and Writing settings combined), each row marked Teacher sets, Your choice
+  or Set by your teacher. Text style (Regular, Cursive, Dyslexia, same as the whiteboard), letter, word and
+  line spacing set separately, symbols on/off.
+- **Sentence Check only when asked**: select a sentence (or click in one, or select a whole paragraph) and
+  press **Check sentence**. Nothing is ticked or underlined before that. The window has one tab per check
+  (Complete, Capitals, End mark, Agreement, Tense, Formula) and steps through the selected sentences one at a
+  time; open spots show only for the open tab.
+- **Sentence formulas** (was Formula book): searchable (words, codes, or type a sentence to find formulas with
+  its pattern), tabs for her units plus My formulas and Formula ideas, each formula opening into past,
+  present and future versions with symbols (`src/lib/writer/tenses.ts`); the window moves, resizes from its
+  corner and goes full screen.
+
 Honest limits: hidden pages are hidden in the student's screen, but their text still travels on the shared
 channel (a classroom setting, not a privacy guarantee). Dictation needs a browser with speech recognition
 (Chrome, Edge, Safari). Live co-editing needs the Supabase share setup, as the whiteboard does.

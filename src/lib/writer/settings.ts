@@ -7,7 +7,8 @@ export interface WriterSettings {
   spellHelp: 'mark' | 'suggest';
   predict: 'off' | 'suggest' | 'auto';
   autoCap: boolean;
-  grammar: 'off' | 'end' | 'live';
+  // The Sentence Check runs only when the student or teacher asks for it on a sentence (her note 2026-10-28).
+  grammar: 'off' | 'on';
   // Who ticks the Sentence Check list: the Writer ('auto') or the student ('self'), who then sees an open spot
   // wherever an item they ticked isn't done yet.
   checkStyle: 'auto' | 'self' | 'choice';
@@ -22,15 +23,19 @@ export interface WriterSettings {
   readAloud: 'off' | 'on' | 'choice';
   typingEcho: 'off' | 'words' | 'sentences' | 'choice';
   dictation: 'off' | 'on' | 'choice';
-  spacing: 'normal' | 'wide' | 'wider';
+  letterSpacing: Spacing;
+  lineSpacing: Spacing;
+  wordSpacing: Spacing;
   lineFocus: boolean;
   theme: 'default' | 'high' | 'dark' | 'cream';
   focusMode: boolean;
 }
 
+export type Spacing = 'normal' | 'wide' | 'wider';
+
 export const DEFAULT_WRITER_SETTINGS: WriterSettings = {
-  spell: 'all', spellHelp: 'suggest', predict: 'suggest', autoCap: true, grammar: 'end', checkStyle: 'auto', symbols: 'on', symbolSize: 'medium',
-  blockAddons: true, level: 'A', readAloud: 'choice', typingEcho: 'off', dictation: 'choice', spacing: 'normal', lineFocus: false, theme: 'default',
+  spell: 'all', spellHelp: 'suggest', predict: 'suggest', autoCap: true, grammar: 'on', checkStyle: 'auto', symbols: 'on', symbolSize: 'medium',
+  blockAddons: true, level: 'A', readAloud: 'choice', typingEcho: 'off', dictation: 'choice', letterSpacing: 'normal', lineSpacing: 'normal', wordSpacing: 'normal', lineFocus: false, theme: 'default',
   focusMode: false,
 };
 
@@ -39,13 +44,16 @@ export function normalizeWriterSettings(raw: Record<string, unknown>): WriterSet
   const s = { ...DEFAULT_WRITER_SETTINGS, ...raw } as WriterSettings & Record<string, unknown>;
   if (raw.spell === 'mark' || raw.spell === 'suggest') { s.spell = 'all'; if (!('spellHelp' in raw)) s.spellHelp = raw.spell; }
   if (raw.symbols === 'above' || raw.symbols === 'below') s.symbols = 'on';
+  if (raw.grammar === 'end' || raw.grammar === 'live') s.grammar = 'on';
+  const old = raw.spacing as Spacing | undefined;
+  if (old && !('letterSpacing' in raw)) { s.letterSpacing = old; s.lineSpacing = old; s.wordSpacing = old; }
   return s;
 }
 
 // The student's own picks in My tools, kept on their device.
 export interface StudentTools {
   readAloud?: boolean; typingEcho?: 'off' | 'words' | 'sentences'; dictation?: boolean; symbols?: boolean; checkStyle?: 'auto' | 'self';
-  spacing?: WriterSettings['spacing']; lineFocus?: boolean; theme?: WriterSettings['theme']; focusMode?: boolean; rate?: number;
+  letterSpacing?: Spacing; lineSpacing?: Spacing; wordSpacing?: Spacing; spacing?: Spacing; lineFocus?: boolean; theme?: WriterSettings['theme']; focusMode?: boolean; rate?: number;
 }
 const MINE = 'lm-writer-mine';
 export function readStudentTools(): StudentTools { try { return JSON.parse(localStorage.getItem(MINE) ?? '{}'); } catch { return {}; } }
