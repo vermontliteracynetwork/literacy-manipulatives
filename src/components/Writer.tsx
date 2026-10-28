@@ -380,10 +380,14 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
       const finished = end < text.length && !(focused && caret === end);
       const classes = tw ? (tw.parts ?? [tw.wordClass]) : [];
       const bad = misspelled(tok, start);
+      // No symbol on a word that's misspelled, or a real word that doesn't fit its spot ("I will cat the
+      // ball"): the symbol would teach the wrong job. The second gets a dotted line when spell check is on.
+      const wrongWord = !bad && finished && wordsReady() && isWord(tok) && suggestFor(tok, lastWordBefore(text, start), 1, wordsAfter(text, end)).length > 0;
+      const noSymbol = bad || tw?.unsure || wrongWord || (wordsReady() && !isWord(tok) && !/^[A-Z]/.test(tok));
       mirror.push(
-        <span key={start} className={`w${bad ? ' bad' : ''}${wordSpots.has(start) ? ' spot' : ''}${speaking && start === speaking.start ? ' speaking' : ''}`} data-start={start}>
+        <span key={start} className={`w${bad ? ' bad' : ''}${wrongWord && settings.spell !== 'off' ? ' unsure' : ''}${wordSpots.has(start) ? ' spot' : ''}${speaking && start === speaking.start ? ' speaking' : ''}`} data-start={start}>
           {piece(tok, start)}
-          {sym > 0 && finished && classes.length > 0 && symRow(classes)}
+          {sym > 0 && finished && !noSymbol && classes.length > 0 && symRow(classes)}
         </span>,
       );
     }

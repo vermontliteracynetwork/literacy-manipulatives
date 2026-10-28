@@ -625,6 +625,7 @@ input.lm-text-pill { cursor: text; user-select: text; }
 .lm-writer-text { position: relative; display: block; resize: none; overflow: hidden; background: transparent; color: var(--ink); outline: none; min-height: 320px; caret-color: var(--brand-blue); }
 .lm-writer-mirror .w { position: relative; }
 .lm-writer-mirror .w.bad { text-decoration: underline wavy #D2222E; text-decoration-skip-ink: none; text-underline-offset: 4px; }
+.lm-writer-mirror .w.unsure { text-decoration: underline dotted #F76B15; text-decoration-thickness: 2px; text-underline-offset: 5px; }
 .lm-writer-mirror .w.gram { text-decoration: underline dotted var(--brand-blue); text-decoration-thickness: 2px; text-underline-offset: 5px; }
 .lm-writer-sym { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% + 4px); display: flex; gap: 2px; }
 .lm-writer-sym img { width: var(--wr-sym); height: var(--wr-sym); object-fit: contain; }
@@ -663,7 +664,8 @@ input.lm-text-pill { cursor: text; user-select: text; }
 /* Color themes (student choice). Tints are comfort only, not a dyslexia treatment. */
 .lm-writer.theme-high .lm-writer-page { background: #000; border-color: #fff; }
 .lm-writer.theme-high .lm-writer-text { color: #fff; caret-color: #FAF003; }
-.lm-writer.theme-high .lm-writer-mirror .w.gram { text-decoration-color: #7FD3FF; }
+.lm-writer.theme-high .lm-writer-mirror .w.unsure { text-decoration: underline dotted #F76B15; text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.lm-writer-mirror .w.gram { text-decoration-color: #7FD3FF; }
 .lm-writer.theme-high .lm-writer-mirror .w.bad { text-decoration-color: #FF6B6B; }
 .lm-writer.theme-dark .lm-writer-page { background: #1E2430; border-color: #3A4556; }
 .lm-writer.theme-dark .lm-writer-text { color: #F2F4F7; caret-color: #FBF2BB; }
@@ -722,7 +724,8 @@ button.lm-writer-check-text { border: 0; background: none; padding: 0; text-alig
   .lm-writer-print-head { display: block; margin-bottom: 8px; font-size: 12pt; }
   .lm-writer-body { padding: 0; overflow: visible; }
   .lm-writer-page { border: 0; }
-  .lm-writer-mirror .w.bad, .lm-writer-mirror .w.gram { text-decoration: none; }
+  .lm-writer-mirror .w.bad, .lm-writer-mirror .w.unsure { text-decoration: underline dotted #F76B15; text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.lm-writer-mirror .w.gram { text-decoration: none; }
   .lm-writer-mirror .w.spot { outline: none; }
   .lm-writer-gap { display: none; }
 }

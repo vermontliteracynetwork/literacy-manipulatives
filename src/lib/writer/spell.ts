@@ -12,10 +12,26 @@ const BY_KEY = new Map<string, string[]>();
 const BY_SOUND_START = new Map<string, string[]>();
 let loading: Promise<void> | null = null;
 
+// The jobs a dictionary lists for each word, most common first (public/writer/pos.json, built from WordNet by
+// scripts/build-pos.mjs): step 1 of choosing a word's symbol.
+// Rare jobs (a capital letter in the file) are kept apart: the tagger may use them, spell check doesn't.
+const POS = new Map<string, MontessoriWordClass[]>();
+const COMMON_POS = new Map<string, MontessoriWordClass[]>();
+const POS_CLASS: Record<string, MontessoriWordClass> = { n: 'noun', v: 'verb', a: 'adjective', r: 'adverb' };
+export const dictionaryJobs = (raw: string): MontessoriWordClass[] | undefined => POS.get(raw.toLowerCase());
+export const commonDictionaryJobs = (raw: string): MontessoriWordClass[] | undefined => COMMON_POS.get(raw.toLowerCase());
+
 export function loadWords(): Promise<void> {
-  loading ??= fetch('/writer/words.json')
-    .then((r) => r.json() as Promise<string[][]>)
-    .then((tiers) => {
+  loading ??= Promise.all([
+    fetch('/writer/words.json').then((r) => r.json() as Promise<string[][]>),
+    fetch('/writer/pos.json').then((r) => r.json() as Promise<Record<string, string>>).catch(() => ({} as Record<string, string>)),
+  ])
+    .then(([tiers, pos]) => {
+      for (const [code, list] of Object.entries(pos)) {
+        const classes = [...code].map((c) => POS_CLASS[c.toLowerCase()]).filter(Boolean);
+        const common = [...code].filter((c) => c === c.toLowerCase()).map((c) => POS_CLASS[c]).filter(Boolean);
+        for (const w of list.split(' ')) { POS.set(w, classes); COMMON_POS.set(w, common); }
+      }
       tiers.forEach((list, rank) => {
         for (const w of list) {
           if (RANK.has(w)) continue;
@@ -63,6 +79,47 @@ export function soundKey(raw: string): string {
   return s;
 }
 
+// A finer sound key that keeps each vowel's sound, so "fether" (short e) matches feather, not father: vowel
+// teams are read by the sound they usually make ("ea" before th, d or v is short e as in head; "ee" long e...).
+function vowelSound(group: string, after: string): string {
+  if (group === 'y') return 'I';
+  if (group === 'ea') return /^(th|d|v|lth|lt|sur|thr)/.test(after) ? 'E' : 'I';
+  if (['ee', 'ie', 'ei', 'ey'].includes(group)) return 'I';
+  if (['ai', 'ay', 'eigh', 'ey'].includes(group) && group !== 'ey') return 'Y';
+  if (['oa', 'oe'].includes(group)) return 'W';
+  if (['oo', 'ew', 'ue', 'ui'].includes(group)) return 'U';
+  if (['ou', 'ow'].includes(group)) return 'V';
+  if (['oi', 'oy'].includes(group)) return 'Q';
+  if (['au', 'aw'].includes(group)) return 'O';
+  return group[0].toUpperCase();
+}
+export function fineKey(raw: string): string {
+  let s = raw.toLowerCase().replace(/[^a-z]/g, '');
+  s = s.replace(/^kn/, 'n').replace(/^wr/, 'r').replace(/^wh/, 'w').replace(/^ps/, 's').replace(/^gn/, 'n').replace(/^sch/, 'sk');
+  // A silent e makes the vowel before it long: bote = boat, nite = night, cake.
+  s = s.replace(/([aeiou])([^aeiouwy])e$/, (_, v: string, c: string) => ({ a: 'Y', e: 'I', i: 'J', o: 'W', u: 'U' } as Record<string, string>)[v] + c).replace(/([^aeiou])e$/, '$1');
+  s = s.replace(/tch/g, 'ch').replace(/ph/g, 'f').replace(/ck/g, 'k').replace(/qu/g, 'kw').replace(/dge?/g, 'j').replace(/igh/g, 'J')
+    .replace(/c(?=[eiy])/g, 's').replace(/ch/g, 'X').replace(/sh/g, 'S').replace(/th/g, '0').replace(/c/g, 'k').replace(/x/g, 'ks').replace(/z/g, 's');
+  s = s.replace(/([^aeiouy])\1+/g, '$1');
+  return s.replace(/[aeiou]+[wy]?(?![aeiou])|(?<=[^aeiou])y/g, (g, at: number) => vowelSound(g, s.slice(at + g.length)));
+}
+// Is `a` inside `b` with only letters left out ("frend" in friend, "fether" in feather)? Leaving letters out
+// is the most common spelling slip, so these words rank higher.
+// Common misspellings of everyday words that don't sound the way they're spelled (said, was, because...), so
+// the word the student almost certainly meant comes first.
+const COMMON_MISSPELLINGS: Record<string, string> = {
+  sed: 'said', sayed: 'said', wuz: 'was', woz: 'was', sum: 'some', thay: 'they', thai: 'they', becuz: 'because', becos: 'because', becaus: 'because', beacuse: 'because', becase: 'because',
+  frum: 'from', fro: 'from', agen: 'again', agin: 'again', enuf: 'enough', enuff: 'enough', cud: 'could', coud: 'could', shud: 'should', shoud: 'should', wud: 'would', woud: 'would',
+  sez: 'says', ses: 'says', dun: 'done', wun: 'one', wan: 'one', tow: 'two', tu: 'to', wer: 'were', whent: 'went', wont: "won't", dont: "don't", cant: "can't", didnt: "didn't",
+  im: "I'm", ive: "I've", thier: 'their', freind: 'friend', frend: 'friend', frends: 'friends', peple: 'people', pepul: 'people', libary: 'library', becoz: 'because', alot: 'a lot',
+  wich: 'which', whitch: 'which', wate: 'wait', wen: 'when', wat: 'what', wot: 'what', hav: 'have', luv: 'love', lik: 'like', liek: 'like', littel: 'little', pritty: 'pretty', prety: 'pretty',
+  scool: 'school', skool: 'school', skul: 'school', tomoro: 'tomorrow', tommorow: 'tomorrow', tomorow: 'tomorrow', togeather: 'together', thru: 'through', untill: 'until',
+  realy: 'really', reely: 'really', allways: 'always', alwas: 'always', evry: 'every', evrey: 'every', vary: 'very', verry: 'very', mabey: 'maybe', mabe: 'maybe', wanna: 'want to',
+  gonna: 'going to', laffed: 'laughed', lafed: 'laughed', laft: 'laughed', ther: 'there', thare: 'there', whear: 'where', wher: 'where', bekuz: 'because', nite: 'night', rite: 'write',
+};
+export const commonFix = (typed: string) => COMMON_MISSPELLINGS[typed.toLowerCase()];
+const lettersLeftOut = (a: string, b: string) => { let i = 0; for (const ch of b) if (ch === a[i]) i++; return i === a.length && b.length > a.length; };
+
 function editDistance(a: string, b: string): number {
   const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
   for (let j = 1; j <= b.length; j++) d[0][j] = j;
@@ -93,7 +150,7 @@ export function slotAfter(prev: string | undefined): Slot {
 }
 const fitsSlot = (w: string, slot: Slot): boolean => {
   if (!slot) return true;
-  const jobs = wordJobs(w);
+  const jobs = new Set([...wordJobs(w), ...(commonDictionaryJobs(w) ?? [])]);
   if (slot === 'base') return jobs.has('verb') && isBaseForm(w.toLowerCase());
   if (slot === 'verb') return jobs.has('verb');
   return jobs.has('noun') || jobs.has('adjective') || (!jobs.size && !/(ly|ed|ing)$/.test(w));
@@ -122,6 +179,7 @@ function rank(typed: string, slot: Slot, limit: number, next?: string[]): Ranked
   const goesWith = new Set(GOES_WITH[thingAfter(next)] ?? []);
   const t = typed.toLowerCase();
   const key = soundKey(t);
+  const fineT = fineKey(t);
   const realTyped = isWord(t);
   const pool = new Set<string>([...(BY_KEY.get(key) ?? [])]);
   for (const w of BY_SOUND_START.get(key[0] ?? '') ?? []) if (Math.abs(w.length - t.length) <= 2) pool.add(w);
@@ -131,11 +189,17 @@ function rank(typed: string, slot: Slot, limit: number, next?: string[]): Ranked
     const distance = editDistance(t, w);
     const soundMatch = soundKey(w) === key;
     if (!soundMatch && distance > 2) continue;
-    // Young writers often leave letters off the end ("cat" for catch), so a word that starts with what they
-    // typed gets a boost.
-    let score = -distance + (soundMatch ? 3 : 0) + (3 - (RANK.get(w) ?? 3)) * 0.9 + (w[0] === t[0] ? 0.5 : 0)
-      + (realTyped && w.length > t.length && w.startsWith(t) ? 2 : 0);
-    if (slot) score += fitsSlot(w, slot) ? 2 : -1;
+    // The order suggestions come in (her request 2026-10-28: the most likely word first), each step weighed:
+    //   1. Sounds the same, vowel sounds too (fine key: fether = feather) +4; same consonant sounds +3.
+    //   2. Fits the sentence: the job the spot calls for (+2, or -1), and words that go with the next thing.
+    //   3. Fewest changes: each change -1, but only leaving letters out is the most common slip (+1.5).
+    //   4. Starts with the same letter (+0.5); for a real word, the longer word it starts (+2: "cat" -> catch).
+    //   5. More common words first (+0.6 for each frequency tier).
+    const sameSound = fineKey(w) === fineT;
+    const nearSound = Math.max(0, 2 - editDistance(fineKey(w), fineT));
+    let score = -distance + (sameSound ? 4 : soundMatch ? 3 : 0) + nearSound * 0.5 + (lettersLeftOut(t, w) ? 1.5 : 0) + (3 - (RANK.get(w) ?? 3)) * 0.6
+      + (w[0] === t[0] ? 0.5 : 0) + (realTyped && w.length > t.length && w.startsWith(t) ? 2 : 0);
+    if (slot) score += fitsSlot(w, slot) ? 1.5 : -0.5;
     if (goesWith.has(w)) score += 3;
     out.push({ word: w, score, soundMatch, distance });
   }
@@ -147,7 +211,10 @@ export function suggestFor(typed: string, prev?: string, limit = 4, next?: strin
   if (!wordsReady() || !/^[a-z']+$/i.test(typed)) return [];
   const slot = slotAfter(prev);
   if (isWord(typed) && !knownJobsDontFit(typed, slot)) return [];
-  return rank(typed, slot, limit, next).map((r) => matchCase(typed, r.word));
+  // 0. A known everyday misspelling goes first.
+  const known = !isWord(typed) ? commonFix(typed) : undefined;
+  const ranked = rank(typed, slot, limit, next).map((r) => r.word).filter((w) => w !== known);
+  return (known ? [known, ...ranked] : ranked).slice(0, limit).map((w) => matchCase(typed, w));
 }
 
 // The one fix the Writer would make on its own, only when it's clearly the best guess.
@@ -156,6 +223,7 @@ export function confidentFix(typed: string, prev?: string, next?: string[]): str
   const slot = slotAfter(prev);
   const misspelled = !isWord(typed);
   if (!misspelled && !knownJobsDontFit(typed, slot)) return null;
+  if (misspelled && commonFix(typed)) return matchCase(typed, commonFix(typed)!);
   const top = rank(typed, slot, 2, next);
   if (!top.length) return null;
   const [a, b] = top;

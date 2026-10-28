@@ -470,6 +470,35 @@ snapshot is the accommodation record (her principles 4 and 5).
   present and future versions with symbols (`src/lib/writer/tenses.ts`); the window moves, resizes from its
   corner and goes full screen.
 
+### How a word's symbol is chosen (her note 2026-10-28: "this is a teaching tool, it is important we are accurate")
+
+`src/lib/writer/tagger.ts`, the same four steps for every word:
+
+1. **Dictionary.** The jobs a dictionary lists for the word, most common first: `public/writer/pos.json`, built by
+   `scripts/build-pos.mjs` from WordNet 3.0 (Princeton license in `public/writer/WORDNET-LICENSE.txt`), using how
+   often each sense was seen in tagged text; forms WordNet doesn't list (dogs, ran, taller) take their base
+   word's jobs. Plus the board's word lists, closed word groups (articles, pronouns, prepositions...) and the
+   student's own dictionary. Jobs that are rare for a word ("cat" as a verb) are marked rare.
+2. **Context.** When a word can do more than one job, its neighbors decide: after "a"/"the" and before a noun a
+   describing word ("a large, brown hat"), after a subject a verb, after "will"/"to" a base verb, after a verb
+   with nothing after it an adverb ("fly south"), names by capital letters, questions ("Did the dog bark?"),
+   words joined by "and" doing the same job ("runs and jumps").
+3. **Spelling.** A misspelled word gets **no symbol**, and its neighbors are judged by the word the student most
+   likely meant, so a misspelling never decides another word's symbol. A real word that doesn't fit its spot
+   ("I will cat the ball") also gets no symbol and a dotted orange line.
+4. **Recheck.** Every open-word job is checked against the dictionary again, and every article, number or
+   my/your/their must lead to a noun (describing words in a row, with commas or "and", end in one).
+
+Tested on all 117 of her formula sentences (116 match her codes) and 30 everyday sentences (all match).
+
+### How spelling suggestions are ordered (her note 2026-10-28: "the most likely word first")
+
+`src/lib/writer/spell.ts`: 0. a known everyday misspelling first (sed: said, becuz: because, frum: from...);
+1. sounds the same, vowel sounds included ("fether" sounds like feather, not father); 2. fits the sentence
+(the job the spot calls for, using only common dictionary jobs; words that go with the next thing); 3. fewest
+changes, with left-out letters counting least (the most common slip: frend, fether); 4. same first letter;
+5. more common words first.
+
 Honest limits: hidden pages are hidden in the student's screen, but their text still travels on the shared
 channel (a classroom setting, not a privacy guarantee). Dictation needs a browser with speech recognition
 (Chrome, Edge, Safari). Live co-editing needs the Supabase share setup, as the whiteboard does.

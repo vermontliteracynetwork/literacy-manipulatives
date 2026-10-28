@@ -1,13 +1,20 @@
 import { wordJobs, type PatternWord } from '../sentenceSearch';
 import type { MontessoriWordClass } from '../montessoriGrammar';
 import { myWordClass } from './myWords';
-import { wordRank, wordsReady } from './spell';
+import { dictionaryJobs, isWord, suggestFor, wordRank, wordsReady } from './spell';
 
-// Write mode's symbols (her note 2026-10-28: "make sure you are referencing the word itself, and its placement
-// in the sentence"). Each word gets the job it does in this sentence, not just the job the word list knows:
-// the word's own possible jobs narrowed by its neighbors. "like" after "ran" is a preposition, after "I" a
-// verb; "jump" after "a" is a noun; "How" at the start of a quote is an adverb, not a name; "two" before a
-// noun is an adjective. Her formulas count my, your, their and its as pronouns, so they're pronouns here too.
+// Write mode's symbols (her notes 2026-10-28: "make sure you are referencing the word itself, and its placement
+// in the sentence"; "this is a teaching tool, it is important we are accurate"). Every word goes through the
+// same explicit steps:
+//   1. Dictionary: the jobs the dictionary lists for the word, most common first (WordNet counts in
+//      public/writer/pos.json, plus the board's own word lists and the small closed word groups below).
+//   2. Context: when the word can do more than one job, its neighbors decide ("like" after "ran" is a
+//      preposition, after "I" a verb; "jump" after "a" is a noun; "brown" between "a" and "hat" describes).
+//   3. Spelling: a misspelled word is flagged unsure (Write mode shows no symbol for it), and its neighbors are
+//      judged by the word the student most likely meant, so a misspelling never decides another word's symbol.
+//   4. Recheck: each job is checked against the dictionary again, and every article or describing word must
+//      lead to a noun; anything that fails is corrected.
+// Her formulas count my, your, their and its as pronouns, so they're pronouns here too.
 
 type C = MontessoriWordClass;
 const SUBJECT = new Set(['i', 'you', 'he', 'she', 'it', 'we', 'they']);
@@ -51,11 +58,15 @@ const endsInHelper = (lower: string) => /('ll|'d|n't)$/.test(lower.replace(/’/
 const clean = (w: string) => w.replace(/^'+|'+$/g, '');
 const isNounish = (c: C | undefined) => c === 'noun' || c === 'propernoun' || c === 'pronoun';
 
-interface Tok { word: string; lower: string; jobs: Set<C>; known: boolean; clauseStart: boolean; afterComma: boolean; next?: Tok }
+interface Tok { word: string; lower: string; jobs: Set<C>; dict: C[]; known: boolean; unknown: boolean; unsure: boolean; clauseStart: boolean; afterComma: boolean; next?: Tok }
+const CLOSED = (w: string) => PREPOSITION.has(w) || SUBORDINATE_OR_PREP.has(w) || ADVERB.has(w) || WH_ADVERB.has(w) || CONJUNCTION.has(w) || SUBJECT.has(w)
+  || OBJECT.has(w) || POSSESSIVE.has(w) || WH_PRONOUN.has(w) || ARTICLE.has(w) || BE.has(w) || DO.has(w) || HAVE.has(w) || HELPERS.has(w) || DETERMINER.has(w) || NUMBER.test(w);
 
 // The jobs a word could do: the board's word lists, closed word groups, and word endings for new words.
 function jobsOf(lower: string): Set<C> {
-  const j = new Set(wordJobs(lower));
+  // Step 1: the dictionary's jobs first (most common first), then the board's word lists.
+  const j = new Set<C>(dictionaryJobs(lower) ?? []);
+  for (const c of wordJobs(lower)) j.add(c);
   if (PREPOSITION.has(lower) || SUBORDINATE_OR_PREP.has(lower)) j.add('preposition');
   if (ADVERB.has(lower) || WH_ADVERB.has(lower) || ORDER.has(lower)) j.add('adverb');
   if (CONJUNCTION.has(lower)) j.add('conjunction');
@@ -83,14 +94,14 @@ function jobsOf(lower: string): Set<C> {
 const nounAhead = (t?: Tok): boolean => {
   if (!t || t.afterComma && !t.jobs.has('adjective')) return false;
   if (ARTICLE.has(t.lower) || BE.has(t.lower) || DO.has(t.lower) || HELPERS.has(t.lower) || CONJUNCTION.has(t.lower) || (PREPOSITION.has(t.lower) && !t.jobs.has('noun')) || ADVERB.has(t.lower)) return false;
-  if (SUBJECT.has(t.lower) || OBJECT.has(t.lower)) return false;
+  if (SUBJECT.has(t.lower) || OBJECT.has(t.lower) || POSSESSIVE.has(t.lower) || DETERMINER.has(t.lower)) return false;
   if (t.jobs.has('noun') || t.jobs.has('propernoun') || NUMBER.test(t.lower)) return true;
   if (t.jobs.has('adjective')) return nounAhead(t.next);
   return false;
 };
 const startsNounPhrase = (t?: Tok) => !!t && (ARTICLE.has(t.lower) || POSSESSIVE.has(t.lower) || OBJECT.has(t.lower) || SUBJECT.has(t.lower) || DETERMINER.has(t.lower) || NUMBER.test(t.lower) || /^[A-Z]/.test(t.word) || nounAhead(t));
 
-export interface TaggedWord extends PatternWord { parts?: C[] }
+export interface TaggedWord extends PatternWord { parts?: C[]; unsure?: boolean }
 
 export function tagInContext(text: string): TaggedWord[] {
   const toks: Tok[] = [];
@@ -100,7 +111,18 @@ export function tagInContext(text: string): TaggedWord[] {
     const word = clean(m[0]) || m[0];
     const lower = word.toLowerCase();
     const afterTitle = /^\.\s*$/.test(gap) && TITLES.has(toks[toks.length - 1]?.lower ?? '');
-    toks.push({ word: m[0], lower, jobs: jobsOf(lower), known: wordJobs(lower).size > 0, clauseStart: toks.length === 0 || (!afterTitle && /[“"(:;—–.!?]|\s-\s|^-|‘/.test(gap)) || /^'/.test(m[0]), afterComma: /,/.test(gap) });
+    const clauseStart = toks.length === 0 || (!afterTitle && /[“"(:;—–.!?]|\s-\s|^-|‘/.test(gap)) || /^'/.test(m[0]);
+    // Step 3: a misspelled word (not a name, not in my dictionary) is unsure; it is read as the word the
+    // student most likely meant, so it doesn't throw off its neighbors.
+    const nameSpot = /^[A-Z]/.test(word) && !clauseStart;
+    const unsure = wordsReady() && !isWord(lower) && !CLOSED(lower) && !nameSpot && !myWordClass(lower) && !contractionParts(lower);
+    // (A capitalized unknown word is more likely a name than a misspelling, so it isn't swapped.)
+    const meant = unsure && !/^[A-Z]/.test(word) ? suggestFor(lower)[0]?.toLowerCase() : undefined;
+    const look = meant ?? lower;
+    const dict = dictionaryJobs(look) ?? [];
+    const jobs = jobsOf(look);
+    if (nameSpot) jobs.add('propernoun');
+    toks.push({ word: m[0], lower: look, jobs, dict, known: wordJobs(look).size > 0, unknown: !dict.length && !wordJobs(look).size, unsure, clauseStart, afterComma: /,/.test(gap) });
     last = (m.index ?? 0) + m[0].length;
   }
   toks.forEach((t, i) => { t.next = toks[i + 1]; });
@@ -109,6 +131,8 @@ export function tagInContext(text: string): TaggedWord[] {
   const out: C[] = [];
   const parts: (C[] | undefined)[] = [];
   let verbInClause = false;
+  const questionHelper = /\?\s*["”]?\s*$/.test(text) && !!toks[0] && (DO.has(toks[0].lower) || HELPERS.has(toks[0].lower) || ((WH_ADVERB.has(toks[0].lower) || WH_PRONOUN.has(toks[0].lower)) && !!toks[1] && (DO.has(toks[1].lower) || HELPERS.has(toks[1].lower))));
+  let questionVerbDone = false;
   for (let i = 0; i < toks.length; i++) {
     const t = toks[i];
     const w = t.lower;
@@ -162,7 +186,7 @@ export function tagInContext(text: string): TaggedWord[] {
     if (FLEX.has(w) && (t.clauseStart || t.afterComma || prevWord === 'please') && next && (ARTICLE.has(next.lower) || POSSESSIVE.has(next.lower))) { pick('verb'); continue; }
     if (FLEX.has(w)) { pick(prev === 'article' || prev === 'adjective' || nounAhead(next) ? 'adjective' : prev === 'verb' && !BE.has(prevWord) && !LINKING.has(prevWord) ? 'adverb' : 'adjective'); continue; }
     if (ADVERB.has(w)) { pick('adverb'); continue; }
-    if (t.jobs.has('interjection') && t.clauseStart && t.jobs.size === 1) { pick('interjection'); continue; }
+    if (wordJobs(w).has('interjection') && t.clauseStart) { pick('interjection'); continue; }
 
     // A capital letter where a sentence or quote doesn't start means a name. At the start, a capitalized word
     // the word list doesn't know (or barely knows) is a name too: "Jen won", "Coco swims".
@@ -176,16 +200,24 @@ export function tagInContext(text: string): TaggedWord[] {
 
     // Open words (nouns, verbs, describing words, how words): decided by the words around them.
     const can = (c: C) => t.jobs.has(c);
-    const afterHelper = HELPERS.has(prevWord) || DO.has(prevWord) || endsInHelper(prevWord) || prevWord === 'to' || (prevWord === 'not' && verbInClause);
-    if (afterHelper && (can('verb') || !t.known)) { pick('verb'); continue; }
+    const afterHelper = HELPERS.has(prevWord) || DO.has(prevWord) || endsInHelper(prevWord) || prevWord === 'to' || prevWord === "let's" || (prevWord === 'not' && verbInClause);
+    if (afterHelper && (can('verb') || t.unknown)) { pick('verb'); continue; }
+    // "Did the dog bark?": after a question's helper and its subject, the next word that can be a verb is.
+    if (questionHelper && !questionVerbDone && isNounish(prev) && (can('verb') || t.unknown)) { questionVerbDone = true; pick('verb'); continue; }
+    // "runs and jumps", "big and red": the word after "and" or "or" does the same job as the word before it.
+    if ((prevWord === 'and' || prevWord === 'or') && i >= 2 && ['verb', 'adjective', 'adverb'].includes(out[i - 2]) && t.jobs.has(out[i - 2]) && !BE.has(toks[i - 2].lower)) { pick(out[i - 2]); continue; }
+    // "a tour guide,": a noun right after a noun phrase's noun, at the end of the phrase, is part of it.
+    if (verbInClause && prev === 'noun' && (out[i - 2] === 'article' || out[i - 2] === 'adjective') && can('noun') && t.dict[0] !== 'adjective' && (!next || next.afterComma || next.clauseStart || PREPOSITION.has(next.lower) || CONJUNCTION.has(next.lower))) { pick('noun'); continue; }
     // "The dog, which was wet, shook.": a verb-able last word after a comma is the sentence's verb.
-    if (t.afterComma && !next && (can('verb') || !t.known)) { pick('verb'); continue; }
+    if (t.afterComma && !next && (can('verb') || t.unknown)) { pick('verb'); continue; }
     // "A kind, funny dog": describing words in a row with commas.
     if (prev === 'article' && next?.afterComma && next.jobs.has('adjective') && nounAhead(next.next)) { pick('adjective'); continue; }
     // A list keeps going: "apples, bread, and milk".
-    if ((t.afterComma || prevWord === 'and' || prevWord === 'or') && (prev === 'noun' || prev === 'conjunction' && out[i - 2] === 'noun') && (can('noun') || !t.known) && !(can('verb') && SUBJECT.has(next?.lower ?? ''))) { pick('noun'); continue; }
+    if ((t.afterComma || prevWord === 'and' || prevWord === 'or') && (prev === 'noun' || prev === 'conjunction' && out[i - 2] === 'noun') && (can('noun') || t.unknown) && !(can('verb') && SUBJECT.has(next?.lower ?? ''))) { pick('noun'); continue; }
     if (prev === 'article' || prev === 'adjective' || prev === 'preposition' || (prev === 'pronoun' && POSSESSIVE.has(prevWord))) {
-      if (can('adjective') && (nounAhead(next) || (next?.afterComma && next.jobs.has('adjective')))) pick('adjective');
+      // "a cold and windy day": describing words joined by "and" still lead to the noun.
+      const joinedAhead = next && (next.lower === 'and' || next.lower === 'or') && next.next?.jobs.has('adjective') && nounAhead(next.next.next);
+      if (can('adjective') && (nounAhead(next) || joinedAhead || (next?.afterComma && next.jobs.has('adjective')))) pick('adjective');
       else if (can('adverb') && /ly$/.test(w) && !can('noun')) pick('adverb');
       else pick(can('noun') || !can('adjective') ? 'noun' : 'adjective');
       continue;
@@ -198,34 +230,63 @@ export function tagInContext(text: string): TaggedWord[] {
       if (/ing$/.test(w) && can('verb') && !nounAhead(next)) pick(BE.has(linkWord) ? 'verb' : 'adjective');
       else if (/ing$/.test(w) && nounAhead(next)) pick('adjective');
       // "is never bored": a describing word after "very", "never", "so".
-      else if (/ed$/.test(w) && can('verb') && !(t.known && can('adjective')) && back === i - 1) pick('verb');
-      else if (can('adjective') || (!t.known && !/ed$/.test(w))) pick('adjective');
+      else if (/ed$/.test(w) && can('verb') && !(t.dict[0] === 'adjective') && back === i - 1) pick('verb');
+      else if (can('adjective') || (t.unknown && !/ed$/.test(w))) pick('adjective');
       else pick(can('adverb') ? 'adverb' : 'noun');
       continue;
     }
     // After a subject with no verb yet, a word that can be a verb is the verb: "Sam and I fish".
-    if (isNounish(prev) && !verbInClause && (can('verb') || !t.known || SUBJECT.has(prevWord))) { pick('verb'); continue; }
-    if (prev === 'verb' || prev === 'adverb') {
-      if (can('adverb') && (/ly$/.test(w) || !can('noun'))) pick('adverb');
-      else if (can('adjective') && nounAhead(next)) pick('adjective');
-      else if (can('noun')) pick('noun');
-      else pick(can('verb') && !verbInClause ? 'verb' : [...t.jobs][0]);
-      continue;
-    }
+    // "The school bus was late": a noun right before "was" or "can" is still part of the subject.
+    if (isNounish(prev) && !verbInClause && can('noun') && next && (BE.has(next.lower) || HELPERS.has(next.lower) || DO.has(next.lower) || HAVE.has(next.lower)) && !SUBJECT.has(prevWord)) { pick('noun'); continue; }
+    if (isNounish(prev) && !verbInClause && (can('verb') || t.unknown || SUBJECT.has(prevWord))) { pick('verb'); continue; }
     // Start of a clause: a describing word before a noun, a command verb ("Thank you", "Close the door"), or a noun.
     if (t.clauseStart || t.afterComma || prev === 'conjunction' || prevWord === 'please') {
       const commandAhead = next && (ARTICLE.has(next.lower) || OBJECT.has(next.lower) || POSSESSIVE.has(next.lower) || next.lower === 'you' || next.lower === 'it');
       if (can('adjective') && nounAhead(next)) pick('adjective');
-      else if ((can('verb') || !t.known) && commandAhead && !(t.known && can('noun') && !can('verb'))) pick('verb');
+      else if ((can('verb') || t.unknown) && commandAhead && !(can('noun') && !can('verb'))) pick('verb');
       else if (can('noun')) pick('noun');
       else if (can('verb')) pick('verb');
       else pick([...t.jobs][0]);
       continue;
     }
-    for (const c of ['noun', 'verb', 'adjective', 'adverb', 'propernoun', 'pronoun', 'preposition', 'conjunction', 'interjection', 'article'] as C[]) {
-      if (can(c)) { pick(c); break; }
+    if (prev === 'verb' || prev === 'adverb') {
+      // "fly south", "went home": a word the dictionary lists as an adverb, with no noun after it, tells where or how.
+      const endsPhrase = !next || next.afterComma || next.clauseStart || PREPOSITION.has(next.lower) || CONJUNCTION.has(next.lower);
+      if (can('adverb') && (/ly$/.test(w) || !can('noun') || (endsPhrase && t.dict.includes('adverb') && !BE.has(prevWord)))) pick('adverb');
+      else if (can('adjective') && nounAhead(next)) pick('adjective');
+      else if (can('noun')) pick('noun');
+      else pick(can('verb') && !verbInClause ? 'verb' : [...t.jobs][0]);
+      continue;
     }
-    if (out.length === i) pick('noun');
+    // Otherwise the dictionary's most common job.
+    pick([...t.jobs][0] ?? 'noun');
   }
-  return toks.map((t, i) => (parts[i] ? { word: t.word, wordClass: out[i], parts: parts[i] } : { word: t.word, wordClass: out[i] }));
+
+  // Step 4: recheck. (a) A word the dictionary knows only does jobs the dictionary lists for it.
+  const OPEN = new Set<C>(['noun', 'verb', 'adjective', 'adverb']);
+  toks.forEach((t, i) => {
+    if (parts[i] || myWordClass(t.lower) || CLOSED(t.lower) || !t.dict.length || !OPEN.has(out[i]) || t.dict.includes(out[i])) return;
+    if (out[i] === 'verb' && /(ing|ed)$/.test(t.lower)) return;
+    const next = out[i + 1];
+    const prev = out[i - 1];
+    if (t.dict.includes('adjective') && (next === 'noun' || next === 'adjective')) out[i] = 'adjective';
+    else if (t.dict.includes('noun') && (prev === 'article' || prev === 'adjective' || prev === 'preposition')) out[i] = 'noun';
+    else if (t.dict.includes('adverb') && prev === 'verb') out[i] = 'adverb';
+    else out[i] = t.dict[0];
+  });
+  // (b) An article, number or "my/your/their" leads to a noun: describing words in a row must end in one.
+  toks.forEach((t, i) => {
+    if (!(out[i] === 'article' || POSSESSIVE.has(t.lower) || (out[i] === 'adjective' && NUMBER.test(t.lower)))) return;
+    let j = i + 1;
+    while (j < toks.length && (out[j] === 'adjective' || (out[j] === 'adverb' && ['very', 'so', 'too', 'really'].includes(toks[j].lower))
+      || ((toks[j].lower === 'and' || toks[j].lower === 'or') && out[j + 1] === 'adjective')) && !(j > i + 1 && toks[j].clauseStart)) j++;
+    const ends = j < toks.length && (out[j] === 'noun' || out[j] === 'propernoun') && !toks[j].clauseStart;
+    if (!ends && j > i + 1 && out[j - 1] === 'adjective' && (toks[j - 1].jobs.has('noun') || toks[j - 1].unknown)) out[j - 1] = 'noun';
+  });
+  return toks.map((t, i) => {
+    const tw: TaggedWord = { word: t.word, wordClass: out[i] };
+    if (parts[i]) tw.parts = parts[i];
+    if (t.unsure) tw.unsure = true;
+    return tw;
+  });
 }
