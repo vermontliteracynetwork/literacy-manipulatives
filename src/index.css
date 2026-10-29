@@ -767,7 +767,10 @@ button.lm-writer-check-text { border: 0; background: none; padding: 0; text-alig
 .lm-formula-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 .lm-formula-versions { display: flex; flex-direction: column; gap: 6px; width: 100%; margin: 4px 0 0; padding: 8px 10px; background: var(--brand-sky-soft); border-radius: 10px; }
 .lm-formula-version { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.lm-formula-tense { min-width: 60px; font-weight: 700; font-size: 0.8rem; }
+.lm-formula-tense { min-width: 84px; font-weight: 700; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px; }
+.lm-formula-tense img, .lm-tense-key img { width: 22px; height: 22px; object-fit: contain; }
+.lm-tense-key { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.8rem; font-weight: 700; }
+.lm-tense-key > span { display: inline-flex; align-items: center; gap: 6px; }
 .lm-formulas-grip { position: absolute; right: 4px; bottom: 2px; font-size: 18px; line-height: 1; cursor: nwse-resize; user-select: none; touch-action: none; color: var(--ink); opacity: 0.7; }
 
 /* Her formula cards (2026-10-28) */

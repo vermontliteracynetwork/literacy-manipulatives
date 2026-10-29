@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from '../lib/montessoriGrammar';
+import { MONTESSORI_WORD_CLASS_INFO, TENSE_SYMBOLS, type MontessoriWordClass } from '../lib/montessoriGrammar';
 import { SENTENCE_FORMULAS, type SentenceFormula } from '../lib/writer/formulas';
 import { tagForCheck } from '../lib/writer/sentenceCheck';
 import { cardSlotsOf, formulaCode, formulasLike, sentenceSlots, slotClass, slotLabel } from '../lib/writer/formulaMatch';
@@ -46,7 +46,7 @@ function Versions({ sentence, showCode }: { sentence: string; showCode: boolean 
         const mine = slotsOf(v[t]);
         return (
           <div key={t} className="lm-formula-version">
-            <span className="lm-formula-tense">{t === 'past' ? 'Past' : t === 'present' ? 'Present' : 'Future'}</span>
+            <span className="lm-formula-tense"><img src={TENSE_SYMBOLS[t].imageUrl} alt="" draggable={false} />{TENSE_SYMBOLS[t].name}</span>
             <FormulaSymbols slots={cardSlotsOf(mine)} />
             <span>{v[t]}{showCode && <span className="muted"> ({formulaCode(mine, v[t])})</span>}</span>
           </div>

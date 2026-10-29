@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 import type * as Y from 'yjs';
 import { Icon } from './Icon';
 import { SentenceFormulas, FormulaSymbols } from './SentenceFormulas';
-import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from '../lib/montessoriGrammar';
+import { MONTESSORI_WORD_CLASS_INFO, TENSE_SYMBOLS, type MontessoriWordClass } from '../lib/montessoriGrammar';
 import { completionsFor, confidentFix, isWord, loadWords, missesCommonWord, suggestFor, wordsReady } from '../lib/writer/spell';
 import { CHECK_LABELS, checkSentence, sentenceIssue, splitSentences, tagForCheck, type CheckItem, type CheckResult, type SentenceIssue, type SentenceSpan } from '../lib/writer/sentenceCheck';
 import { readStudentTools, saveStudentTools, type Spacing, type StudentTools, type WriterSettings } from '../lib/writer/settings';
@@ -982,6 +982,11 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
                 <div className="lm-writer-check-card">
                   <strong>{labels[checkTab]}</strong>
                   <span>{ITEM_HELP[checkTab]}</span>
+                  {checkTab === 'time' && (
+                    <span className="lm-tense-key">
+                      {(['past', 'present', 'future'] as const).map((t) => <span key={t}><img src={TENSE_SYMBOLS[t].imageUrl} alt="" draggable={false} />{TENSE_SYMBOLS[t].name}</span>)}
+                    </span>
+                  )}
                   {checkStyle === 'self' && (
                     <button type="button" role="checkbox" aria-checked={ticks.has(tickKey(checkTab))} className="lm-writer-tick" onClick={() => setTicks((tk) => { const n = new Set(tk); const k = tickKey(checkTab); if (n.has(k)) n.delete(k); else n.add(k); return n; })}>
                       <Check ok={ticks.has(tickKey(checkTab)) && !cp[checkTab]} warn={ticks.has(tickKey(checkTab)) && cp[checkTab]} />

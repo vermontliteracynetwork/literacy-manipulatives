@@ -244,3 +244,11 @@ export const GRAMMAR_STATES: Record<string, GrammarState> = {
     ],
   },
 };
+
+// Her tense symbols (Grammar Symbols PNG, "Additional Symbols", 2026-10-29): a clock turning back, a clock, and a
+// clock turning forward.
+export const TENSE_SYMBOLS = {
+  past: { name: 'Past', imageUrl: '/literacy/grammar-symbols/past.png' },
+  present: { name: 'Present', imageUrl: '/literacy/grammar-symbols/present.png' },
+  future: { name: 'Future', imageUrl: '/literacy/grammar-symbols/future.png' },
+} as const;

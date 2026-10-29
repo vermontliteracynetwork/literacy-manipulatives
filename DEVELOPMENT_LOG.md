@@ -558,6 +558,18 @@ a noun on "Go.", a describing word on "Go", and a fragment line under "Go.": "th
 - `scripts/import-formula-cards.py` now takes any number of formulas and units, finds the Master List PDF by
   name, and names any formula whose cards are missing instead of stopping.
 
+### Her tense symbols (2026-10-29)
+
+She uploaded two folders: "Sentence Formulas" (the formula cards) and "Grammar Symbols PNG" ("do it for me").
+
+- The Sentence Formulas folder is byte-for-byte the same as the cards imported on 2026-10-28 (same Master List
+  PDF, same 236 cards), so the formulas did not change.
+- The ten grammar symbols are the same designs as the ones already in the app (4000 px masters with more space
+  around them); the app keeps its tightly cropped 256 px copies so the symbols stay the same size above words.
+- New: her **past, present and future** symbols ("Additional Symbols") are in `public/literacy/grammar-symbols/`
+  (`TENSE_SYMBOLS` in `src/lib/montessoriGrammar.ts`). They label the Past / Present / Future versions in Sentence
+  formulas and show as a key on Sentence Check's Tense tab.
+
 Honest limits: hidden pages are hidden in the student's screen, but their text still travels on the shared
 channel (a classroom setting, not a privacy guarantee). Dictation needs a browser with speech recognition
 (Chrome, Edge, Safari). Live co-editing needs the Supabase share setup, as the whiteboard does.
