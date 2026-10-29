@@ -625,6 +625,8 @@ input.lm-text-pill { cursor: text; user-select: text; }
 .lm-writer-text { position: relative; display: block; resize: none; overflow: hidden; background: transparent; color: var(--ink); outline: none; min-height: 320px; caret-color: var(--brand-blue); }
 .lm-writer-mirror .w { position: relative; }
 .lm-writer-mirror .lm-writer-phrase { position: relative; }
+.lm-writer-bracket { position: absolute; left: 0; right: 0; bottom: calc(100% + 2px); height: 7px; border: 2.5px solid #703818; border-bottom: none; border-radius: 4px 4px 0 0; pointer-events: none; }
+.lm-writer-phrase > .lm-writer-sym { bottom: calc(100% + 11px); }
 .lm-writer-mirror .w.bad { text-decoration: underline wavy #D2222E; text-decoration-skip-ink: none; text-underline-offset: 4px; }
 /* Sentence problems: a red wavy line under an incomplete sentence (fragment), a blue one under a run-on. */
 .lm-writer-issue.fragment { text-decoration: underline wavy #D2222E; text-decoration-skip-ink: none; text-underline-offset: 6px; }

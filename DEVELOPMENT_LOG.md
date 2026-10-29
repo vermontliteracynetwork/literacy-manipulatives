@@ -547,6 +547,9 @@ a noun on "Go.", a describing word on "Go", and a fragment line under "Go.": "th
   cube centered over the whole phrase instead of a symbol on each word, as on her cards. While the phrase is still
   being typed, or if a word in it is misspelled, each word keeps its own symbol (or none) until it is fixed.
   `Slot` in `formulaMatch.ts` now carries the phrase's word range (`from`, `to`).
+  Follow-up (2026-10-29, her picture of "The stone rolled down the hill." with the cube sitting over "the": "fix
+  this"): a brown bracket now spans the whole phrase under the cube, so the cube reads as covering all of "down
+  the hill", not the word below it.
 - **Commands:** a sentence that opens with a word the dictionary knows best as a verb is a command: "Go." "Stop!"
   "Go dog go." (verb, noun, verb), "Walk to school." Not when the next word is that word's verb ("Work is hard",
   "Love helps us"). "Go." is no longer marked as a fragment.

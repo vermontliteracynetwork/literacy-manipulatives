@@ -446,7 +446,8 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
       if (!ph) { if (own) symSpot.push(own); continue; }
       ph.held.push({ into: symSpot, sym: own });
       if (end === ph.end) {
-        if (sym > 0 && ph.held.every((h) => h.sym)) ph.nodes.push(symRow(['preposition']));
+        // A bracket spans the whole phrase so the cube reads as covering all of it, not the word under it.
+        if (sym > 0 && ph.held.every((h) => h.sym)) ph.nodes.push(<span key="bracket" className="lm-writer-bracket" />, symRow(['preposition']));
         else for (const h of ph.held) if (h.sym) h.into.push(h.sym);
       }
     }
