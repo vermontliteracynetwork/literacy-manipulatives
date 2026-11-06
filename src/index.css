@@ -829,3 +829,34 @@ button.lm-writer-check-text { border: 0; background: none; padding: 0; text-alig
 .lm-crop-handle.e { top: calc(50% - 8px); right: 0; cursor: ew-resize; }
 .lm-crop-handle.w { top: calc(50% - 8px); left: 0; cursor: ew-resize; }
 .lm-tense-tray { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 0.72rem; font-weight: 700; }
+
+/* Checklist (Insert, 2026-11-06): a left-aligned list; tap a line to check it; Edit to change the steps. */
+.lm-checklist { position: absolute; z-index: 2; width: 280px; background: #fff; border: 2.5px solid var(--ink); border-radius: 12px; box-shadow: 3px 3px 0 rgba(31, 17, 71, 0.15); font-family: var(--lm-font); text-align: left; }
+.lm-checklist.editing { width: 330px; }
+.lm-checklist.selected { box-shadow: 0 0 0 3px rgba(25, 104, 171, 0.35); }
+.lm-checklist-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 2px solid #E2E8F0; cursor: grab; touch-action: none; user-select: none; }
+.lm-checklist-title { flex: 1; min-width: 0; font-weight: 800; font-size: 1rem; overflow-wrap: anywhere; }
+.lm-checklist-title-input { flex: 1; min-width: 0; font: inherit; font-weight: 800; font-size: 1rem; padding: 4px 6px; border: 2px solid #CBD5E1; border-radius: 6px; }
+.lm-checklist-count { font-size: 0.8rem; font-weight: 700; opacity: 0.65; }
+.lm-checklist-mode { display: inline-flex; align-items: center; gap: 4px; font: inherit; font-size: 0.78rem; font-weight: 800; padding: 4px 9px; border-radius: 999px; border: 2px solid var(--ink); background: #fff; color: var(--ink); cursor: pointer; }
+.lm-checklist-mode.on { background: var(--brand-blue); border-color: var(--brand-blue); color: #fff; }
+.lm-checklist-body { display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 6px 6px 8px; }
+.lm-checklist-row { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 7px 6px; border: none; background: none; border-radius: 8px; font: inherit; font-size: 0.95rem; text-align: left; color: var(--ink); cursor: pointer; }
+.lm-checklist-row:hover { background: #F1F5F9; }
+.lm-checklist-box { flex: none; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 2.5px solid var(--ink); border-radius: 6px; background: #fff; color: #fff; }
+.lm-checklist-row.done .lm-checklist-box { background: #2F8A5B; border-color: #2F8A5B; }
+.lm-checklist-row.done .lm-checklist-text { text-decoration: line-through; text-decoration-thickness: 2px; opacity: 0.6; }
+.lm-checklist-text { flex: 1; padding-top: 2px; overflow-wrap: anywhere; }
+.lm-checklist-empty { margin: 6px; font-size: 0.85rem; opacity: 0.7; }
+.lm-checklist-clear { align-self: flex-start; margin: 4px 6px 0; padding: 2px 0; border: none; background: none; font: inherit; font-size: 0.78rem; font-weight: 700; color: var(--brand-blue); text-decoration: underline; cursor: pointer; }
+.lm-checklist-edit-row { display: flex; align-items: center; gap: 3px; }
+.lm-checklist-edit-row input { flex: 1; min-width: 0; font: inherit; font-size: 0.9rem; padding: 6px 7px; border: 2px solid #CBD5E1; border-radius: 6px; }
+.lm-checklist-icon { flex: none; width: 26px; height: 26px; padding: 0; border: 1.5px solid #CBD5E1; border-radius: 6px; background: #fff; font-size: 0.9rem; font-weight: 700; color: var(--ink); cursor: pointer; }
+.lm-checklist-icon:disabled { opacity: 0.35; cursor: default; }
+.lm-checklist-add { align-self: flex-start; margin-top: 4px; padding: 5px 10px; border: 2px dashed #94A3B8; border-radius: 8px; background: #fff; font: inherit; font-size: 0.85rem; font-weight: 700; color: var(--ink); cursor: pointer; }
+.lm-checklist-starters { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 2px solid #E2E8F0; }
+.lm-checklist-starters button { padding: 3px 8px; border: 1.5px solid #CBD5E1; border-radius: 999px; background: #F8FAFC; font: inherit; font-size: 0.75rem; font-weight: 700; color: var(--ink); cursor: pointer; }
+.lm-checklist-preview { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 170px; padding: 8px 10px; background: #fff; border: 2px solid var(--ink); border-radius: 10px; font-size: 0.75rem; text-align: left; }
+.lm-checklist-preview span { display: flex; align-items: center; gap: 6px; }
+.lm-checklist-preview i { width: 12px; height: 12px; border: 2px solid var(--ink); border-radius: 3px; }
+.lm-checklist-preview i.on { background: #2F8A5B; border-color: #2F8A5B; }

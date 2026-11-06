@@ -28,6 +28,7 @@ import {
   LM_PUNCTUATION_COLOR, LM_PUNCTUATION_TEXT_COLOR, LM_PHONO_COLOR,
 } from './lib/literacyDesignTokens';
 import { GRAMMAR_WORD_CLASS_COLORS, GRAMMAR_WORD_CLASS_TEXT_COLORS } from './types';
+import { ChecklistWidget, defaultChecklist, type CheckLine } from './components/Checklist';
 import { cropImage, readMyImages, saveMyImages, shrinkImage, type BoardImage } from './lib/images';
 import type { GrammarPiece, TTSSettings } from './types';
 
@@ -148,7 +149,7 @@ const GRAPHEME_GROUPS: { key: string; label: string; graphemes: { g: string; sou
 const BASE_PEN_COLORS = ['#1f1147', '#dc2626', '#2563eb', '#16a34a', '#f97316', 'var(--brand-blue)'];
 const BASE_HIGHLIGHT_COLORS = ['#fde047', '#86efac', '#93c5fd', '#f9a8d4'];
 
-type PlacedKind = 'grammar' | 'shape' | 'letter' | 'frame' | 'morpheme' | 'textbox' | 'symbolSentence' | 'punctuation' | 'soundChip' | 'divider' | 'image' | 'tense';
+type PlacedKind = 'grammar' | 'shape' | 'letter' | 'frame' | 'morpheme' | 'textbox' | 'symbolSentence' | 'punctuation' | 'soundChip' | 'divider' | 'image' | 'tense' | 'checklist';
 
 // A word or punctuation mark dropped into a Writing Scaffold line (from a Grammar Symbol, a Symbol Sentence, or a
 // punctuation tile), kept as a symbol with its word bubble inside the frame.
@@ -193,6 +194,8 @@ interface PlacedItem {
   onVerbId?: string; // tense, the verb (a single Grammar Symbol, or a Symbol Sentence card) it sits on top of
   onVerbSlot?: number; // tense on a Symbol Sentence card: which word of the card (the verb) it sits on
   wordFillsOwn?: Record<number, string>; // symbolSentence, a verb's own word while a tense symbol on it changes it
+  checkTitle?: string; // checklist, its title
+  checkLines?: CheckLine[]; // checklist, its steps (done = checked on the teacher's board)
   bubbleWordOwn?: string; // shape, the verb's own word while a tense symbol on it shows the word in that tense
 }
 
@@ -231,6 +234,7 @@ function sizeFor(kind: PlacedKind, boxCount?: number, item?: Partial<PlacedItem>
   if (kind === 'soundChip') return { w: 36, h: 36 };
   if (kind === 'divider') return { w: 10, h: 70 };
   if (kind === 'image') return { w: item?.imageW ?? 240, h: item?.imageH ?? 180 };
+  if (kind === 'checklist') return { w: 280, h: 56 + (item?.checkLines?.length ?? 3) * 40 };
   if (kind === 'tense') return item?.onVerbId ? { w: TENSE_ON_VERB, h: TENSE_ON_VERB } : { w: 64, h: 64 };
   return { w: 44, h: 44 }; // letter
 }
@@ -943,6 +947,11 @@ export default function LiteracyManipulatives() {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [myImages, setMyImages] = useState<BoardImage[]>(readMyImages);
   const [imageError, setImageError] = useState('');
+  // A student's own checks on the board's checklists (her request 2026-11-06), kept on their device.
+  const [myTicks, setMyTicks] = useState<Record<string, Record<string, boolean>>>(() => {
+    try { return JSON.parse(localStorage.getItem('lm-my-checks') ?? '{}') ?? {}; } catch { return {}; }
+  });
+  const saveMyTicks = (m: Record<string, Record<string, boolean>>) => { try { localStorage.setItem('lm-my-checks', JSON.stringify(m)); } catch { /* storage blocked */ } return m; };
   const insertImages = async (files: FileList | null) => {
     const list = [...(files ?? [])].filter((f) => f.type.startsWith('image/'));
     setImageError(files?.length && !list.length ? 'That file is not a picture.' : '');
@@ -2829,6 +2838,14 @@ export default function LiteracyManipulatives() {
               </div>
             </Draggable>
             <p style={{ margin: '6px 0 0', fontSize: '0.75rem', opacity: 0.75 }}>Drag one out, then double tap it to type. It snaps into sentences like a symbol.</p>
+            <span className="lm-insert-label">Checklist</span>
+            <Draggable label="Add a checklist" onPointerDown={startDragNewItem(() => ({ kind: 'checklist', checkTitle: 'Checklist', checkLines: defaultChecklist() }))}>
+              <div className="lm-checklist-preview" aria-hidden="true">
+                <strong>Checklist</strong>
+                {['Capital letter', 'End punctuation', 'Required words'].map((t, i) => <span key={t}><i className={i === 0 ? 'on' : ''} />{t}</span>)}
+              </div>
+            </Draggable>
+            <p style={{ margin: '6px 0 0', fontSize: '0.75rem', opacity: 0.75 }}>Tap a line to check it. Edit to change the steps. On a shared board each student checks their own.</p>
             <span className="lm-insert-label">Picture</span>
             <input ref={imageInputRef} type="file" accept="image/*" multiple hidden onChange={(e) => { void insertImages(e.target.files); e.target.value = ''; }} />
             <button type="button" className="btn btn-sm lm-insert-image" onClick={() => imageInputRef.current?.click()} disabled={studentViewOnly}>
@@ -2896,7 +2913,7 @@ export default function LiteracyManipulatives() {
             onKeyDown={tabToNextBubble}
             style={{ position: 'relative', height: '100%', overflow: 'visible', pointerEvents: drawOn ? 'none' : undefined, transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0' }}
           >
-            {placed.filter((p) => p.kind !== 'textbox' && p.kind !== 'symbolSentence').map((p) => (
+            {placed.filter((p) => p.kind !== 'textbox' && p.kind !== 'symbolSentence' && p.kind !== 'checklist').map((p) => (
               // Sound Boxes sit behind everything else on purpose (a
               // background a student drops letters onto, direct teacher
               // report: letter/grapheme tiles were rendering behind the
@@ -3403,6 +3420,36 @@ export default function LiteracyManipulatives() {
                     </div>
                   </Draggable>
                 </div>
+              );
+            })}
+            {placed.filter((p) => p.kind === 'checklist').map((item) => {
+              const lines = item.checkLines ?? [];
+              // On a student's screen each student checks off their own copy (kept on their device).
+              const ticks = joinMode ? (myTicks[item.instanceId] ?? {}) : Object.fromEntries(lines.map((l) => [l.id, !!l.done]));
+              return (
+                <ChecklistWidget
+                  key={item.instanceId}
+                  x={item.x} y={item.y}
+                  title={item.checkTitle ?? ''}
+                  lines={lines}
+                  ticks={ticks}
+                  canEdit={!studentViewOnly}
+                  selected={selectedId === item.instanceId && !item.groupId}
+                  setRef={setItemRef(item.instanceId)}
+                  onPointerDown={startDragPlaced(item.instanceId)}
+                  onPointerMove={onDragMove}
+                  onPointerUp={onDragEnd}
+                  onDoubleClick={() => showBadges(item.instanceId)}
+                  onToggle={(id) => {
+                    if (joinMode) setMyTicks((m) => saveMyTicks({ ...m, [item.instanceId]: { ...(m[item.instanceId] ?? {}), [id]: !m[item.instanceId]?.[id] } }));
+                    else setPlacedField(item.instanceId, { checkLines: lines.map((l) => (l.id === id ? { ...l, done: !l.done } : l)) });
+                  }}
+                  onClearTicks={() => {
+                    if (joinMode) setMyTicks((m) => saveMyTicks({ ...m, [item.instanceId]: {} }));
+                    else setPlacedField(item.instanceId, { checkLines: lines.map((l) => ({ ...l, done: false })) });
+                  }}
+                  onChange={(patch) => setPlacedField(item.instanceId, { ...(patch.title !== undefined ? { checkTitle: patch.title } : {}), ...(patch.lines ? { checkLines: patch.lines } : {}) })}
+                />
               );
             })}
             {placed.filter((p) => p.kind === 'textbox').map((item) => (

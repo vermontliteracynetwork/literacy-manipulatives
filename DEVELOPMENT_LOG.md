@@ -681,3 +681,20 @@ present and future clocks already used in Write mode).
   ran." with future: "will run"). Taking it off gives the word back. Ungrouping the card into separate symbols, or
   dropping a symbol into the card, keeps the tense symbol on the same verb.
 
+### Checklist in Insert (2026-11-06)
+
+Her request: "in insert, add a checklist that has click select checks, left align list. easy view and edit modes.
+for share access, can help keep in track for capitilization, punctuation, requried words, etc."
+
+- **Insert > Checklist:** drag one onto the board. It starts with "Capital letter at the start", "End punctuation"
+  and "Required words: " and a count of what's checked (2/4).
+- **View mode:** a left-aligned list; tap a line (or its box) to check it off (green box, line crossed out); Clear
+  checks unchecks them all. Drag the title bar to move it.
+- **Edit mode** (Edit button): change the title, type each line (Enter adds the next line), move lines up or down,
+  remove them, or tap a common step to add it (capital letters for names and I, required words, complete sentence,
+  spaces between words, spelling checked, read it out loud). Done goes back to the list.
+- **Shared board:** each student checks off their own copy on their own device (their checks stay when the board
+  updates). The teacher, and students with edit access, can change the steps; view-only students can still check.
+- Code: `src/components/Checklist.tsx`, the `checklist` piece in `src/LiteracyManipulatives.tsx`, styles at the end of
+  `src/index.css`.
+
