@@ -622,3 +622,26 @@ replacing default/random words"
 - **Punctuation always stays its own icon:** marks typed into a word bubble are left out.
 - Code: `src/lib/wordBubbles.ts` (sentence tokens, random words, text color), `WordBubble`, `PunctIcon` and
   `BubbleToggle` in `src/LiteracyManipulatives.tsx`, styles at the end of `src/index.css`.
+
+---
+
+## 2026-11-06: Insert pictures; Punctuation under Grammar Symbols
+
+Her request (verbatim): "in the lefthand menu, move punctuation under grammar symbols. change text box to "Insert"
+and add a way to insert a saved image that should be moveable around the whiteboard screen. can add multiple
+images. images should have arrows to drag to resize and move"
+
+- **Left menu order:** Punctuation now comes right after Grammar Symbols.
+- **Insert** (was Text Box): the text box as before, plus **Insert a picture**, which opens the device's files.
+  Pick one or several pictures; each goes on the board (several step down and across so each shows).
+- **On the board** a picture is a piece like any other: drag it to move, Undo, Delete key or drag it back to the
+  menu to remove it, Select to group it. When it is selected it shows arrows at all four corners (drag to resize;
+  the opposite corner stays put and the picture keeps its shape) and a four-way arrow on top (drag to move).
+- **My pictures:** the last 8 pictures inserted on this device stay in the Insert menu to drag out again (x takes
+  one off the list).
+- Pictures are made small on the way in (at most 1000 px on the long side, WebP), so the board still saves and
+  still reaches students' screens on a shared board. A board with many large pictures may be slow to share.
+- Code: `src/lib/images.ts` (shrinking, My pictures), `image` pieces and `startImageResize` in
+  `src/LiteracyManipulatives.tsx`, `move` and `image` icons in `src/components/Icon.tsx`, styles at the end of
+  `src/index.css`.
+

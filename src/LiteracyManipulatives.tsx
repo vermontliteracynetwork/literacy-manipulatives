@@ -26,6 +26,7 @@ import {
   LM_PUNCTUATION_COLOR, LM_PUNCTUATION_TEXT_COLOR, LM_PHONO_COLOR,
 } from './lib/literacyDesignTokens';
 import { GRAMMAR_WORD_CLASS_COLORS, GRAMMAR_WORD_CLASS_TEXT_COLORS } from './types';
+import { readMyImages, saveMyImages, shrinkImage, type BoardImage } from './lib/images';
 import type { GrammarPiece, TTSSettings } from './types';
 
 // Literacy Manipulatives, rebuilt per direct teacher redesign (2026-09-22),
@@ -145,7 +146,7 @@ const GRAPHEME_GROUPS: { key: string; label: string; graphemes: { g: string; sou
 const BASE_PEN_COLORS = ['#1f1147', '#dc2626', '#2563eb', '#16a34a', '#f97316', 'var(--brand-blue)'];
 const BASE_HIGHLIGHT_COLORS = ['#fde047', '#86efac', '#93c5fd', '#f9a8d4'];
 
-type PlacedKind = 'grammar' | 'shape' | 'letter' | 'frame' | 'morpheme' | 'textbox' | 'symbolSentence' | 'punctuation' | 'soundChip' | 'divider';
+type PlacedKind = 'grammar' | 'shape' | 'letter' | 'frame' | 'morpheme' | 'textbox' | 'symbolSentence' | 'punctuation' | 'soundChip' | 'divider' | 'image';
 
 // A word or punctuation mark dropped into a Writing Scaffold line (from a Grammar Symbol, a Symbol Sentence, or a
 // punctuation tile), kept as a symbol with its word bubble inside the frame.
@@ -182,6 +183,9 @@ interface PlacedItem {
   bubbleStyle?: BubbleStyle; // shape + symbolSentence, word bubbles drawn as an outline (default) or solid
   bubbleWord?: string; // shape, the word typed (or picked with the random-word die) in a single Grammar Symbol's bubble
   punctId?: string; // punctuation, id into PUNCTUATION_MARKS
+  imageSrc?: string; // image, the picture itself (a data URL, made small on insert so the board stays light)
+  imageW?: number; // image, shown width in px
+  imageH?: number; // image, shown height in px
 }
 
 const pieceById = (id: string): GrammarPiece | undefined => SANDBOX_PIECES.find((p) => p.id === id);
@@ -216,6 +220,7 @@ function sizeFor(kind: PlacedKind, boxCount?: number, item?: Partial<PlacedItem>
   if (kind === 'symbolSentence') { const n = boxCount ?? 3; return { w: n * 110 + 60, h: 130 }; }
   if (kind === 'soundChip') return { w: 36, h: 36 };
   if (kind === 'divider') return { w: 10, h: 70 };
+  if (kind === 'image') return { w: item?.imageW ?? 240, h: item?.imageH ?? 180 };
   return { w: 44, h: 44 }; // letter
 }
 
@@ -239,11 +244,14 @@ function vcColorFor(text: string | undefined, on: boolean): CSSProperties | unde
   return { color: isVowel ? '#b91c1c' : '#1d4ed8' };
 }
 
-function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compact, punctId, vowelConsonantColors, cellSize, tileSize, linkedLeft, linkedRight, chipColor, customText }: {
+function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compact, punctId, vowelConsonantColors, cellSize, tileSize, linkedLeft, linkedRight, chipColor, customText, imageSrc, imageW, imageH }: {
   kind: PlacedKind; pieceId?: string; wordClass?: MontessoriWordClass; letter?: string; boxCount?: number;
   morphId?: string; compact?: boolean; punctId?: string; vowelConsonantColors?: boolean; cellSize?: number; tileSize?: number;
-  linkedLeft?: boolean; linkedRight?: boolean; chipColor?: string; customText?: string;
+  linkedLeft?: boolean; linkedRight?: boolean; chipColor?: string; customText?: string; imageSrc?: string; imageW?: number; imageH?: number;
 }) {
+  if (kind === 'image') {
+    return imageSrc ? <img src={imageSrc} alt="" draggable={false} className="lm-board-image" style={{ width: imageW ?? 240, height: imageH ?? 180 }} /> : null;
+  }
   if (kind === 'punctuation') {
     // A23-ROADMAP Phase 2: opt-in punctuation tiles. Same bordered-tile
     // shape as a letter tile, its own slate color (literacyDesignTokens)
@@ -914,6 +922,23 @@ export default function LiteracyManipulatives() {
     shapes: true, symbolSentences: false, morphemes: false, letters: false, graphemes: false, punctuation: false, phono: false, frames: false, textbox: false,
   });
   const toggleCategory = (key: string) => setOpenCategories((s) => ({ ...s, [key]: !s[key] }));
+  // Pictures (her request 2026-11-06): pick one or more saved pictures; each goes on the board, ready to move and
+  // resize, and into "My pictures" in the tray.
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [myImages, setMyImages] = useState<BoardImage[]>(readMyImages);
+  const [imageError, setImageError] = useState('');
+  const insertImages = async (files: FileList | null) => {
+    const list = [...(files ?? [])].filter((f) => f.type.startsWith('image/'));
+    setImageError(files?.length && !list.length ? 'That file is not a picture.' : '');
+    if (!list.length) return;
+    const made: BoardImage[] = [];
+    for (const f of list) {
+      try { made.push(await shrinkImage(f)); } catch { setImageError(`${f.name} could not be opened.`); }
+    }
+    if (!made.length) return;
+    placeAtCenter(made.map((im) => ({ kind: 'image', imageSrc: im.src, imageW: im.w, imageH: im.h })));
+    setMyImages((old) => saveMyImages([...made, ...old.filter((o) => !made.some((m) => m.src === o.src))]));
+  };
   const [openSubcategories, setOpenSubcategories] = useState<Record<string, boolean>>({
     page1: false, page2: false, page3: false, page4: false, page5: false, page6: false, page7: false, page8: false, page9: false, page10: false, page11: false,
     prefixes: true, suffixes: false, bases: false, roots: false,
@@ -1618,7 +1643,9 @@ export default function LiteracyManipulatives() {
     const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const items: PlacedItem[] = bases.map((base, i) => {
       const size = sizeFor(base.kind, base.boxCount, base as Partial<PlacedItem>);
-      return { ...base, instanceId: `add-${stamp}-${i}`, x: x - size.w / 2 + i * 120, y: y - size.h / 2, snapLeftId: asRow && i ? `add-${stamp}-${i - 1}` : undefined } as PlacedItem;
+      // Several pictures at once step down and across so each one shows.
+      const [dx, dy] = base.kind === 'image' ? [i * 40, i * 40] : [i * 120, 0];
+      return { ...base, instanceId: `add-${stamp}-${i}`, x: x - size.w / 2 + dx, y: y - size.h / 2 + dy, snapLeftId: asRow && i ? `add-${stamp}-${i - 1}` : undefined } as PlacedItem;
     });
     setPlaced((p) => [...p, ...items]);
   };
@@ -1889,6 +1916,35 @@ export default function LiteracyManipulatives() {
     const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+  };
+
+  // Picture resizing (her request 2026-11-06): drag a corner arrow; the corner across from it stays put and the
+  // picture keeps its shape.
+  const startImageResize = (instanceId: string, corner: 'nw' | 'ne' | 'sw' | 'se') => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const it = placed.find((pp) => pp.instanceId === instanceId);
+    if (!it) return;
+    pushHistory();
+    try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* window listener below still tracks */ }
+    const w0 = it.imageW ?? 240, h0 = it.imageH ?? 180;
+    const ratio = h0 / w0;
+    const ax = corner === 'nw' || corner === 'sw' ? it.x + w0 : it.x;
+    const ay = corner === 'nw' || corner === 'ne' ? it.y + h0 : it.y;
+    const move = (ev: PointerEvent) => {
+      const { x, y } = canvasRelative(ev.clientX, ev.clientY);
+      // How far along the picture's own diagonal the corner has been dragged.
+      const k = (Math.abs(x - ax) * w0 + Math.abs(y - ay) * h0) / (w0 * w0 + h0 * h0);
+      const w = Math.round(Math.max(40, Math.min(2000, k * w0)));
+      const h = Math.round(w * ratio);
+      setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? {
+        ...pp, imageW: w, imageH: h, x: corner === 'nw' || corner === 'sw' ? ax - w : ax, y: corner === 'nw' || corner === 'ne' ? ay - h : ay,
+      } : pp)));
+    };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
 
   // Sentence rows (her request 2026-10-15): a Grammar Symbol, Symbol Sentence, or punctuation tile dropped
@@ -2358,6 +2414,22 @@ export default function LiteracyManipulatives() {
             })()}
           </Category>
 
+          {/* The dashboard's native tool gates this per-student on a
+              teacher toggle (StudentManager.tsx). No accounts here, so
+              it's always on, every tool unlocked for anyone. */}
+          {(
+            <Category label="Punctuation" color="#cbd5e1" open={openCategories.punctuation} onToggle={() => toggleCategory('punctuation')}>
+              <TraySearch value={searchFor('punct')} onChange={setSearch('punct')} placeholder="Find a mark" />
+              <div className="row-wrap" style={{ gap: 8 }}>
+                {PUNCTUATION_MARKS.filter((m) => matches('punct', m.name, m.mark, m.label)).map((m) => (
+                  <Draggable key={m.id} label={m.name} onPointerDown={startDragNewItem(() => ({ kind: 'punctuation', punctId: m.id }))}>
+                    <ItemVisual kind="punctuation" punctId={m.id} />
+                  </Draggable>
+                ))}
+              </div>
+            </Category>
+          )}
+
           <Category label="Symbol Sentences" color="#C0D6F5" open={openCategories.symbolSentences} onToggle={() => toggleCategory('symbolSentences')}>
             <TraySearch value={searchFor('sentences')} onChange={setSearch('sentences')} placeholder="Type a sentence or parts of speech" />
             <BubbleToggle value={bubbleDefault} onChange={setAllBubbles} />
@@ -2496,22 +2568,6 @@ export default function LiteracyManipulatives() {
             ))}
           </Category>
 
-          {/* The dashboard's native tool gates this per-student on a
-              teacher toggle (StudentManager.tsx). No accounts here, so
-              it's always on, every tool unlocked for anyone. */}
-          {(
-            <Category label="Punctuation" color="#cbd5e1" open={openCategories.punctuation} onToggle={() => toggleCategory('punctuation')}>
-              <TraySearch value={searchFor('punct')} onChange={setSearch('punct')} placeholder="Find a mark" />
-              <div className="row-wrap" style={{ gap: 8 }}>
-                {PUNCTUATION_MARKS.filter((m) => matches('punct', m.name, m.mark, m.label)).map((m) => (
-                  <Draggable key={m.id} label={m.name} onPointerDown={startDragNewItem(() => ({ kind: 'punctuation', punctId: m.id }))}>
-                    <ItemVisual kind="punctuation" punctId={m.id} />
-                  </Draggable>
-                ))}
-              </div>
-            </Category>
-          )}
-
           {/* A23-ROADMAP Phase 3: "phonological awareness (sound chips,
               syllable tapping, onset-rime slider) as new sidebar
               categories", free-play manipulatives, no target word, no
@@ -2538,13 +2594,36 @@ export default function LiteracyManipulatives() {
             </div>
           </Category>
 
-          <Category label="Text Box" color="#C0D6F5" open={openCategories.textbox} onToggle={() => toggleCategory('textbox')}>
+          {/* Insert (her request 2026-11-06, was "Text Box"): a text box, and pictures saved on the device. */}
+          <Category label="Insert" color="#C0D6F5" open={openCategories.textbox} onToggle={() => toggleCategory('textbox')}>
+            <span className="lm-insert-label">Text box</span>
             <Draggable label="Add a text box" onPointerDown={startDragNewItem(() => ({ kind: 'textbox', textValue: '' }))}>
               <div className="lm-bubble lm-text-pill" style={{ borderColor: TEXT_GRAY, background: BUBBLE_WHITE, color: BUBBLE_BLACK, display: 'flex', alignItems: 'center' }}>
                 <span style={{ opacity: 0.6 }}>text</span>
               </div>
             </Draggable>
             <p style={{ margin: '6px 0 0', fontSize: '0.75rem', opacity: 0.75 }}>Drag one out, then double tap it to type. It snaps into sentences like a symbol.</p>
+            <span className="lm-insert-label">Picture</span>
+            <input ref={imageInputRef} type="file" accept="image/*" multiple hidden onChange={(e) => { void insertImages(e.target.files); e.target.value = ''; }} />
+            <button type="button" className="btn btn-sm lm-insert-image" onClick={() => imageInputRef.current?.click()} disabled={studentViewOnly}>
+              <Icon name="image" size={18} /> Insert a picture
+            </button>
+            {imageError && <p className="lm-insert-error" role="alert">{imageError}</p>}
+            {myImages.length > 0 && (
+              <>
+                <p style={{ margin: '8px 0 4px', fontSize: '0.75rem', opacity: 0.75 }}>My pictures: drag one onto the board again.</p>
+                <div className="lm-my-images">
+                  {myImages.map((im, i) => (
+                    <div key={i} className="lm-my-image">
+                      <Draggable label="Picture" onPointerDown={startDragNewItem(() => ({ kind: 'image', imageSrc: im.src, imageW: im.w, imageH: im.h }))}>
+                        <img src={im.src} alt="" draggable={false} />
+                      </Draggable>
+                      <button type="button" className="lm-my-image-x" onClick={() => setMyImages(saveMyImages(myImages.filter((_, k) => k !== i)))} aria-label="Remove from my pictures" title="Remove from my pictures">×</button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </Category>
 
         </aside>
@@ -2621,6 +2700,7 @@ export default function LiteracyManipulatives() {
                     linkedRight={p.kind === 'morpheme' && placed.some((q) => q.snapLeftId === p.instanceId && q.kind === 'morpheme')}
                     chipColor={p.chipColor}
                     customText={p.customText}
+                    imageSrc={p.imageSrc} imageW={p.imageW} imageH={p.imageH}
                   />
                 </Draggable>
                 {/* The word bubble is part of the symbol (her picture, 2026-10-15): it sits right under the icon and
@@ -2689,6 +2769,16 @@ export default function LiteracyManipulatives() {
                 )}
                 {selectedId === p.instanceId && p.kind === 'frame' && (
                   <div className="lm-resize-handle lm-item-controls" onPointerDown={startFrameResize(p.instanceId)} role="slider" aria-label="Resize sound boxes" aria-valuenow={p.cellSize ?? DEFAULT_CELL} aria-valuemin={36} aria-valuemax={140} title="Drag to resize">⤡</div>
+                )}
+                {/* A picture (her request 2026-11-06): arrows at each corner to drag to resize, and a four-way arrow
+                    on top to drag to move (the picture itself can be dragged too). */}
+                {selectedId === p.instanceId && p.kind === 'image' && !studentViewOnly && (
+                  <>
+                    <div className="lm-image-move lm-item-controls" onPointerDown={(e) => { e.stopPropagation(); startDragPlaced(p.instanceId)(e); }} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd} role="button" aria-label="Drag to move the picture" title="Drag to move"><Icon name="move" size={18} /></div>
+                    {(['nw', 'ne', 'sw', 'se'] as const).map((c) => (
+                      <div key={c} className={`lm-image-resize ${c} lm-item-controls`} onPointerDown={startImageResize(p.instanceId, c)} role="slider" aria-label="Drag to resize the picture" aria-valuenow={Math.round(p.imageW ?? 240)} aria-valuemin={40} aria-valuemax={2000} title="Drag to resize">{c === 'nw' || c === 'se' ? '⤡' : '⤢'}</div>
+                    ))}
+                  </>
                 )}
               </div>
             ))}

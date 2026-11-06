@@ -1,5 +1,5 @@
 // Small line icons used where a button has no words (her request 2026-10-15: no emojis anywhere on the board).
-type IconName = 'speaker' | 'speaking' | 'eye' | 'pencil' | 'dice' | 'gear' | 'arrow' | 'finger' | 'trash' | 'copy' | 'triangle' | 'alignLeft' | 'alignCenter' | 'alignRight';
+type IconName = 'speaker' | 'speaking' | 'eye' | 'pencil' | 'dice' | 'gear' | 'arrow' | 'finger' | 'trash' | 'copy' | 'triangle' | 'alignLeft' | 'alignCenter' | 'alignRight' | 'move' | 'image';
 
 const PATHS: Record<IconName, React.ReactNode> = {
   speaker: <><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="M16 9.5a3.5 3.5 0 0 1 0 5" /></>,
@@ -11,6 +11,8 @@ const PATHS: Record<IconName, React.ReactNode> = {
   alignLeft: <><path d="M4 6h16M4 10h10M4 14h16M4 18h10" /></>,
   alignCenter: <><path d="M4 6h16M7 10h10M4 14h16M7 18h10" /></>,
   alignRight: <><path d="M4 6h16M10 10h10M4 14h16M10 18h10" /></>,
+  move: <><path d="M12 3v18M3 12h18" /><path d="M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3" /></>,
+  image: <><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="10" r="1.8" /><path d="M21 16l-5-5-8 8" /></>,
   triangle: <path d="M12 4L21 19.5H3z" fill="currentColor" />,
   copy: <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8" /><path d="M14 11v6M11 14h6" /></>,
   trash: <><path d="M4 7h16" /><path d="M9 7V4.5h6V7" /><path d="M6.5 7l1 13h9l1-13" /><path d="M10 11v6M14 11v6" /></>,
