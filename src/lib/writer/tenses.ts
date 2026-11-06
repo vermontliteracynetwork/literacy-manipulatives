@@ -25,7 +25,7 @@ const SINGULAR_PRONOUNS = new Set(['he', 'she', 'it', 'this', 'that', 'someone',
 
 type Number = 'one' | 'many' | 'i';
 const POSSESSIVES = new Set(['my', 'your', 'his', 'her', 'its', 'our', 'their']);
-const third = (b: string) => (b === 'have' ? 'has' : b === 'do' ? 'does' : b === 'go' ? 'goes' : b === 'be' ? 'is'
+export const third = (b: string) => (b === 'have' ? 'has' : b === 'do' ? 'does' : b === 'go' ? 'goes' : b === 'be' ? 'is'
   : /[^aeiou]y$/.test(b) ? `${b.slice(0, -1)}ies` : /(s|sh|ch|x|z|o)$/.test(b) ? `${b}es` : `${b}s`);
 export function pastOf(b: string): string {
   if (IRREGULAR[b]) return IRREGULAR[b];

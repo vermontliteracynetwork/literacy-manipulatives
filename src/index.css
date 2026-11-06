@@ -828,3 +828,4 @@ button.lm-writer-check-text { border: 0; background: none; padding: 0; text-alig
 .lm-crop-handle.s { left: calc(50% - 8px); bottom: 0; cursor: ns-resize; }
 .lm-crop-handle.e { top: calc(50% - 8px); right: 0; cursor: ew-resize; }
 .lm-crop-handle.w { top: calc(50% - 8px); left: 0; cursor: ew-resize; }
+.lm-tense-tray { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 0.72rem; font-weight: 700; }

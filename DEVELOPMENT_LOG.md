@@ -660,3 +660,20 @@ Her request: "add a way to crop and rotate pictures"
 - Code: `startImageRotate`, `turnImage`, `startCropDrag` and `applyCrop` in `src/LiteracyManipulatives.tsx`,
   `cropImage` in `src/lib/images.ts`, `rotate` and `crop` icons.
 
+### Additional Symbols: past, present, future on the board (2026-11-06)
+
+Her request: "add these in a section called Additional symbols. these can be stand alone and can also be attatched
+on top of a verb (placed above) to change the tense of the verb" (her Additional Symbols folder: the same past,
+present and future clocks already used in Write mode).
+
+- **Additional Symbols** in the left menu (after Punctuation) holds Past, Present and Future. Drag one out to use on
+  its own.
+- **On a verb:** drop one on or just above a verb (a single Grammar Symbol) and it sits centered on top of the verb,
+  a little smaller, and moves with it. The verb's word changes to that tense: run with past is "ran", with future
+  "will run", with present "run" ("runs" stays "runs"); be keeps its person (is/was, are/were). A word typed into the
+  verb's bubble while a tense symbol is on it goes into that tense too.
+- One per verb: dropping a second one on the same verb bumps the first up off it. Dragging a tense symbol off (or
+  removing it) gives the verb its own word back.
+- Code: `src/lib/tenseSymbols.ts` (`verbInTense`, using the Write mode tense helpers), `tense` pieces,
+  `attachTense` and the layout rule in `src/LiteracyManipulatives.tsx`.
+

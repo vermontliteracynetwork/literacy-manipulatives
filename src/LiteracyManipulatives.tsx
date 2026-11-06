@@ -17,7 +17,9 @@ import { addIdea } from './lib/writer/formulaBook';
 import { SettingsPanel } from './components/SettingsPanel';
 import { isFontChoice, useFontChoice, type FontChoice } from './lib/fontChoice';
 import { diffItems, isJoinRoute, myColor, shareConfigured, studentId as myStudentId, useHostSession, useStudentSession, type Ops, type Snapshot } from './lib/share';
-import { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass } from './lib/montessoriGrammar';
+import { MONTESSORI_WORD_CLASS_INFO, TENSE_SYMBOLS, type MontessoriWordClass } from './lib/montessoriGrammar';
+import { verbInTense, type Tense } from './lib/tenseSymbols';
+import { loadWords } from './lib/writer/spell';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
 import { agreeWords, isKnownWord, patternFor, searchSymbolSentences, symbolsForWords, wordMismatch, type PatternWord } from './lib/sentenceSearch';
 import { PUNCTUATION_MARKS } from './lib/punctuationContent';
@@ -146,7 +148,7 @@ const GRAPHEME_GROUPS: { key: string; label: string; graphemes: { g: string; sou
 const BASE_PEN_COLORS = ['#1f1147', '#dc2626', '#2563eb', '#16a34a', '#f97316', 'var(--brand-blue)'];
 const BASE_HIGHLIGHT_COLORS = ['#fde047', '#86efac', '#93c5fd', '#f9a8d4'];
 
-type PlacedKind = 'grammar' | 'shape' | 'letter' | 'frame' | 'morpheme' | 'textbox' | 'symbolSentence' | 'punctuation' | 'soundChip' | 'divider' | 'image';
+type PlacedKind = 'grammar' | 'shape' | 'letter' | 'frame' | 'morpheme' | 'textbox' | 'symbolSentence' | 'punctuation' | 'soundChip' | 'divider' | 'image' | 'tense';
 
 // A word or punctuation mark dropped into a Writing Scaffold line (from a Grammar Symbol, a Symbol Sentence, or a
 // punctuation tile), kept as a symbol with its word bubble inside the frame.
@@ -187,6 +189,9 @@ interface PlacedItem {
   imageW?: number; // image, shown width in px
   imageH?: number; // image, shown height in px
   imageRotation?: number; // image, turned this many degrees clockwise around its middle
+  tense?: Tense; // tense, which of her Additional Symbols (past, present, future)
+  onVerbId?: string; // tense, the verb (a single Grammar Symbol) it sits on top of, changing that verb's tense
+  bubbleWordOwn?: string; // shape, the verb's own word while a tense symbol on it shows the word in that tense
 }
 
 const pieceById = (id: string): GrammarPiece | undefined => SANDBOX_PIECES.find((p) => p.id === id);
@@ -196,6 +201,8 @@ const DEFAULT_CELL = 44;
 const frameWidth = (n: number, cell: number) => n * cell + (n - 1) * CELL_GAP;
 const MAX_BOXES = 10;
 const SAVE_KEY = 'lm-board';
+// A tense symbol sitting on a verb is drawn smaller, just above the verb's symbol.
+const TENSE_ON_VERB = 44;
 let savedBoard: { placed: PlacedItem[]; strokes: Stroke[] } | null = null;
 let hadSavedBoard = false;
 function readSavedBoard(): { placed: PlacedItem[]; strokes: Stroke[] } {
@@ -222,6 +229,7 @@ function sizeFor(kind: PlacedKind, boxCount?: number, item?: Partial<PlacedItem>
   if (kind === 'soundChip') return { w: 36, h: 36 };
   if (kind === 'divider') return { w: 10, h: 70 };
   if (kind === 'image') return { w: item?.imageW ?? 240, h: item?.imageH ?? 180 };
+  if (kind === 'tense') return item?.onVerbId ? { w: TENSE_ON_VERB, h: TENSE_ON_VERB } : { w: 64, h: 64 };
   return { w: 44, h: 44 }; // letter
 }
 
@@ -245,11 +253,16 @@ function vcColorFor(text: string | undefined, on: boolean): CSSProperties | unde
   return { color: isVowel ? '#b91c1c' : '#1d4ed8' };
 }
 
-function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compact, punctId, vowelConsonantColors, cellSize, tileSize, linkedLeft, linkedRight, chipColor, customText, imageSrc, imageW, imageH }: {
+function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compact, punctId, vowelConsonantColors, cellSize, tileSize, linkedLeft, linkedRight, chipColor, customText, imageSrc, imageW, imageH, tense }: {
   kind: PlacedKind; pieceId?: string; wordClass?: MontessoriWordClass; letter?: string; boxCount?: number;
   morphId?: string; compact?: boolean; punctId?: string; vowelConsonantColors?: boolean; cellSize?: number; tileSize?: number;
-  linkedLeft?: boolean; linkedRight?: boolean; chipColor?: string; customText?: string; imageSrc?: string; imageW?: number; imageH?: number;
+  linkedLeft?: boolean; linkedRight?: boolean; chipColor?: string; customText?: string; imageSrc?: string; imageW?: number; imageH?: number; tense?: Tense;
 }) {
+  if (kind === 'tense') {
+    const info = TENSE_SYMBOLS[tense ?? 'present'];
+    const size = compact ? TENSE_ON_VERB : 64;
+    return <img src={info.imageUrl} alt={info.name} title={info.name} draggable={false} style={{ width: size, height: size, display: 'block', pointerEvents: 'none' }} />;
+  }
   if (kind === 'image') {
     return imageSrc ? <img src={imageSrc} alt="" draggable={false} className="lm-board-image" style={{ width: imageW ?? 240, height: imageH ?? 180 }} /> : null;
   }
@@ -920,7 +933,7 @@ export default function LiteracyManipulatives() {
   const drawLast = useRef<{ x: number; y: number } | null>(null);
 
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
-    shapes: true, symbolSentences: false, morphemes: false, letters: false, graphemes: false, punctuation: false, phono: false, frames: false, textbox: false,
+    shapes: true, symbolSentences: false, morphemes: false, letters: false, graphemes: false, punctuation: false, tense: false, phono: false, frames: false, textbox: false,
   });
   const toggleCategory = (key: string) => setOpenCategories((s) => ({ ...s, [key]: !s[key] }));
   // Pictures (her request 2026-11-06): pick one or more saved pictures; each goes on the board, ready to move and
@@ -1156,6 +1169,14 @@ export default function LiteracyManipulatives() {
       if (pp.kind === 'letter') pos.set(pp.instanceId, { x: fp.x + i * pitch, y: fp.y });
       else if (pp.kind === 'soundChip') pos.set(pp.instanceId, { x: fp.x + i * pitch + cell / 2 - 18, y: fp.y + cell + 8 });
       else if (pp.kind === 'divider') pos.set(pp.instanceId, { x: fp.x + i * pitch - CELL_GAP / 2 - 5, y: fp.y + cell / 2 - 35 });
+    }
+    // A tense symbol sits centered just above the verb it's on, and moves with it.
+    for (const pp of placed) {
+      if (pp.kind !== 'tense' || !pp.onVerbId) continue;
+      const v = byId.get(pp.onVerbId);
+      if (!v) continue;
+      const vp = pos.get(v.instanceId)!;
+      pos.set(pp.instanceId, { x: vp.x + measured(v).w / 2 - TENSE_ON_VERB / 2, y: vp.y - TENSE_ON_VERB - 2 });
     }
     const changed = placed.some((pp) => {
       const q = pos.get(pp.instanceId)!;
@@ -1822,6 +1843,7 @@ export default function LiteracyManipulatives() {
         const item = p.find((pp) => pp.instanceId === id);
         if (!item) return p;
         if (item.inFrameId) return p.map((pp) => (pp.instanceId === id ? { ...pp, inFrameId: undefined, cellIndex: undefined } : pp));
+        if (item.kind === 'tense' && item.onVerbId) return p.map((pp) => (pp.instanceId === id ? { ...pp, onVerbId: undefined } : pp));
         // The first piece of a row lifts out on its own too (her request 2026-10-15), so it's as easy to move
         // or remove as any other; the rest of the row stays put. Group a row to move it as a whole.
         if (!item.snapLeftId) return p.map((pp) => (pp.snapLeftId === id && SENTENCE_KINDS.includes(pp.kind) ? { ...pp, snapLeftId: undefined } : pp));
@@ -2132,7 +2154,47 @@ export default function LiteracyManipulatives() {
     if (kind === 'grammar') runSnapCheck(id);
     if (kind === 'morpheme' || SENTENCE_KINDS.includes(kind)) runRowSnap(id);
     if (kind === 'letter' || kind === 'soundChip' || kind === 'divider') runSoundBoxSnap(id);
+    if (kind === 'tense') attachTense(id, clientX, clientY);
   };
+
+  // Her Additional Symbols (2026-11-06): a past, present or future symbol dropped on or just above a verb (a single
+  // Grammar Symbol) sits on top of it and puts the verb's word in that tense ("run" with past: "ran"). One per verb:
+  // a new one bumps the old one up off the verb.
+  const attachTense = (id: string, clientX: number, clientY: number) => {
+    void loadWords();
+    let best: { verb: PlacedItem; dist: number } | null = null;
+    for (const v of placed) {
+      if (v.kind !== 'shape' || v.wordClass !== 'verb') continue;
+      const r = itemRefs.current.get(v.instanceId)?.getBoundingClientRect();
+      if (!r || clientX < r.left - 16 || clientX > r.right + 16 || clientY < r.top - 90 * zoom || clientY > r.top + r.height * 0.6) continue;
+      const dist = Math.hypot(clientX - (r.left + r.width / 2), clientY - r.top);
+      if (!best || dist < best.dist) best = { verb: v, dist };
+    }
+    if (!best) return;
+    const verb = best.verb;
+    setPlaced((cur) => cur.map((pp) => {
+      const t = cur.find((q) => q.instanceId === id);
+      if (pp.instanceId === id) return { ...pp, onVerbId: verb.instanceId };
+      if (pp.kind === 'tense' && pp.onVerbId === verb.instanceId) return { ...pp, onVerbId: undefined, y: pp.y - 70 };
+      if (pp.instanceId === verb.instanceId && t?.tense) {
+        const own = pp.bubbleWordOwn ?? pp.bubbleWord;
+        return own?.trim() ? { ...pp, bubbleWordOwn: own, bubbleWord: verbInTense(own, t.tense) } : pp;
+      }
+      return pp;
+    }));
+  };
+  // A verb whose tense symbol was taken off (or removed) gets its own word back; a tense symbol whose verb is gone
+  // stays on the board on its own.
+  useEffect(() => {
+    const onVerb = new Set(placed.filter((pp) => pp.kind === 'tense' && pp.onVerbId).map((pp) => pp.onVerbId));
+    const ids = new Set(placed.map((pp) => pp.instanceId));
+    if (!placed.some((pp) => (pp.bubbleWordOwn !== undefined && !onVerb.has(pp.instanceId)) || (pp.kind === 'tense' && pp.onVerbId && !ids.has(pp.onVerbId)))) return;
+    setPlaced((cur) => cur.map((pp) => {
+      if (pp.bubbleWordOwn !== undefined && !onVerb.has(pp.instanceId)) return { ...pp, bubbleWord: pp.bubbleWordOwn, bubbleWordOwn: undefined };
+      if (pp.kind === 'tense' && pp.onVerbId && !ids.has(pp.onVerbId)) return { ...pp, onVerbId: undefined };
+      return pp;
+    }));
+  }, [placed]);
 
   const onDragEnd = (e: React.PointerEvent) => {
     const id = dragInstanceRef.current;
@@ -2538,6 +2600,22 @@ export default function LiteracyManipulatives() {
             </Category>
           )}
 
+          {/* Additional Symbols (her request 2026-11-06): past, present and future. On their own, or dropped on top of
+              a verb to put the verb in that tense. */}
+          <Category label="Additional Symbols" color="#E2E8F0" open={openCategories.tense} onToggle={() => { toggleCategory('tense'); void loadWords(); }}>
+            <div className="row-wrap" style={{ gap: 12 }}>
+              {(['past', 'present', 'future'] as const).map((t) => (
+                <div key={t} className="lm-tense-tray">
+                  <Draggable label={TENSE_SYMBOLS[t].name} onPointerDown={startDragNewItem(() => ({ kind: 'tense', tense: t }))}>
+                    <ItemVisual kind="tense" tense={t} compact />
+                  </Draggable>
+                  <span>{TENSE_SYMBOLS[t].name}</span>
+                </div>
+              ))}
+            </div>
+            <p style={{ margin: '6px 0 0', fontSize: '0.75rem', opacity: 0.75 }}>Use one on its own, or drop it on top of a verb to change the verb's tense.</p>
+          </Category>
+
           <Category label="Symbol Sentences" color="#C0D6F5" open={openCategories.symbolSentences} onToggle={() => toggleCategory('symbolSentences')}>
             <TraySearch value={searchFor('sentences')} onChange={setSearch('sentences')} placeholder="Type a sentence or parts of speech" />
             <BubbleToggle value={bubbleDefault} onChange={setAllBubbles} />
@@ -2809,6 +2887,7 @@ export default function LiteracyManipulatives() {
                     chipColor={p.chipColor}
                     customText={p.customText}
                     imageSrc={p.imageSrc} imageW={p.imageW} imageH={p.imageH}
+                    tense={p.tense} compact={p.kind === 'tense' && !!p.onVerbId}
                   />
                 </Draggable>
                 {/* The word bubble is part of the symbol (her picture, 2026-10-15): it sits right under the icon and
@@ -2821,10 +2900,16 @@ export default function LiteracyManipulatives() {
                       color={MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].color}
                       bubbleStyle={p.bubbleStyle ?? bubbleDefault}
                       label={`${MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].name} word`}
-                      onChange={(v) => { setPlacedField(p.instanceId, { bubbleWord: v }); clearWordAlert(p.instanceId, 0); }}
+                      onChange={(v) => { setPlacedField(p.instanceId, { bubbleWord: v, bubbleWordOwn: undefined }); clearWordAlert(p.instanceId, 0); }}
                       onBlur={(v) => {
-                        const cased = caseWord(v, p.wordClass, startsSentence(placed, p));
-                        if (cased !== v) setPlacedField(p.instanceId, { bubbleWord: cased });
+                        let cased = caseWord(v, p.wordClass, startsSentence(placed, p));
+                        // A word typed on a verb wearing a tense symbol goes into that tense.
+                        const tenseOn = placed.find((t) => t.kind === 'tense' && t.onVerbId === p.instanceId)?.tense;
+                        if (tenseOn && p.bubbleWordOwn === undefined && cased.trim()) {
+                          const own = cased;
+                          cased = verbInTense(own, tenseOn);
+                          setPlacedField(p.instanceId, { bubbleWord: cased, bubbleWordOwn: own });
+                        } else if (cased !== v) setPlacedField(p.instanceId, { bubbleWord: cased });
                         void checkWord(p.instanceId, 0, cased, p.wordClass ?? 'noun');
                       }}
                       owner={p.instanceId}
