@@ -816,3 +816,15 @@ button.lm-writer-check-text { border: 0; background: none; padding: 0; text-alig
 .lm-my-image [role="button"] { width: 100%; aspect-ratio: 1; background: #fff; border: 2px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
 .lm-my-image img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
 .lm-my-image-x { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--ink); background: #fff; font-size: 13px; line-height: 1; padding: 0; cursor: pointer; }
+.lm-image-rotate { position: absolute; left: 50%; bottom: -44px; transform: translateX(-50%); width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--ink); background: #fff; color: var(--ink); touch-action: none; display: flex; align-items: center; justify-content: center; cursor: grab; z-index: 3; }
+.lm-crop { position: absolute; inset: 0; overflow: hidden; border-radius: 6px; z-index: 3; touch-action: none; }
+.lm-crop-box { position: absolute; box-sizing: border-box; border: 2px dashed #fff; outline: 1px solid rgba(0, 0, 0, 0.6); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); cursor: move; touch-action: none; }
+.lm-crop-handle { position: absolute; width: 16px; height: 16px; background: #fff; border: 2px solid var(--ink); border-radius: 3px; touch-action: none; }
+.lm-crop-handle.nw { left: 0; top: 0; cursor: nwse-resize; }
+.lm-crop-handle.se { right: 0; bottom: 0; cursor: nwse-resize; }
+.lm-crop-handle.ne { right: 0; top: 0; cursor: nesw-resize; }
+.lm-crop-handle.sw { left: 0; bottom: 0; cursor: nesw-resize; }
+.lm-crop-handle.n { left: calc(50% - 8px); top: 0; cursor: ns-resize; }
+.lm-crop-handle.s { left: calc(50% - 8px); bottom: 0; cursor: ns-resize; }
+.lm-crop-handle.e { top: calc(50% - 8px); right: 0; cursor: ew-resize; }
+.lm-crop-handle.w { top: calc(50% - 8px); left: 0; cursor: ew-resize; }

@@ -645,3 +645,18 @@ images. images should have arrows to drag to resize and move"
   `src/LiteracyManipulatives.tsx`, `move` and `image` icons in `src/components/Icon.tsx`, styles at the end of
   `src/index.css`.
 
+### Crop and turn pictures (2026-11-06)
+
+Her request: "add a way to crop and rotate pictures"
+
+- A selected picture has a small bar under it: **Crop**, **Turn left** and **Turn right** (a quarter turn each).
+- **Turning any amount:** drag the round arrow under the picture. It settles on straight (0, 90, 180, 270 degrees)
+  when within a few degrees. A turned picture still moves, and its corner arrows grow or shrink it around its
+  middle.
+- **Crop:** shows a frame on the picture with handles on the corners and sides; the part outside is shaded. Drag a
+  handle to trim, or drag the frame to choose a different part, then **Done** (Reset starts over, Cancel leaves the
+  picture as it was). The kept part stays in the same spot on the board, also on a turned picture. Undo brings the
+  whole picture back.
+- Code: `startImageRotate`, `turnImage`, `startCropDrag` and `applyCrop` in `src/LiteracyManipulatives.tsx`,
+  `cropImage` in `src/lib/images.ts`, `rotate` and `crop` icons.
+

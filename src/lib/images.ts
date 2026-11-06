@@ -37,6 +37,19 @@ export async function shrinkImage(file: File): Promise<BoardImage> {
   }
 }
 
+// Crop a picture to part of itself (her request 2026-11-06), given as fractions of its width and height.
+export async function cropImage(src: string, l: number, t: number, r: number, b: number): Promise<string> {
+  const img = await load(src);
+  const sx = Math.round(l * img.naturalWidth), sy = Math.round(t * img.naturalHeight);
+  const sw = Math.max(1, Math.round((r - l) * img.naturalWidth)), sh = Math.max(1, Math.round((b - t) * img.naturalHeight));
+  const canvas = document.createElement('canvas');
+  canvas.width = sw;
+  canvas.height = sh;
+  canvas.getContext('2d')?.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+  const out = canvas.toDataURL('image/webp', 0.85);
+  return out.startsWith('data:image/webp') ? out : canvas.toDataURL('image/png');
+}
+
 // "My pictures": the last few pictures inserted on this device, kept in the Insert tray to drag out again.
 const KEY = 'lm-my-images';
 const KEEP = 8;

@@ -26,7 +26,7 @@ import {
   LM_PUNCTUATION_COLOR, LM_PUNCTUATION_TEXT_COLOR, LM_PHONO_COLOR,
 } from './lib/literacyDesignTokens';
 import { GRAMMAR_WORD_CLASS_COLORS, GRAMMAR_WORD_CLASS_TEXT_COLORS } from './types';
-import { readMyImages, saveMyImages, shrinkImage, type BoardImage } from './lib/images';
+import { cropImage, readMyImages, saveMyImages, shrinkImage, type BoardImage } from './lib/images';
 import type { GrammarPiece, TTSSettings } from './types';
 
 // Literacy Manipulatives, rebuilt per direct teacher redesign (2026-09-22),
@@ -186,6 +186,7 @@ interface PlacedItem {
   imageSrc?: string; // image, the picture itself (a data URL, made small on insert so the board stays light)
   imageW?: number; // image, shown width in px
   imageH?: number; // image, shown height in px
+  imageRotation?: number; // image, turned this many degrees clockwise around its middle
 }
 
 const pieceById = (id: string): GrammarPiece | undefined => SANDBOX_PIECES.find((p) => p.id === id);
@@ -1929,6 +1930,23 @@ export default function LiteracyManipulatives() {
     try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* window listener below still tracks */ }
     const w0 = it.imageW ?? 240, h0 = it.imageH ?? 180;
     const ratio = h0 / w0;
+    if (it.imageRotation) {
+      // A turned picture grows or shrinks around its middle, by how far the arrow moves from the middle.
+      const cx = it.x + w0 / 2, cy = it.y + h0 / 2;
+      const s0 = canvasRelative(e.clientX, e.clientY);
+      const d0 = Math.max(1, Math.hypot(s0.x - cx, s0.y - cy));
+      const turn = (ev: PointerEvent) => {
+        const { x, y } = canvasRelative(ev.clientX, ev.clientY);
+        const w = Math.round(Math.max(40, Math.min(2000, w0 * Math.hypot(x - cx, y - cy) / d0)));
+        const h = Math.round(w * ratio);
+        setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, imageW: w, imageH: h, x: cx - w / 2, y: cy - h / 2 } : pp)));
+      };
+      const stop = () => { window.removeEventListener('pointermove', turn); window.removeEventListener('pointerup', stop); window.removeEventListener('pointercancel', stop); };
+      window.addEventListener('pointermove', turn);
+      window.addEventListener('pointerup', stop);
+      window.addEventListener('pointercancel', stop);
+      return;
+    }
     const ax = corner === 'nw' || corner === 'sw' ? it.x + w0 : it.x;
     const ay = corner === 'nw' || corner === 'ne' ? it.y + h0 : it.y;
     const move = (ev: PointerEvent) => {
@@ -1945,6 +1963,96 @@ export default function LiteracyManipulatives() {
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
+  };
+
+  // Picture turning (her request 2026-11-06): drag the round arrow under the picture to turn it any amount; it
+  // settles on straight (0, 90, 180, 270) when within a few degrees. The buttons turn it a quarter at a time.
+  const startImageRotate = (instanceId: string) => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const it = placed.find((pp) => pp.instanceId === instanceId);
+    if (!it) return;
+    pushHistory();
+    try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* window listener below still tracks */ }
+    const cx = it.x + (it.imageW ?? 240) / 2, cy = it.y + (it.imageH ?? 180) / 2;
+    const s0 = canvasRelative(e.clientX, e.clientY);
+    const a0 = Math.atan2(s0.y - cy, s0.x - cx);
+    const r0 = it.imageRotation ?? 0;
+    const move = (ev: PointerEvent) => {
+      const { x, y } = canvasRelative(ev.clientX, ev.clientY);
+      let deg = (((r0 + (Math.atan2(y - cy, x - cx) - a0) * 180 / Math.PI) % 360) + 360) % 360;
+      const near = Math.round(deg / 90) * 90;
+      if (Math.abs(deg - near) < 6) deg = near % 360;
+      setPlacedField(instanceId, { imageRotation: Math.round(deg) });
+    };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
+  const turnImage = (instanceId: string, by: number) => {
+    const it = placed.find((pp) => pp.instanceId === instanceId);
+    if (!it) return;
+    pushHistory();
+    setPlacedField(instanceId, { imageRotation: ((((it.imageRotation ?? 0) + by) % 360) + 360) % 360 });
+  };
+  // Picture cropping (her request 2026-11-06): Crop shows a frame on the picture with handles on its corners and
+  // sides; drag them (or the frame) to choose the part to keep, then Done. The kept part replaces the picture
+  // (Undo brings the whole picture back).
+  const [crop, setCrop] = useState<{ id: string; l: number; t: number; r: number; b: number } | null>(null);
+  // Picking something else ends cropping without changing the picture.
+  useEffect(() => { if (crop && crop.id !== selectedId) setCrop(null); }, [selectedId, crop]);
+  const startCropDrag = (part: string) => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!crop) return;
+    const it = placed.find((pp) => pp.instanceId === crop.id);
+    if (!it) return;
+    try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* window listener below still tracks */ }
+    const w0 = it.imageW ?? 240, h0 = it.imageH ?? 180;
+    const rad = -((it.imageRotation ?? 0) * Math.PI) / 180;
+    const s0 = canvasRelative(e.clientX, e.clientY);
+    const c0 = crop;
+    const MIN = 0.05;
+    const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+    const move = (ev: PointerEvent) => {
+      const { x, y } = canvasRelative(ev.clientX, ev.clientY);
+      // The drag in the picture's own (unturned) directions, as a share of its size.
+      const dx = ((x - s0.x) * Math.cos(rad) - (y - s0.y) * Math.sin(rad)) / w0;
+      const dy = ((x - s0.x) * Math.sin(rad) + (y - s0.y) * Math.cos(rad)) / h0;
+      let { l, t, r, b } = c0;
+      if (part === 'move') {
+        const mx = clamp(dx, -c0.l, 1 - c0.r), my = clamp(dy, -c0.t, 1 - c0.b);
+        l += mx; r += mx; t += my; b += my;
+      } else {
+        if (part.includes('w')) l = clamp(c0.l + dx, 0, c0.r - MIN);
+        if (part.includes('e')) r = clamp(c0.r + dx, c0.l + MIN, 1);
+        if (part.includes('n')) t = clamp(c0.t + dy, 0, c0.b - MIN);
+        if (part.includes('s')) b = clamp(c0.b + dy, c0.t + MIN, 1);
+      }
+      setCrop({ id: c0.id, l, t, r, b });
+    };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
+  const applyCrop = async () => {
+    const c = crop;
+    setCrop(null);
+    const it = c && placed.find((pp) => pp.instanceId === c.id);
+    if (!c || !it?.imageSrc || (c.l <= 0.001 && c.t <= 0.001 && c.r >= 0.999 && c.b >= 0.999)) return;
+    const src = await cropImage(it.imageSrc, c.l, c.t, c.r, c.b).catch(() => null);
+    if (!src) return;
+    const w0 = it.imageW ?? 240, h0 = it.imageH ?? 180;
+    const w = Math.max(20, Math.round(w0 * (c.r - c.l))), h = Math.max(20, Math.round(h0 * (c.b - c.t)));
+    // The kept part stays exactly where it was on the board, turned or not.
+    const rad = ((it.imageRotation ?? 0) * Math.PI) / 180;
+    const ox = ((c.l + c.r) / 2 - 0.5) * w0, oy = ((c.t + c.b) / 2 - 0.5) * h0;
+    const cx = it.x + w0 / 2 + ox * Math.cos(rad) - oy * Math.sin(rad);
+    const cy = it.y + h0 / 2 + ox * Math.sin(rad) + oy * Math.cos(rad);
+    pushHistory();
+    setPlacedField(c.id, { imageSrc: src, imageW: w, imageH: h, x: cx - w / 2, y: cy - h / 2 });
   };
 
   // Sentence rows (her request 2026-10-15): a Grammar Symbol, Symbol Sentence, or punctuation tile dropped
@@ -2677,7 +2785,7 @@ export default function LiteracyManipulatives() {
               // box outlines), every other kind gets the higher z-index.
               // A Grammar Symbol and its word bubble stack as one centered column (her report 2026-10-15: bubbles
               // must sit centered under the symbol, even when the word is wider than the icon).
-              <div key={p.instanceId} ref={setItemRef(p.instanceId)} style={{ position: 'absolute', left: p.x, top: p.y, zIndex: p.kind === 'frame' ? 1 : 2, ...(p.kind === 'shape' ? { display: 'flex', flexDirection: 'column', alignItems: 'center' } : {}) }}>
+              <div key={p.instanceId} ref={setItemRef(p.instanceId)} style={{ position: 'absolute', left: p.x, top: p.y, zIndex: p.kind === 'frame' ? 1 : 2, ...(p.kind === 'shape' ? { display: 'flex', flexDirection: 'column', alignItems: 'center' } : {}), ...(p.kind === 'image' && p.imageRotation ? { transform: `rotate(${p.imageRotation}deg)`, transformOrigin: 'center' } : {}) }}>
                 <Draggable
                   label="Placed item"
                   glowing={glowIds.has(p.instanceId)}
@@ -2772,8 +2880,18 @@ export default function LiteracyManipulatives() {
                 )}
                 {/* A picture (her request 2026-11-06): arrows at each corner to drag to resize, and a four-way arrow
                     on top to drag to move (the picture itself can be dragged too). */}
-                {selectedId === p.instanceId && p.kind === 'image' && !studentViewOnly && (
+                {selectedId === p.instanceId && p.kind === 'image' && !studentViewOnly && crop?.id === p.instanceId && (
+                  <div className="lm-crop lm-item-controls" onPointerDown={(e) => e.stopPropagation()}>
+                    <div className="lm-crop-box" style={{ left: `${crop.l * 100}%`, top: `${crop.t * 100}%`, width: `${(crop.r - crop.l) * 100}%`, height: `${(crop.b - crop.t) * 100}%` }} onPointerDown={startCropDrag('move')}>
+                      {(['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const).map((h) => (
+                        <div key={h} className={`lm-crop-handle ${h}`} onPointerDown={startCropDrag(h)} aria-label="Drag to crop" />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {selectedId === p.instanceId && p.kind === 'image' && !studentViewOnly && crop?.id !== p.instanceId && (
                   <>
+                    <div className="lm-image-rotate lm-item-controls" onPointerDown={startImageRotate(p.instanceId)} role="slider" aria-label="Drag to turn the picture" aria-valuenow={p.imageRotation ?? 0} aria-valuemin={0} aria-valuemax={359} title="Drag to turn"><Icon name="rotate" size={18} /></div>
                     <div className="lm-image-move lm-item-controls" onPointerDown={(e) => { e.stopPropagation(); startDragPlaced(p.instanceId)(e); }} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd} role="button" aria-label="Drag to move the picture" title="Drag to move"><Icon name="move" size={18} /></div>
                     {(['nw', 'ne', 'sw', 'se'] as const).map((c) => (
                       <div key={c} className={`lm-image-resize ${c} lm-item-controls`} onPointerDown={startImageResize(p.instanceId, c)} role="slider" aria-label="Drag to resize the picture" aria-valuenow={Math.round(p.imageW ?? 240)} aria-valuemin={40} aria-valuemax={2000} title="Drag to resize">{c === 'nw' || c === 'se' ? '⤡' : '⤢'}</div>
@@ -2782,6 +2900,32 @@ export default function LiteracyManipulatives() {
                 )}
               </div>
             ))}
+            {/* A selected picture's Crop and turn buttons, right under it (under its turned outline). */}
+            {(() => {
+              const it = placed.find((pp) => pp.instanceId === selectedId && pp.kind === 'image');
+              if (!it || studentViewOnly || multiSel.size > 1) return null;
+              const w = it.imageW ?? 240, h = it.imageH ?? 180;
+              const rad = ((it.imageRotation ?? 0) * Math.PI) / 180;
+              const bh = Math.abs(w * Math.sin(rad)) + Math.abs(h * Math.cos(rad));
+              const cropping = crop?.id === it.instanceId;
+              return (
+                <div className="lm-sel-tools lm-item-controls" role="toolbar" aria-label="Picture" style={{ left: it.x + w / 2, top: it.y + h / 2 + bh / 2 + (cropping ? 18 : 58) }} onPointerDown={(e) => e.stopPropagation()}>
+                  {cropping ? (
+                    <>
+                      <button type="button" className="lm-tool-btn" onClick={() => setCrop({ id: it.instanceId, l: 0, t: 0, r: 1, b: 1 })}>Reset</button>
+                      <button type="button" className="lm-tool-btn" onClick={() => setCrop(null)}>Cancel</button>
+                      <button type="button" className="lm-tool-btn btn-primary" onClick={() => { void applyCrop(); }}>Done</button>
+                    </>
+                  ) : (
+                    <>
+                      <button type="button" className="lm-tool-btn" onClick={() => setCrop({ id: it.instanceId, l: 0, t: 0, r: 1, b: 1 })}><Icon name="crop" size={16} /> Crop</button>
+                      <button type="button" className="lm-tool-btn icon" onClick={() => turnImage(it.instanceId, -90)} aria-label="Turn left" title="Turn left"><span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><Icon name="rotate" size={16} /></span></button>
+                      <button type="button" className="lm-tool-btn icon" onClick={() => turnImage(it.instanceId, 90)} aria-label="Turn right" title="Turn right"><Icon name="rotate" size={16} /></button>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
             {/* A multi-selection gets a box around it and a small toolbar right under it (like Canva). */}
             {multiSel.size > 0 && !studentViewOnly && (() => {
               const sel = placed.filter((pp) => multiSel.has(pp.instanceId));
