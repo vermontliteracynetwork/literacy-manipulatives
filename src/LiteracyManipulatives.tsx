@@ -190,7 +190,9 @@ interface PlacedItem {
   imageH?: number; // image, shown height in px
   imageRotation?: number; // image, turned this many degrees clockwise around its middle
   tense?: Tense; // tense, which of her Additional Symbols (past, present, future)
-  onVerbId?: string; // tense, the verb (a single Grammar Symbol) it sits on top of, changing that verb's tense
+  onVerbId?: string; // tense, the verb (a single Grammar Symbol, or a Symbol Sentence card) it sits on top of
+  onVerbSlot?: number; // tense on a Symbol Sentence card: which word of the card (the verb) it sits on
+  wordFillsOwn?: Record<number, string>; // symbolSentence, a verb's own word while a tense symbol on it changes it
   bubbleWordOwn?: string; // shape, the verb's own word while a tense symbol on it shows the word in that tense
 }
 
@@ -1047,7 +1049,12 @@ export default function LiteracyManipulatives() {
   // that symbol once filled in. Same per-index fill pattern as
   // setFrameFill above.
   const setSymbolSentenceWordFill = (instanceId: string, wordIndex: number, value: string) => {
-    setPlaced((p) => p.map((pp) => (pp.instanceId === instanceId ? { ...pp, wordFills: { ...(pp.wordFills ?? {}), [wordIndex]: value } } : pp)));
+    setPlaced((p) => p.map((pp) => {
+      if (pp.instanceId !== instanceId) return pp;
+      // A word typed over a verb wearing a tense symbol is the student's own word now.
+      const own = pp.wordFillsOwn && wordIndex in pp.wordFillsOwn ? Object.fromEntries(Object.entries(pp.wordFillsOwn).filter(([k]) => Number(k) !== wordIndex)) : pp.wordFillsOwn;
+      return { ...pp, wordFills: { ...(pp.wordFills ?? {}), [wordIndex]: value }, wordFillsOwn: own };
+    }));
   };
 
   const setTextBoxValue = (instanceId: string, value: string) => {
@@ -1170,13 +1177,19 @@ export default function LiteracyManipulatives() {
       else if (pp.kind === 'soundChip') pos.set(pp.instanceId, { x: fp.x + i * pitch + cell / 2 - 18, y: fp.y + cell + 8 });
       else if (pp.kind === 'divider') pos.set(pp.instanceId, { x: fp.x + i * pitch - CELL_GAP / 2 - 5, y: fp.y + cell / 2 - 35 });
     }
-    // A tense symbol sits centered just above the verb it's on, and moves with it.
+    // A tense symbol sits centered just above the verb it's on, and moves with it. On a Symbol Sentence card it
+    // sits above that word's symbol.
     for (const pp of placed) {
       if (pp.kind !== 'tense' || !pp.onVerbId) continue;
       const v = byId.get(pp.onVerbId);
       if (!v) continue;
       const vp = pos.get(v.instanceId)!;
-      pos.set(pp.instanceId, { x: vp.x + measured(v).w / 2 - TENSE_ON_VERB / 2, y: vp.y - TENSE_ON_VERB - 2 });
+      if (pp.onVerbSlot === undefined) { pos.set(pp.instanceId, { x: vp.x + measured(v).w / 2 - TENSE_ON_VERB / 2, y: vp.y - TENSE_ON_VERB - 2 }); continue; }
+      const card = itemRefs.current.get(v.instanceId);
+      const col = card?.querySelector(`[data-slot="${pp.onVerbSlot}"] img`);
+      if (!card || !col) continue;
+      const cr = card.getBoundingClientRect(), r = col.getBoundingClientRect();
+      pos.set(pp.instanceId, { x: vp.x + (r.left - cr.left + r.width / 2) / zoom - TENSE_ON_VERB / 2, y: vp.y + (r.top - cr.top) / zoom - TENSE_ON_VERB - 2 });
     }
     const changed = placed.some((pp) => {
       const q = pos.get(pp.instanceId)!;
@@ -1732,18 +1745,24 @@ export default function LiteracyManipulatives() {
     if (!pieces.length) return;
     const lastId = pieces[pieces.length - 1].instanceId;
     setPlaced((p) => [
-      ...p.filter((pp) => pp.instanceId !== instanceId).map((pp) => (pp.snapLeftId === instanceId ? { ...pp, snapLeftId: lastId } : pp)),
+      ...p.filter((pp) => pp.instanceId !== instanceId).map((pp) => (pp.snapLeftId === instanceId ? { ...pp, snapLeftId: lastId } : tenseToPiece(pp, instanceId, pieces))),
       ...pieces,
     ]);
     setSelectedId(null);
     setToolsFor(null);
+  };
+  // A tense symbol on a card's verb stays on that verb when the card opens up into separate symbols.
+  const tenseToPiece = (pp: PlacedItem, cardId: string, pieces: PlacedItem[]): PlacedItem => {
+    if (pp.kind !== 'tense' || pp.onVerbId !== cardId || pp.onVerbSlot === undefined) return pp;
+    const piece = pieces.find((q) => q.instanceId.endsWith(`-w${pp.onVerbSlot}`));
+    return { ...pp, onVerbId: piece?.instanceId, onVerbSlot: undefined };
   };
   // A card's words and end mark as separate symbols, chained left to right.
   const piecesFromCard = (card: PlacedItem, sentence: SymbolSentence): PlacedItem[] => {
     const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const pieces: PlacedItem[] = [];
     for (const t of sentenceTokens(sentence)) {
-      const id = `split-${stamp}-${pieces.length}`;
+      const id = t.type === 'punct' ? `split-${stamp}-p${pieces.length}` : `split-${stamp}-w${t.index}`;
       const left = pieces.length ? pieces[pieces.length - 1].instanceId : card.snapLeftId;
       if (t.type === 'punct') {
         const mark = card.punctFills?.[t.slot] ?? t.mark;
@@ -1752,7 +1771,7 @@ export default function LiteracyManipulatives() {
         pieces.push({ instanceId: id, kind: 'punctuation', punctId, snapLeftId: left, x: card.x + pieces.length * 120, y: card.y, groupId: card.groupId, addedBy: card.addedBy });
       } else {
         const w = sentence.words[t.index];
-        pieces.push({ instanceId: id, kind: 'shape', wordClass: w.wordClass, bubbleWord: card.wordFills?.[t.index] ?? w.word, bubbleStyle: card.bubbleStyle, snapLeftId: left, x: card.x + pieces.length * 120, y: card.y, groupId: card.groupId, addedBy: card.addedBy });
+        pieces.push({ instanceId: id, kind: 'shape', wordClass: w.wordClass, bubbleWord: card.wordFills?.[t.index] ?? w.word, bubbleWordOwn: card.wordFillsOwn?.[t.index], bubbleStyle: card.bubbleStyle, snapLeftId: left, x: card.x + pieces.length * 120, y: card.y, groupId: card.groupId, addedBy: card.addedBy });
       }
     }
     return pieces;
@@ -1785,7 +1804,7 @@ export default function LiteracyManipulatives() {
       ...p.filter((pp) => pp.instanceId !== card.instanceId).map((pp) => {
         if (movingIds.has(pp.instanceId)) return { ...pp, snapLeftId: chain.get(pp.instanceId), groupId: card.groupId };
         if (pp.snapLeftId === card.instanceId) return { ...pp, snapLeftId: lastId };
-        return pp;
+        return tenseToPiece(pp, card.instanceId, pieces);
       }),
       ...pieces.map((pp) => ({ ...pp, snapLeftId: chain.get(pp.instanceId) })),
     ]);
@@ -1843,7 +1862,7 @@ export default function LiteracyManipulatives() {
         const item = p.find((pp) => pp.instanceId === id);
         if (!item) return p;
         if (item.inFrameId) return p.map((pp) => (pp.instanceId === id ? { ...pp, inFrameId: undefined, cellIndex: undefined } : pp));
-        if (item.kind === 'tense' && item.onVerbId) return p.map((pp) => (pp.instanceId === id ? { ...pp, onVerbId: undefined } : pp));
+        if (item.kind === 'tense' && item.onVerbId) return p.map((pp) => (pp.instanceId === id ? { ...pp, onVerbId: undefined, onVerbSlot: undefined } : pp));
         // The first piece of a row lifts out on its own too (her request 2026-10-15), so it's as easy to move
         // or remove as any other; the rest of the row stays put. Group a row to move it as a whole.
         if (!item.snapLeftId) return p.map((pp) => (pp.snapLeftId === id && SENTENCE_KINDS.includes(pp.kind) ? { ...pp, snapLeftId: undefined } : pp));
@@ -2162,21 +2181,33 @@ export default function LiteracyManipulatives() {
   // a new one bumps the old one up off the verb.
   const attachTense = (id: string, clientX: number, clientY: number) => {
     void loadWords();
-    let best: { verb: PlacedItem; dist: number } | null = null;
+    // Every verb on the board: single verb symbols, and each verb on a Symbol Sentence card (slot = its word).
+    const near = (r: DOMRect) => clientX >= r.left - 16 && clientX <= r.right + 16 && clientY >= r.top - 90 * zoom && clientY <= r.top + r.height * 0.6;
+    let best: { verb: PlacedItem; slot?: number; dist: number } | null = null;
     for (const v of placed) {
-      if (v.kind !== 'shape' || v.wordClass !== 'verb') continue;
-      const r = itemRefs.current.get(v.instanceId)?.getBoundingClientRect();
-      if (!r || clientX < r.left - 16 || clientX > r.right + 16 || clientY < r.top - 90 * zoom || clientY > r.top + r.height * 0.6) continue;
-      const dist = Math.hypot(clientX - (r.left + r.width / 2), clientY - r.top);
-      if (!best || dist < best.dist) best = { verb: v, dist };
+      const el = itemRefs.current.get(v.instanceId);
+      if (!el) continue;
+      const spots: { r: DOMRect; slot?: number }[] = v.kind === 'shape' && v.wordClass === 'verb' ? [{ r: el.getBoundingClientRect() }]
+        : v.kind === 'symbolSentence' ? [...el.querySelectorAll<HTMLElement>('[data-verb-slot]')].map((c) => ({ r: (c.querySelector('img') ?? c).getBoundingClientRect(), slot: Number(c.dataset.slot) }))
+        : [];
+      for (const { r, slot } of spots) {
+        if (!near(r)) continue;
+        const dist = Math.hypot(clientX - (r.left + r.width / 2), clientY - r.top);
+        if (!best || dist < best.dist) best = { verb: v, slot, dist };
+      }
     }
     if (!best) return;
-    const verb = best.verb;
+    const { verb, slot } = best;
     setPlaced((cur) => cur.map((pp) => {
       const t = cur.find((q) => q.instanceId === id);
-      if (pp.instanceId === id) return { ...pp, onVerbId: verb.instanceId };
-      if (pp.kind === 'tense' && pp.onVerbId === verb.instanceId) return { ...pp, onVerbId: undefined, y: pp.y - 70 };
+      if (pp.instanceId === id) return { ...pp, onVerbId: verb.instanceId, onVerbSlot: slot };
+      if (pp.kind === 'tense' && pp.onVerbId === verb.instanceId && pp.onVerbSlot === slot) return { ...pp, onVerbId: undefined, onVerbSlot: undefined, y: pp.y - 70 };
       if (pp.instanceId === verb.instanceId && t?.tense) {
+        if (slot !== undefined) {
+          const sentence = ALL_SYMBOL_SENTENCES.find((ss) => ss.id === pp.symbolSentenceId);
+          const own = pp.wordFillsOwn?.[slot] ?? pp.wordFills?.[slot] ?? sentence?.words[slot]?.word ?? '';
+          return own.trim() ? { ...pp, wordFillsOwn: { ...(pp.wordFillsOwn ?? {}), [slot]: own }, wordFills: { ...(pp.wordFills ?? {}), [slot]: verbInTense(own, t.tense) } } : pp;
+        }
         const own = pp.bubbleWordOwn ?? pp.bubbleWord;
         return own?.trim() ? { ...pp, bubbleWordOwn: own, bubbleWord: verbInTense(own, t.tense) } : pp;
       }
@@ -2186,12 +2217,21 @@ export default function LiteracyManipulatives() {
   // A verb whose tense symbol was taken off (or removed) gets its own word back; a tense symbol whose verb is gone
   // stays on the board on its own.
   useEffect(() => {
-    const onVerb = new Set(placed.filter((pp) => pp.kind === 'tense' && pp.onVerbId).map((pp) => pp.onVerbId));
+    const key = (id?: string, slot?: number) => `${id}:${slot ?? ''}`;
+    const onVerb = new Set(placed.filter((pp) => pp.kind === 'tense' && pp.onVerbId).map((pp) => key(pp.onVerbId, pp.onVerbSlot)));
     const ids = new Set(placed.map((pp) => pp.instanceId));
-    if (!placed.some((pp) => (pp.bubbleWordOwn !== undefined && !onVerb.has(pp.instanceId)) || (pp.kind === 'tense' && pp.onVerbId && !ids.has(pp.onVerbId)))) return;
+    const freeSlots = (pp: PlacedItem) => Object.keys(pp.wordFillsOwn ?? {}).map(Number).filter((i) => !onVerb.has(key(pp.instanceId, i)));
+    if (!placed.some((pp) => (pp.bubbleWordOwn !== undefined && !onVerb.has(key(pp.instanceId))) || freeSlots(pp).length || (pp.kind === 'tense' && pp.onVerbId && !ids.has(pp.onVerbId)))) return;
     setPlaced((cur) => cur.map((pp) => {
-      if (pp.bubbleWordOwn !== undefined && !onVerb.has(pp.instanceId)) return { ...pp, bubbleWord: pp.bubbleWordOwn, bubbleWordOwn: undefined };
-      if (pp.kind === 'tense' && pp.onVerbId && !ids.has(pp.onVerbId)) return { ...pp, onVerbId: undefined };
+      if (pp.bubbleWordOwn !== undefined && !onVerb.has(key(pp.instanceId))) return { ...pp, bubbleWord: pp.bubbleWordOwn, bubbleWordOwn: undefined };
+      const free = freeSlots(pp);
+      if (free.length) {
+        const own = { ...pp.wordFillsOwn };
+        const fills = { ...(pp.wordFills ?? {}) };
+        for (const i of free) { fills[i] = own[i]; delete own[i]; }
+        return { ...pp, wordFills: fills, wordFillsOwn: Object.keys(own).length ? own : undefined };
+      }
+      if (pp.kind === 'tense' && pp.onVerbId && !ids.has(pp.onVerbId)) return { ...pp, onVerbId: undefined, onVerbSlot: undefined };
       return pp;
     }));
   }, [placed]);
@@ -3335,15 +3375,21 @@ export default function LiteracyManipulatives() {
                         const w = sentence.words[t.index];
                         const info = MONTESSORI_WORD_CLASS_INFO[w.wordClass];
                         return (
-                          <div key={t.index} className="lm-sentence-col">
+                          <div key={t.index} className="lm-sentence-col" data-slot={t.index} data-verb-slot={w.wordClass === 'verb' ? '' : undefined}>
                             <ReferencePopover mode="hover" title={info.name} body={info.label}>
                               <img src={info.imageUrl} alt={info.name} draggable={false} />
                             </ReferencePopover>
                             <WordBubble value={fills[t.index] ?? w.word} placeholder={info.name.toLowerCase()} color={info.color} bubbleStyle={item.bubbleStyle ?? bubbleDefault}
                               label={`${info.name} word ${t.index + 1}`} onChange={(v) => { setSymbolSentenceWordFill(item.instanceId, t.index, v); clearWordAlert(item.instanceId, t.index); }}
                               onBlur={(v) => {
-                                const cased = caseWord(v, w.wordClass, t.index === 0 && startsSentence(placed, item));
-                                if (cased !== v) setSymbolSentenceWordFill(item.instanceId, t.index, cased);
+                                let cased = caseWord(v, w.wordClass, t.index === 0 && startsSentence(placed, item));
+                                // A word typed on a verb wearing a tense symbol goes into that tense.
+                                const tenseOn = placed.find((q) => q.kind === 'tense' && q.onVerbId === item.instanceId && q.onVerbSlot === t.index)?.tense;
+                                if (tenseOn && !(item.wordFillsOwn && t.index in item.wordFillsOwn) && cased.trim()) {
+                                  const own = cased;
+                                  cased = verbInTense(own, tenseOn);
+                                  setPlaced((cur) => cur.map((pp) => (pp.instanceId === item.instanceId ? { ...pp, wordFills: { ...(pp.wordFills ?? {}), [t.index]: cased }, wordFillsOwn: { ...(pp.wordFillsOwn ?? {}), [t.index]: own } } : pp)));
+                                } else if (cased !== v) setSymbolSentenceWordFill(item.instanceId, t.index, cased);
                                 void checkWord(item.instanceId, t.index, cased, w.wordClass);
                               }}
                               owner={item.instanceId} idx={t.index} wrong={!!wordProblem(fills[t.index] ?? w.word, w.wordClass)} />

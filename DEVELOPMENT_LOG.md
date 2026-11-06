@@ -676,4 +676,8 @@ present and future clocks already used in Write mode).
   removing it) gives the verb its own word back.
 - Code: `src/lib/tenseSymbols.ts` (`verbInTense`, using the Write mode tense helpers), `tense` pieces,
   `attachTense` and the layout rule in `src/LiteracyManipulatives.tsx`.
+- Follow-up (her request: "make it work on verbs in symbol sentences too"): a tense symbol dropped on or above a
+  verb on a Symbol Sentence card sits above that verb's symbol, moves with the card and changes that word ("The cat
+  ran." with future: "will run"). Taking it off gives the word back. Ungrouping the card into separate symbols, or
+  dropping a symbol into the card, keeps the tense symbol on the same verb.
 
