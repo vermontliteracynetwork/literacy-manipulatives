@@ -1,6 +1,7 @@
 import { wordJobs } from '../sentenceSearch';
 import type { MontessoriWordClass } from '../montessoriGrammar';
 import { myWordClass } from './myWords';
+import { isDictionaryWord, typesOf } from '../wordTypes';
 
 // The Writer's spelling help (teacher, 2026-10-27): a dictionary of about 42,000 common English words
 // (SCOWL lists, public/writer/words.json, ranked 0 = most common to 3 = less common), loaded only when the
@@ -18,8 +19,10 @@ let loading: Promise<void> | null = null;
 const POS = new Map<string, MontessoriWordClass[]>();
 const COMMON_POS = new Map<string, MontessoriWordClass[]>();
 const POS_CLASS: Record<string, MontessoriWordClass> = { n: 'noun', v: 'verb', a: 'adjective', r: 'adverb' };
-export const dictionaryJobs = (raw: string): MontessoriWordClass[] | undefined => POS.get(raw.toLowerCase());
-export const commonDictionaryJobs = (raw: string): MontessoriWordClass[] | undefined => COMMON_POS.get(raw.toLowerCase());
+// Words this list doesn't have use the live dictionary's answer once it has been looked up (src/lib/wordTypes.ts).
+const online = (raw: string) => { const t = typesOf(raw); return t?.from === 'online' ? t.all as MontessoriWordClass[] : undefined; };
+export const dictionaryJobs = (raw: string): MontessoriWordClass[] | undefined => POS.get(raw.toLowerCase()) ?? online(raw);
+export const commonDictionaryJobs = (raw: string): MontessoriWordClass[] | undefined => COMMON_POS.get(raw.toLowerCase()) ?? online(raw);
 
 export function loadWords(): Promise<void> {
   loading ??= Promise.all([
@@ -60,6 +63,7 @@ export function isWord(raw: string): boolean {
   if (!wordsReady()) return true;
   const w = raw.toLowerCase();
   if (RANK.has(w) || CONTRACTIONS.has(w)) return true;
+  if (isDictionaryWord(w) && typesOf(w)?.from === 'online') return true;
   if (w.endsWith("'s") && RANK.has(w.slice(0, -2))) return true;
   if (w.endsWith("s'") && RANK.has(w.slice(0, -1))) return true;
   return false;

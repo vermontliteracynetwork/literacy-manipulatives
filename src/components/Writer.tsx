@@ -3,6 +3,7 @@ import type * as Y from 'yjs';
 import { Icon } from './Icon';
 import { SentenceFormulas, FormulaSymbols } from './SentenceFormulas';
 import { MONTESSORI_WORD_CLASS_INFO, TENSE_SYMBOLS, type MontessoriWordClass } from '../lib/montessoriGrammar';
+import { lookUpWords, onWordTypes } from '../lib/wordTypes';
 import { completionsFor, confidentFix, isWord, loadWords, missesCommonWord, suggestFor, wordsReady } from '../lib/writer/spell';
 import { CHECK_LABELS, checkSentence, sentenceIssue, splitSentences, tagForCheck, type CheckItem, type CheckResult, type SentenceIssue, type SentenceSpan } from '../lib/writer/sentenceCheck';
 import { readStudentTools, saveStudentTools, type Spacing, type StudentTools, type WriterSettings } from '../lib/writer/settings';
@@ -227,6 +228,19 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
   useEffect(() => () => { if (speechOK) window.speechSynthesis.cancel(); }, []);
 
   useEffect(() => { void loadWords().then(() => setReady(true)); }, []);
+  // A finished word the word list doesn't know is looked up in the live dictionary; its symbol shows once it's in.
+  const [dictTick, setDictTick] = useState(0);
+  useEffect(() => onWordTypes(() => setDictTick((n) => n + 1)), []);
+  useEffect(() => {
+    if (!wordsReady()) return;
+    const t = window.setTimeout(() => {
+      const all = text.match(/[A-Za-z']+/g) ?? [];
+      const finished = /[A-Za-z']$/.test(text) ? all.slice(0, -1) : all;
+      const unknown = [...new Set(finished.filter((x) => !/^[A-Z]/.test(x)).map((x) => x.toLowerCase()))].filter((x) => !isWord(x)).slice(0, 12);
+      if (unknown.length) void lookUpWords(unknown);
+    }, 900);
+    return () => window.clearTimeout(t);
+  }, [text]);
   // Writing add-ons blocked: the page also hides anything they inject while Write mode is open.
   useEffect(() => {
     document.body.classList.toggle('lm-block-addons', settings.blockAddons);
@@ -263,7 +277,8 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
 
   // Sentences and each word's job (from the word and its place in the sentence).
   const sentences = useMemo(() => splitSentences(text), [text]);
-  const sentenceTags = useMemo(() => sentences.map((s) => tagForCheck(s.text)), [sentences]);
+  // dictTick: a word looked up in the live dictionary changes its symbol.
+  const sentenceTags = useMemo(() => sentences.map((s) => tagForCheck(s.text)), [sentences, dictTick]);
   const tagged = useMemo(() => sentenceTags.flat(), [sentenceTags]);
   // Prepositional phrases ("under the old bridge"): one cube over the whole phrase, as on her cards.
   const phrases = useMemo(() => sentences.flatMap((s, k) => {
