@@ -737,6 +737,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
   return (
     <div className={`lm-writer theme-${theme}${focusModeOn ? ' focus-mode' : ''}`}>
       <header className="lm-writer-bar">
+        {onBack && <a className="btn btn-sm" href="/" title="Back to all tools">All tools</a>}
         {onBack && <button type="button" className="btn btn-sm" onClick={onBack}>← Whiteboard</button>}
         <span className="lm-sidebar-title">Write{studentName ? `: ${studentName}` : ''}</span>
         <span className="lm-writer-count">{wordCount} {wordCount === 1 ? 'word' : 'words'} · {sentences.length} {sentences.length === 1 ? 'sentence' : 'sentences'}</span>

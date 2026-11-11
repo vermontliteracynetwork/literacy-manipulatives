@@ -669,7 +669,7 @@ function TextBoxWidget({ item, bubbleStyle, setRef, onPointerDown, onPointerMove
 // left is the open canvas and every manipulative tool itself, unlocked
 // for anyone who opens the page. TTS settings are just local component
 // state (rate/voice), not tied to any account.
-export default function LiteracyManipulatives() {
+export default function LiteracyManipulatives({ startInWriter = false }: { startInWriter?: boolean } = {}) {
   const [ttsSettings] = useState<TTSSettings>({ rate: 1, voiceURI: null });
 
   // A refresh keeps the board (her request 2026-10-15): it's saved for this tab only, so closing the tab still
@@ -861,7 +861,7 @@ export default function LiteracyManipulatives() {
   ])].sort();
   // The Writer (2026-10-27): its own screen with teacher-set writing settings. Students on a shared board get the
   // teacher's settings and follow the teacher between the board and the Writer.
-  const [writerOpen, setWriterOpen] = useState(false);
+  const [writerOpen, setWriterOpen] = useState(startInWriter);
   const [writerSettings, setWriterSettingsState] = useState<WriterSettings>(readWriterSettings);
   const setWriterSettings = (w: WriterSettings) => { setWriterSettingsState(w); saveWriterSettings(w); };
   const [teacherWriter, setTeacherWriter] = useState<WriterSettings | null>(null);
@@ -881,6 +881,8 @@ export default function LiteracyManipulatives() {
   const [welcomeOpen, setWelcomeOpen] = useState(() => {
     // A refreshed tab goes straight back to its board.
     if (!isJoinRoute() && hadSavedBoard) return false;
+    // Opened from the tools dashboard's Word Processor card: straight into the Writer.
+    if (startInWriter) return false;
     try { return new URLSearchParams(window.location.search).get('welcome') !== '0'; } catch { return true; }
   });
   const closeWelcome = () => setWelcomeOpen(false);
@@ -2437,7 +2439,7 @@ export default function LiteracyManipulatives() {
   if (joinMode && student.status === 'ended') {
     // The teacher stopped sharing or closed their tab (her request 2026-10-15): the welcome screen, saying so,
     // with the same two ways forward.
-    return <WelcomeChoice title="This board has been closed." onStart={() => window.location.assign('/?welcome=0')} />;
+    return <WelcomeChoice title="This board has been closed." onStart={() => window.location.assign('/whiteboard?welcome=0')} />;
   }
   if (joinMode && student.status !== 'joined') {
     return <JoinScreen status={student.status} error={student.error} onCheckCode={student.checkCode} onJoin={(n) => { void student.join(n); }} />;
@@ -2539,7 +2541,11 @@ export default function LiteracyManipulatives() {
           </>
         ) : topBarOpen ? (
           <>
-            <span className="lm-sidebar-title" style={{ marginRight: 8 }}>Literacy Manipulatives</span>
+            {joinMode ? (
+              <span className="lm-sidebar-title" style={{ marginRight: 8 }}>Literacy Manipulatives</span>
+            ) : (
+              <a className="lm-sidebar-title lm-home-link" href="/" style={{ marginRight: 8 }} title="Back to all tools">Literacy Manipulatives</a>
+            )}
             <button className="btn btn-sm" onClick={() => setSidebarOpen((v) => !v)} aria-label={sidebarOpen ? 'Hide materials' : 'Show materials'}>{sidebarOpen ? '⟨⟨' : '⟩⟩'}</button>
             <span className="lm-toolbar-divider" />
             <button className={`btn btn-sm ${drawOn ? 'btn-primary' : ''}`} onClick={() => setDrawOn((v) => !v)}>Draw</button>

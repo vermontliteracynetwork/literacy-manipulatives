@@ -698,3 +698,11 @@ for share access, can help keep in track for capitilization, punctuation, requri
 - Code: `src/components/Checklist.tsx`, the `checklist` piece in `src/LiteracyManipulatives.tsx`, styles at the end of
   `src/index.css`.
 
+
+## 2026-11-11: Tools dashboard
+
+The site's home page (`/`) is now a card gallery of the Symbolic Grammar tools, so new tools can sit beside the
+whiteboard. Two cards for now: **Whiteboard** (`/whiteboard`) and **Word Processor** (`/write`, opens straight into
+Write mode). Cards live in the `TOOLS` list in `src/components/ToolDashboard.tsx`; thumbnails are in
+`public/dashboard/`. `/join` and any `?welcome=` link (the Homeplot iframe) still open the board directly. The
+board's title and the Writer's "All tools" button lead back to the dashboard.
