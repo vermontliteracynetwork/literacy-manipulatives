@@ -800,3 +800,45 @@ Code: `src/components/FormulaSearch.tsx`, `formulaSearch.css`, `removeIdea` and 
 - **Formula codes on examples:** an example that matches one of her formula cards shows its code (Formula S3.P).
 - Not done: Word of the Day by theme or unit (no topic data yet); "Make a list with this pattern" (Word List Maker,
   Phase 4); tile sounds use the device voice naming the sound with the word, until recorded human audio exists.
+
+---
+
+## 2026-11-12: Daily Procedure (new tool, `/procedure`)
+
+Her request: a lesson as steps, like tabs in a document, one page per step; the whiteboard's look (small toolbar on
+top, the page in the middle, tools on the right in Edit mode); Learn mode is what students see when the teacher shares
+the screen in a virtual lesson; pages can be set templates or the teacher's own design; saved like slide decks in
+folders when the teacher chooses. First test: her Level B Daily Plan, Unit 1 Day 1, lessons 1.1.1 to 1.1.4.
+
+- **Steps on the left**, grouped by her routine (her words, 2026-11-12): Opening (goal), Review, Instruction,
+  Practice, Application, Assessment, each with its description in Edit mode and an Add button (Instruction: "Add a
+  formula", repeated for every new formula). A blank procedure starts with every phase.
+- **Set templates:** Goal (agenda and goal), Review symbols (her symbols with motion and 3 to 5 words, Show words,
+  speed sort timer; Edit mode warns outside 3 to 5 words), Formula instruction (her formula symbols and code, then
+  I do, Not the formula, We do, You do rungs and Check, each hidden in Learn mode until shown), Activity (directions,
+  examples, card piles that flip, used for Practice and the Sentence Slot Machine), Assessment (items; Edit mode shows
+  answers and Formula, Capital, End mark checks). **Custom design** is a whiteboard page.
+- **Every page has its own whiteboard** (Whiteboard button): the full board with all its materials on the right in
+  Edit mode; in Learn mode the materials and Clear are hidden. Level B's Practice board starts with the writing
+  directions and a Sentence Check list.
+- **Teacher notes** (her Say and Do script, prompt ladder, error correction, self-talk, Sentence Check, decide rules)
+  show only in Edit mode.
+- **Learn mode:** Back and Next step, arrow keys and Page Up/Down.
+- **Saving:** Save puts it in the library (asks name and folder the first time); Save as makes a copy; Open shows
+  folders, moves procedures between folders, Download (a file) and Open a file, and starts new ones. Kept in this
+  browser (IndexedDB, so pictures fit); unsaved work stays through a refresh.
+- The whiteboard can now be embedded (`embed` prop on `LiteracyManipulatives`); the whiteboard itself is unchanged.
+- Code: `src/components/procedures/`, `src/lib/procedures/` (types, library, `levelB.ts`).
+
+## 2026-11-12: Her All Sentence Formulas list (121 formulas)
+
+`scripts/import-formula-list.py` reads her PDF into `src/lib/writer/formulaList.ts` (code, levels, breakdown, example,
+required words) and gives the formula cards her current codes. Formula codes now follow her current notation:
+openers `B,S1.A` and `PRP,S1.A`, names `PN,C2.A` and `C2.A,PN`, joined sentences `(S1.A)C(S1.A)`, because/when parts in
+brackets `(S1.A)C[S1.A]` and `C[S1.P],(S1.P.B)`, semicolons `(S1.P);(B,S1.P.B)`. The engine now gives her code for 111
+of the 121 example sentences. The 10 it does not: S1.PN.R (working code), "The cat sees two birds" (two read as a
+noun), "You're kind" (kind read as a noun), "Max, my dog, barked", the two relative clauses ("who won", ", which was
+small,"), "My room is a tornado" (her S4.P.A puts P before A), the quoted sentence ("Mia said..."), and "According to
+the book, frogs swallow food whole" (whole read as an adjective). Formula Search now checks her whole list (showing
+code, breakdown, example, required words, levels and the card when there is one), and Word Explorer tags examples
+with codes from it.

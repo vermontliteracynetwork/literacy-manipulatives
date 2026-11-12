@@ -670,12 +670,18 @@ function TextBoxWidget({ item, bubbleStyle, setRef, onPointerDown, onPointerMove
 // left is the open canvas and every manipulative tool itself, unlocked
 // for anyone who opens the page. TTS settings are just local component
 // state (rate/voice), not tied to any account.
-export default function LiteracyManipulatives({ startInWriter = false }: { startInWriter?: boolean } = {}) {
+// The board embedded in another tool (the Daily Procedure app, her request 2026-11-12): it starts from the page's own
+// pieces, reports every change instead of saving to this tab, keeps its materials on the right, and in Learn mode
+// (presenting to students) hides the materials and the editing-only buttons. No welcome, share or Write mode.
+export interface BoardData { placed: unknown[]; strokes: Stroke[] }
+export interface BoardEmbed { initial: BoardData; onChange: (b: BoardData) => void; presenting: boolean }
+
+export default function LiteracyManipulatives({ startInWriter = false, embed }: { startInWriter?: boolean; embed?: BoardEmbed } = {}) {
   const [ttsSettings] = useState<TTSSettings>({ rate: 1, voiceURI: null });
 
   // A refresh keeps the board (her request 2026-10-15): it's saved for this tab only, so closing the tab still
   // starts fresh next time. A student joining a shared board gets the teacher's board instead.
-  const [placed, setPlaced] = useState<PlacedItem[]>(() => (isJoinRoute() ? [] : readSavedBoard().placed));
+  const [placed, setPlaced] = useState<PlacedItem[]>(() => (embed ? (embed.initial.placed as PlacedItem[]) : isJoinRoute() ? [] : readSavedBoard().placed));
   const [glowIds, setGlowIds] = useState<Set<string>>(new Set());
   // Direct teacher instruction: "ensure that after i drag and drop, the
   // x is not shown on the assets on the whiteboard. only show x upon
@@ -824,7 +830,7 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
   const [drawMode, setDrawMode] = useState<'pen' | 'highlight' | 'eraser'>('pen');
   // Every pen/highlighter mark is kept as its own stroke so the eraser can remove one mark at a time (her
   // request 2026-10-15). Points are in the draw canvas's own 1400x900 space.
-  const [strokes, setStrokes] = useState<Stroke[]>(() => (isJoinRoute() ? [] : readSavedBoard().strokes));
+  const [strokes, setStrokes] = useState<Stroke[]>(() => (embed ? embed.initial.strokes : isJoinRoute() ? [] : readSavedBoard().strokes));
   const liveStroke = useRef<Stroke | null>(null);
 
   // ---- Share (live board for students) ----
@@ -832,8 +838,16 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
   // the whole board back out. A student's board mirrors the teacher's; an editing student sends only what
   // they changed.
   const joinMode = useRef(isJoinRoute()).current;
+  const embedChange = useRef(embed?.onChange);
+  embedChange.current = embed?.onChange;
+  const firstSave = useRef(true);
   useEffect(() => {
     if (joinMode) return;
+    if (embedChange.current) {
+      if (firstSave.current) { firstSave.current = false; return; }
+      const t = window.setTimeout(() => embedChange.current?.({ placed, strokes }), 250);
+      return () => window.clearTimeout(t);
+    }
     const t = window.setTimeout(() => {
       try { sessionStorage.setItem(SAVE_KEY, JSON.stringify({ placed, strokes })); } catch { /* storage full or blocked: just not saved */ }
     }, 300);
@@ -880,6 +894,7 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
   // Every launch opens on the welcome pop-up, "Start a whiteboard" or "Join a board" (her request 2026-10-15).
   // A page that embeds the board (the dashboard's iframe) can pass ?welcome=0 to skip it.
   const [welcomeOpen, setWelcomeOpen] = useState(() => {
+    if (embed) return false;
     // A refreshed tab goes straight back to its board.
     if (!isJoinRoute() && hadSavedBoard) return false;
     // Opened from the tools dashboard's Word Processor card: straight into the Writer.
@@ -2455,7 +2470,7 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
   }
 
   return (
-    <div className={`lm-page${studentViewOnly ? ' lm-readonly' : ''}`} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div className={`lm-page${studentViewOnly ? ' lm-readonly' : ''}${embed ? ' lm-embedded' : ''}`} style={{ display: 'flex', flexDirection: 'column', height: embed ? '100%' : '100vh' }}>
       {welcomeOpen && !joinMode && <WelcomeChoice onStart={closeWelcome} />}
       {confirmClear && (
         <div className="lm-welcome-backdrop" onClick={() => setConfirmClear(false)}>
@@ -2550,26 +2565,26 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
           </>
         ) : topBarOpen ? (
           <>
-            {joinMode ? (
+            {embed ? null : joinMode ? (
               <span className="lm-sidebar-title" style={{ marginRight: 8 }}>Literacy Manipulatives</span>
             ) : (
               <a className="lm-sidebar-title lm-home-link" href="/" style={{ marginRight: 8 }} title="Back to all tools">Literacy Manipulatives</a>
             )}
-            <button className="btn btn-sm" onClick={() => setSidebarOpen((v) => !v)} aria-label={sidebarOpen ? 'Hide materials' : 'Show materials'}>{sidebarOpen ? '⟨⟨' : '⟩⟩'}</button>
+            {!embed?.presenting && <button className="btn btn-sm" onClick={() => setSidebarOpen((v) => !v)} aria-label={sidebarOpen ? 'Hide materials' : 'Show materials'}>{embed ? (sidebarOpen ? 'Hide materials' : 'Materials') : sidebarOpen ? '⟨⟨' : '⟩⟩'}</button>}
             <span className="lm-toolbar-divider" />
             <button className={`btn btn-sm ${drawOn ? 'btn-primary' : ''}`} onClick={() => setDrawOn((v) => !v)}>Draw</button>
             <button className={`btn btn-sm ${selectMode ? 'btn-primary' : ''}`} onClick={() => { setSelectMode((v) => !v); setMultiSel(new Set()); }} title="Pick several pieces to group or line up">Select</button>
             <button className="btn btn-sm" onClick={undo} disabled={!canUndo}>Undo</button>
             <button className="btn btn-sm" onClick={redo} disabled={!canRedo}>Redo</button>
-            <button className="btn btn-sm" onClick={() => setConfirmClear(true)} disabled={placed.length === 0}>Clear</button>
+            {!embed?.presenting && <button className="btn btn-sm" onClick={() => setConfirmClear(true)} disabled={placed.length === 0}>Clear</button>}
             <span className="lm-toolbar-divider" />
-            {!joinMode && <button className="btn btn-sm" onClick={() => setWriterOpen(true)} title="Open Write mode (word processor)">Write</button>}
+            {!joinMode && !embed && <button className="btn btn-sm" onClick={() => setWriterOpen(true)} title="Open Write mode (word processor)">Write</button>}
             <button className="btn btn-sm" onClick={zoomOut} disabled={zoom <= 0.5} aria-label="Zoom out">−</button>
             <button className="btn btn-sm" onDoubleClick={zoomReset} aria-label="Double click to go back to the start view" title="Double click to go back to the start view">{Math.round(zoom * 100)}%</button>
             <button className="btn btn-sm" onClick={zoomIn} disabled={zoom >= 2} aria-label="Zoom in">+</button>
             <span className="lm-toolbar-divider" />
             {/* Share replaces Print and Projector Mode (her request 2026-10-15). */}
-            {joinMode ? (
+            {embed ? null : joinMode ? (
               <span className="lm-share-badge"><Icon name="pencil" /> You can move pieces{student.name ? `, ${student.name}` : ''}</span>
             ) : (
               <button
@@ -2584,9 +2599,9 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
             {!joinMode && host.requests.length > 0 && (
               <span className="lm-request-badge" role="status" aria-label={`${host.requests.length} ${host.requests.length === 1 ? 'student is' : 'students are'} asking for edit access`} title="A student is asking for edit access">{host.requests.length}</span>
             )}
-            {!joinMode && <button className={`btn btn-sm ${settingsOpen ? 'btn-primary' : ''}`} onClick={() => setSettingsOpen((o) => !o)}>Settings</button>}
+            {!joinMode && !embed && <button className={`btn btn-sm ${settingsOpen ? 'btn-primary' : ''}`} onClick={() => setSettingsOpen((o) => !o)}>Settings</button>}
             <span style={{ flex: 1 }} />
-            <button className="btn btn-sm" onClick={() => setTopBarOpen(false)} aria-label="Hide toolbar">▲ Hide bar</button>
+            {!embed && <button className="btn btn-sm" onClick={() => setTopBarOpen(false)} aria-label="Hide toolbar">▲ Hide bar</button>}
           </>
         ) : (
           <button className="btn btn-sm" onClick={() => setTopBarOpen(true)} aria-label="Show toolbar">▼ Show toolbar</button>
@@ -2611,8 +2626,8 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
         </div>
       )}
 
-      <div className="lm-shell" style={{ flex: 1, minHeight: 0, display: showWriter ? 'none' : undefined }}>
-      {sidebarOpen && !studentViewOnly ? (
+      <div className={`lm-shell${embed ? ' lm-shell-right' : ''}`} style={{ flex: 1, minHeight: 0, display: showWriter ? 'none' : undefined }}>
+      {sidebarOpen && !studentViewOnly && !embed?.presenting ? (
         <aside className="lm-sidebar">
           <Category label="Grammar Symbols" color="#E5B9E0" open={openCategories.shapes} onToggle={() => toggleCategory('shapes')}>
             <TraySearch value={searchFor('shapes')} onChange={setSearch('shapes')} placeholder="Find a grammar symbol" />

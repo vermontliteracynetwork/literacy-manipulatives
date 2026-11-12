@@ -7,6 +7,7 @@ const LINKS = [
   { href: '/', label: 'All tools' },
   { href: '/words', label: 'Word Explorer' },
   { href: '/formulas', label: 'Formula Search' },
+  { href: '/procedure', label: 'Daily Procedure' },
   { href: '/write', label: 'Word Processor' },
   { href: '/whiteboard?welcome=0', label: 'Whiteboard' },
 ];

@@ -19,6 +19,10 @@
     {
       "source": "/formulas",
       "destination": "/index.html"
+    },
+    {
+      "source": "/procedure",
+      "destination": "/index.html"
     }
   ]
 }

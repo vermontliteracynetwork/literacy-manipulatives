@@ -193,35 +193,47 @@ function clauseCode(c: Slot[], end: string, first: boolean, opts: { exclaim?: bo
   return [type, ...parts].join('.').replace(/\.'/g, "'");
 }
 
+// Her current notation (All Sentence Formulas, 2026-11-12): an opener and a comma come first, "B,S1.A",
+// "PRP,S1.A", "PN,C2.A"; a name after a command, "C2.A,PN". Two sentences joined by and, but, or, so: (X)C(Y). A
+// part that starts with because, when, that... is in square brackets: (X)C[Y], or C[X],(Y) when it comes first.
+// A semicolon: (X);(Y).
 export function formulaCode(mine: Slot[], text: string): string {
   const end = (text.trim().match(/[.?!]/g) ?? ['.']).pop()!;
   if (!mine.length) return '';
+  // A one-word exclamation ("Wow!", "Crash!") is an interjection on its own.
+  if (mine.length === 1 && end === '!') return 'I';
   const exclaim = mine.some((s) => s.slot === 'interjection') || /!/.test(text);
   const verbIn = (part: Slot[]) => part.some((x) => x.slot === 'verb');
   // An opener and a comma: "Quickly, ...", "After lunch, ...", and a name before a command: "Sam, close...".
   if (mine.length > 2 && mine[1].comma && verbIn(mine.slice(1))) {
-    if (mine[0].slot === 'adverb' || mine[0].slot === 'phrase') return `${mine[0].slot === 'adverb' ? 'B' : 'PRP'}(${formulaCode(mine.slice(1), text)})`;
-    if (mine[0].slot === 'propernoun' && mine[1].slot === 'verb') return `PN(${formulaCode(mine.slice(1), text)})`;
+    if (mine[0].slot === 'adverb' || mine[0].slot === 'phrase') return `${mine[0].slot === 'adverb' ? 'B' : 'PRP'},${formulaCode(mine.slice(1), text)}`;
+    if (mine[0].slot === 'propernoun' && mine[1].slot === 'verb') return `PN,${formulaCode(mine.slice(1), text)}`;
   }
   // A name after a command: "Close the door, Sam."
   const lastI = mine.length - 1;
-  if (mine.length > 2 && mine[lastI].slot === 'propernoun' && mine[lastI].comma && mine[0].slot === 'verb') return `(${formulaCode(mine.slice(0, lastI), text)})PN`;
-  const wrap = (code: string) => (/^(B|PRP|PN|C)\(/.test(code) ? code : `(${code})`);
+  if (mine.length > 2 && mine[lastI].slot === 'propernoun' && mine[lastI].comma && mine[0].slot === 'verb') return `${formulaCode(mine.slice(0, lastI), text)},PN`;
+  const wrap = (code: string) => (/^\(.*\)$/.test(code) && !/\)[^)]*\(/.test(code) ? code : `(${code})`);
   // "Because it rained, we stayed in.": the joining word first, then a comma before the main idea.
   const lead = !!mine[0].key && SUBORD.has(mine[0].key) && mine[0].slot !== 'pronoun';
   if (lead) {
     const i = mine.findIndex((s, k) => k > 1 && s.comma && verbIn(mine.slice(1, k)) && verbIn(mine.slice(k)));
-    return i > 0 ? `C(${clauseCode(mine.slice(1, i), end, false)})(${clauseCode(mine.slice(i), end, true, { exclaim })})` : `C(${clauseCode(mine.slice(1), end, false)})`;
+    return i > 0 ? `C[${clauseCode(mine.slice(1, i), end, false)}],(${clauseCode(mine.slice(i), end, true, { exclaim })})` : `C[${clauseCode(mine.slice(1), end, false)}]`;
   }
+  // A new sentence starts after the joining word: only subject words (the, my, big, dog) come before its verb.
+  const subjectThenVerb = (part: Slot[]) => {
+    const v = part.findIndex((x) => x.slot === 'verb');
+    const head = part.slice(0, v);
+    return v > 0 && head.some((x) => NOUNISH.has(x.slot)) && head.every((x) => !x.key && (NOUNISH.has(x.slot) || x.slot === 'article' || x.slot === 'adjective'));
+  };
   for (let i = 1; i < mine.length; i++) {
     const s = mine[i];
     if (!verbIn(mine.slice(0, i)) || !verbIn(mine.slice(i))) continue;
     if (s.semi) return `(${clauseCode(mine.slice(0, i), end, true, { exclaim })});${wrap(formulaCode(mine.slice(i), text))}`;
-    if (s.key && COORD.has(s.key) && s.comma && mine.slice(i + 1).some((x) => NOUNISH.has(x.slot))) return `(${clauseCode(mine.slice(0, i), end, true, { exclaim })})+(${clauseCode(mine.slice(i + 1), end, false)})`;
+    if (s.key && COORD.has(s.key) && subjectThenVerb(mine.slice(i + 1))) return `(${clauseCode(mine.slice(0, i), end, true, { exclaim })})C(${clauseCode(mine.slice(i + 1), end, false)})`;
     if (s.key && (SUBORD.has(s.key) || s.key === 'so that') && verbIn(mine.slice(i + 1))) {
       // "I think that dogs are smart.": the that-part is what's thought, so the first part has an object (S2).
       const objectClause = s.key === 'that' && mine[i - 1]?.slot === 'verb';
-      return `(${clauseCode(mine.slice(0, i), end, true, { exclaim, objectClause })})C(${clauseCode(mine.slice(i + 1), end, false)})`;
+      return `(${clauseCode(mine.slice(0, i), end, true, { exclaim, objectClause })})C[${clauseCode(mine.slice(i + 1), end, false)}]`;
     }
   }
   return clauseCode(mine, end, true, { exclaim });

@@ -38,6 +38,13 @@ const TOOLS: Tool[] = [
     image: '/dashboard/formula-search.png',
     tags: ['Teacher tool', 'Formulas'],
   },
+  {
+    title: 'Daily Procedure',
+    description: 'A lesson as steps, one page each: Goal, Review symbols, each formula, Practice and Assessment. Edit it, then present it in Learn mode while you share your screen. Save it in folders.',
+    href: '/procedure',
+    image: '/dashboard/daily-procedure.png',
+    tags: ['Teacher tool', 'Lessons'],
+  },
 ];
 
 export function ToolDashboard() {

@@ -5,9 +5,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Icon } from './Icon';
 import { MainMenu } from './MainMenu';
 import { FormulaSymbols } from './SentenceFormulas';
-import { SENTENCE_FORMULAS, type SentenceFormula } from '../lib/writer/formulas';
+import { SENTENCE_FORMULAS } from '../lib/writer/formulas';
 import { splitSentences, tagForCheck } from '../lib/writer/sentenceCheck';
-import { cardSlotsOf, formulaCode, formulasLike, sentenceSlots } from '../lib/writer/formulaMatch';
+import { cardSlotsOf, formulaCode, sentenceSlots, slotDistance, type Slot } from '../lib/writer/formulaMatch';
+import { FORMULA_LIST, type ListedFormula } from '../lib/writer/formulaList';
 import { loadWords } from '../lib/writer/spell';
 import { loadWordTypes } from '../lib/wordTypes';
 import { addIdea, readIdeas, removeIdea, type FormulaIdea } from '../lib/writer/formulaBook';
@@ -18,23 +19,37 @@ import { speak } from '../lib/word-explorer/speech';
 // sentence's pattern (its formula code and symbols) in the formula log: every formula made this way that isn't in
 // the main list, so the list can grow. The log is the same list as the Write mode's "Formula ideas".
 
-interface Reading { sentence: string; slots: string[]; code: string; exact: SentenceFormula[]; close: SentenceFormula[] }
+// Her "All Sentence Formulas" list is the main list. Each formula's pattern is read from its own example sentence
+// by the same engine that reads the typed sentence, so they are compared the same way.
+interface Listed extends ListedFormula { slots: Slot[]; cardSlots: string[]; card?: string }
+let listed: Listed[] | null = null;
+function listedFormulas(): Listed[] {
+  listed ??= FORMULA_LIST.map((f) => {
+    const t = f.example.replace(/[“”]/g, '"');
+    const slots = sentenceSlots(tagForCheck(t), t);
+    return { ...f, slots, cardSlots: cardSlotsOf(slots), card: SENTENCE_FORMULAS.find((c) => c.sentence === f.example)?.card };
+  });
+  return listed;
+}
+
+interface Reading { sentence: string; slots: string[]; code: string; exact: Listed[]; close: Listed[] }
 
 function readSentence(sentence: string): Reading | null {
   const mine = sentenceSlots(tagForCheck(sentence), sentence);
   if (!mine.length) return null;
-  const ranked = formulasLike(mine, SENTENCE_FORMULAS.length);
-  // The same formula code can sit on more than one card (taught in two lessons); show each code once.
-  const once = (list: SentenceFormula[]) => list.filter((f, i) => list.findIndex((g) => g.code === f.code && g.formula === f.formula) === i);
   const code = formulaCode(mine, sentence);
-  // A contraction formula (We're: P'V) only matches a sentence with that contraction, and the other way round.
-  const sameShape = (f: SentenceFormula) => f.code.includes("'") === code.includes("'");
+  const bare = (c: string) => c.replace(/\*$/, '');
+  // A contraction formula (You're: P'V) only matches a sentence with that contraction, and the other way round.
+  const sameShape = (f: Listed) => f.code.includes("'") === code.includes("'");
+  const ranked = listedFormulas().map((f) => ({ f, d: bare(f.code) === code ? 0 : slotDistance(f.cardSlots, mine) + (sameShape(f) ? 0 : 1) }))
+    .sort((x, y) => x.d - y.d);
+  const once = (list: Listed[]) => list.filter((f, i) => list.findIndex((g) => g.code === f.code && g.breakdown === f.breakdown) === i);
   return {
     sentence,
     slots: cardSlotsOf(mine),
     code,
-    exact: once(ranked.filter((r) => r.d === 0 && sameShape(r.f)).map((r) => r.f)),
-    close: once(ranked.filter((r) => (r.d > 0 && r.d <= 1) || (r.d === 0 && !sameShape(r.f))).map((r) => r.f)).slice(0, 3),
+    exact: once(ranked.filter((r) => r.d === 0).map((r) => r.f)),
+    close: once(ranked.filter((r) => r.d > 0 && r.d <= 1).map((r) => r.f)).slice(0, 3),
   };
 }
 
@@ -98,11 +113,11 @@ export function FormulaSearch() {
               {r.exact.length > 0 ? (
                 <>
                   <h2 className="wx-h2">{r.exact.length === 1 ? 'Matching formula' : `${r.exact.length} matching formulas`}</h2>
-                  <ul className="fs-cards">{r.exact.map((f) => <FormulaCard key={`${f.lesson}-${f.code}-${f.card}`} f={f} />)}</ul>
+                  <ul className="fs-cards">{r.exact.map((f) => <FormulaCard key={`${f.code}-${f.example}`} f={f} />)}</ul>
                 </>
               ) : (
                 <div className="fs-nomatch">
-                  <h2 className="wx-h2">No formula in the main list matches this sentence.</h2>
+                  <h2 className="wx-h2">No formula in the All Sentence Formulas list matches this sentence.</h2>
                   <p>Suggested formula: <strong>{r.code}</strong> ({r.slots.map((s) => (s === 'propernoun' ? 'proper noun' : s === 'phrase' ? 'prepositional phrase' : s)).join(' + ')})</p>
                   {logged ? (
                     <p className="fs-logged" role="status"><Icon name="check" size={20} /> In the formula log{logged.examples.includes(r.sentence) ? '' : ' (this sentence is new to it)'}.
@@ -114,7 +129,7 @@ export function FormulaSearch() {
                   {r.close.length > 0 && (
                     <>
                       <h3 className="wx-h3 fs-close-h">Close formulas (one part different)</h3>
-                      <ul className="fs-cards">{r.close.map((f) => <FormulaCard key={`${f.lesson}-${f.code}-${f.card}`} f={f} />)}</ul>
+                      <ul className="fs-cards">{r.close.map((f) => <FormulaCard key={`${f.code}-${f.example}`} f={f} />)}</ul>
                     </>
                   )}
                 </div>
@@ -130,7 +145,7 @@ export function FormulaSearch() {
         {showLog && (
           <section className="fs-log" aria-labelledby="fs-log-h">
             <h2 id="fs-log-h" className="wx-h2">Formula log</h2>
-            <p className="wx-muted">Formulas added here that are not in the main Formula Master List, newest last. Kept in this browser, along with the Write mode's formula ideas. Download it to keep a copy or share it.</p>
+            <p className="wx-muted">Formulas added here that are not in her All Sentence Formulas list, newest last. Kept in this browser, along with the Write mode's formula ideas. Download it to keep a copy or share it.</p>
             {log.length === 0 ? <p>No formulas yet. Search a sentence that has no formula, then tap "Add suggested formula".</p> : (
               <>
                 <table className="fs-table">
@@ -158,15 +173,16 @@ export function FormulaSearch() {
   );
 }
 
-function FormulaCard({ f }: { f: SentenceFormula }) {
+function FormulaCard({ f }: { f: Listed }) {
   return (
     <li className="fs-card">
-      <img src={f.card} alt={`Formula card: ${f.formula}`} loading="lazy" />
+      {f.card ? <img src={f.card} alt={`Formula card: ${f.breakdown}`} loading="lazy" /> : <FormulaSymbols slots={f.cardSlots} labels />}
       <div className="fs-card-text">
         <span className="fs-code">{f.code}</span>
-        <span>{f.formula}</span>
-        <span className="wx-muted">Model sentence: {f.sentence}</span>
-        <span className="wx-muted">Lesson {f.lesson}, unit {f.unit}</span>
+        <span>{f.breakdown}</span>
+        <span className="wx-muted">Example: {f.example}</span>
+        <span className="wx-muted">Required words: {f.required}</span>
+        <span className="wx-muted">Levels {f.levels.join(', ')}</span>
       </div>
     </li>
   );
