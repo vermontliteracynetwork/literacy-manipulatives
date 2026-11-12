@@ -7,6 +7,7 @@ import { MainMenu } from '../MainMenu';
 import { ReaderProvider, SpeakButton, Spoken, TapProvider, TapWord, useReader } from './parts';
 import { WordPage } from './WordPage';
 import { SettingsDialog } from './SettingsDialog';
+import { WordOfDayCard } from './WordOfDay';
 import { loadIndex, onIndex, indexReady } from '../../lib/word-explorer/data';
 import { autocomplete, search, type SearchResult } from '../../lib/word-explorer/search';
 import { SEED_ENTRIES } from '../../lib/word-explorer/seed';
@@ -92,7 +93,7 @@ export function WordExplorer() {
               onHome={() => go({ kind: 'home' })}
               onPick={(w, i) => { setTrail((t) => t.slice(0, i + 1)); setPage({ kind: 'word', word: w }); window.history.pushState(null, '', urlFor({ kind: 'word', word: w })); }} />
             <main id="wx-main" ref={mainRef} tabIndex={-1} className="wx-main">
-              {page.kind === 'home' && <Home onSearch={runSearch} />}
+              {page.kind === 'home' && <Home onSearch={runSearch} settings={settings} onOpen={openWord} />}
               {page.kind === 'word' && <WordPage key={page.word} word={page.word} note={page.note} teacher={settings.teacherView} />}
               {page.kind === 'results' && <Results result={search(page.query)} />}
             </main>
@@ -205,7 +206,7 @@ function Trail({ trail, current, onHome, onPick }: { trail: string[]; current: s
 
 // ---------- home ----------
 const INTRO = 'Look up a word. Hear it, see what it means, and find words like it. Tap a word once to hear it. Tap it again to open it.';
-function Home({ onSearch }: { onSearch: (q: string) => void }) {
+function Home({ onSearch, settings, onOpen }: { onSearch: (q: string) => void; settings: WxSettings; onOpen: (w: string) => void }) {
   const recent = useMemo(readRecent, []);
   const mine = useSyncExternalStore(subscribeMyWords, myWords);
   return (
@@ -221,6 +222,7 @@ function Home({ onSearch }: { onSearch: (q: string) => void }) {
           </div>
         </form>
       </section>
+      <WordOfDayCard settings={settings} onOpen={onOpen} />
       <section className="wx-card">
         <h2 className="wx-h2">Words to try</h2>
         <div className="wx-chips">{Object.keys(SEED_ENTRIES).map((w) => <TapWord key={w} word={w} />)}</div>

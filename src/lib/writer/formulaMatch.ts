@@ -1,6 +1,6 @@
 import { SENTENCE_FORMULAS, type SentenceFormula } from './formulas';
 import type { TaggedWord } from './tagger';
-import type { MontessoriWordClass } from '../montessoriGrammar';
+import type { SymbolWordClass } from '../grammarSymbols';
 
 // Matching a student's sentence to her formula cards (her Formula Master List, 2026-10-28). A sentence is read
 // the way her cards read it: one card per word, except a prepositional phrase ("to the park"), which is one card,
@@ -111,12 +111,12 @@ export const formulasLike = (mine: Slot[], limit = 6) => SENTENCE_FORMULAS
 // Her card label for a student slot ("be", "and", "prepositional phrase"...), the words that go above a symbol.
 export const slotLabel = (s: string) => (s === 'propernoun' ? 'proper noun' : s === 'phrase' ? 'prepositional phrase' : s);
 // The symbol for a card slot.
-export function slotClass(s: string): MontessoriWordClass {
+export function slotClass(s: string): SymbolWordClass {
   if (s === 'phrase') return 'preposition';
   if (['be', 'do', 'will', 'feel', 'said', 'could'].includes(s)) return 'verb';
   if (s === 'not' || s === 'please') return 'adverb';
   if (JOINERS.has(s)) return 'conjunction';
-  return s as MontessoriWordClass;
+  return s as SymbolWordClass;
 }
 // Card slots for a student sentence, as her card would name them (required words named, the rest by job).
 export const cardSlotsOf = (mine: Slot[]) => mine.map((s) => (s.key && WORD_SLOTS.has(s.key) ? s.key : s.slot));

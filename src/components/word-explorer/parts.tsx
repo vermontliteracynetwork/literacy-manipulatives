@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Icon } from '../Icon';
 import { speak, speechWords, stopSpeaking } from '../../lib/word-explorer/speech';
-import { MONTESSORI_WORD_CLASS_INFO } from '../../lib/montessoriGrammar';
+import { GRAMMAR_SYMBOL_INFO } from '../../lib/grammarSymbols';
 import type { PartOfSpeech, ReviewStatus } from '../../lib/word-explorer/types';
 
 // Small shared pieces for Word Explorer: the reader (read aloud with word highlighting), tappable words, the
@@ -83,7 +83,7 @@ export function TapWord({ word, pos, className = '', bold = false }: { word: str
 
 // ---------- part of speech: her symbol shape plus its name, never color alone ----------
 export function PosSymbol({ pos, size = 32, decorative = false }: { pos: PartOfSpeech; size?: number; decorative?: boolean }) {
-  const info = MONTESSORI_WORD_CLASS_INFO[pos];
+  const info = GRAMMAR_SYMBOL_INFO[pos];
   return <img className="wx-pos-img" src={info.imageUrl} width={size} height={size} alt={decorative ? '' : info.name} />;
 }
 export function PosTag({ pos }: { pos: PartOfSpeech }) {

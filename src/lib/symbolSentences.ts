@@ -1,5 +1,5 @@
 // Symbol Sentences, direct teacher upload (Grammar_Cards.pdf, a real
-// Montessori-style grammar-box deck: full sentences encoded purely as a
+// Grammar symbol sentence deck: full sentences encoded purely as a
 // left-to-right row of colored symbols, no words shown). "these cards
 // should be available like the image attached in drag and drop, add
 // another category called symbol sentences. these can be dragged and
@@ -11,15 +11,15 @@
 // (unambiguous, teacher-authored); the per-word class tags are ordinary
 // English grammar (not a specialized/copyrighted scheme), assigned by
 // hand against that same answer key. Dragging a card onto the board
-// drops its whole row of plain Montessori symbols at once, after that
+// drops its whole row of plain grammar symbols at once, after that
 // they're just ordinary placed shapes, freely separable and
 // rearrangeable like any other Grammar Symbol.
 
-import type { MontessoriWordClass } from './montessoriGrammar';
+import type { SymbolWordClass } from './grammarSymbols';
 
 export interface SymbolSentenceWord {
   word: string;
-  wordClass: MontessoriWordClass;
+  wordClass: SymbolWordClass;
 }
 
 export interface SymbolSentence {
@@ -34,7 +34,7 @@ export interface SymbolSentencePage {
   sentences: SymbolSentence[];
 }
 
-function s(id: string, sentence: string, pairs: [string, MontessoriWordClass][]): SymbolSentence {
+function s(id: string, sentence: string, pairs: [string, SymbolWordClass][]): SymbolSentence {
   return { id, sentence, words: pairs.map(([word, wordClass]) => ({ word, wordClass })) };
 }
 

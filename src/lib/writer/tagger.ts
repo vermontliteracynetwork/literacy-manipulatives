@@ -1,5 +1,5 @@
 import { wordJobs, type PatternWord } from '../sentenceSearch';
-import type { MontessoriWordClass } from '../montessoriGrammar';
+import type { SymbolWordClass } from '../grammarSymbols';
 import { myWordClass } from './myWords';
 import { dictionaryJobs, isWord, suggestFor, wordRank, wordsReady } from './spell';
 
@@ -16,7 +16,7 @@ import { dictionaryJobs, isWord, suggestFor, wordRank, wordsReady } from './spel
 //      lead to a noun; anything that fails is corrected.
 // Her formulas count my, your, their and its as pronouns, so they're pronouns here too.
 
-type C = MontessoriWordClass;
+type C = SymbolWordClass;
 const SUBJECT = new Set(['i', 'you', 'he', 'she', 'it', 'we', 'they']);
 const OBJECT = new Set(['me', 'him', 'us', 'them', 'whom', 'myself', 'yourself', 'himself', 'herself', 'itself', 'ourselves', 'themselves', 'mine', 'yours', 'hers', 'ours', 'theirs', 'everyone', 'everybody', 'someone', 'somebody', 'anyone', 'anybody', 'nobody', 'nothing', 'something', 'anything', 'everything', 'her']);
 const POSSESSIVE = new Set(['my', 'your', 'his', 'its', 'our', 'their']);

@@ -1,5 +1,5 @@
 // Small line icons used where a button has no words (her request 2026-10-15: no emojis anywhere on the board).
-type IconName = 'speaker' | 'speaking' | 'eye' | 'pencil' | 'dice' | 'gear' | 'arrow' | 'finger' | 'trash' | 'copy' | 'triangle' | 'alignLeft' | 'alignCenter' | 'alignRight' | 'move' | 'image' | 'rotate' | 'crop' | 'mic' | 'menu' | 'close' | 'search' | 'star' | 'starFilled' | 'book' | 'home' | 'check';
+type IconName = 'speaker' | 'speaking' | 'eye' | 'pencil' | 'dice' | 'gear' | 'arrow' | 'finger' | 'trash' | 'copy' | 'triangle' | 'alignLeft' | 'alignCenter' | 'alignRight' | 'move' | 'image' | 'rotate' | 'crop' | 'mic' | 'menu' | 'close' | 'search' | 'star' | 'starFilled' | 'book' | 'home' | 'check' | 'puzzle' | 'sun';
 
 const PATHS: Record<IconName, React.ReactNode> = {
   speaker: <><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="M16 9.5a3.5 3.5 0 0 1 0 5" /></>,
@@ -24,6 +24,8 @@ const PATHS: Record<IconName, React.ReactNode> = {
   book: <><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5z" /><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z" /></>,
   home: <><path d="M4 11l8-7 8 7" /><path d="M6 9.5V20h12V9.5" /></>,
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  puzzle: <path d="M5 8h3.5a2 2 0 1 1 4 0H16v3.5a2 2 0 1 1 0 4V19H5z" />,
+  sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" /></>,
   triangle: <path d="M12 4L21 19.5H3z" fill="currentColor" />,
   copy: <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8" /><path d="M14 11v6M11 14h6" /></>,
   trash: <><path d="M4 7h16" /><path d="M9 7V4.5h6V7" /><path d="M6.5 7l1 13h9l1-13" /><path d="M10 11v6M14 11v6" /></>,

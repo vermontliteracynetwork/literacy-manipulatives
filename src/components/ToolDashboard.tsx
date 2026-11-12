@@ -31,6 +31,13 @@ const TOOLS: Tool[] = [
     image: '/dashboard/word-explorer.png',
     tags: ['Student-facing', 'Vocabulary'],
   },
+  {
+    title: 'Formula Search',
+    description: 'Type any sentence to find its sentence formulas. No match? Add the suggested formula to the formula log.',
+    href: '/formulas',
+    image: '/dashboard/formula-search.png',
+    tags: ['Teacher tool', 'Formulas'],
+  },
 ];
 
 export function ToolDashboard() {

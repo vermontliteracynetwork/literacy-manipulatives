@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 import type * as Y from 'yjs';
 import { Icon } from './Icon';
 import { SentenceFormulas, FormulaSymbols } from './SentenceFormulas';
-import { MONTESSORI_WORD_CLASS_INFO, TENSE_SYMBOLS, type MontessoriWordClass } from '../lib/montessoriGrammar';
+import { GRAMMAR_SYMBOL_INFO, TENSE_SYMBOLS, type SymbolWordClass } from '../lib/grammarSymbols';
 import { lookUpWords, onWordTypes } from '../lib/wordTypes';
 import { completionsFor, confidentFix, isWord, loadWords, missesCommonWord, suggestFor, wordsReady } from '../lib/writer/spell';
 import { CHECK_LABELS, checkSentence, sentenceIssue, splitSentences, tagForCheck, type CheckItem, type CheckResult, type SentenceIssue, type SentenceSpan } from '../lib/writer/sentenceCheck';
@@ -56,8 +56,8 @@ const ITEM_HELP: Record<CheckItem, string> = {
 // "Add a verb" drops in a blank with the part's symbol over it (a blank alone when symbols are off). The blank is
 // three underscores and an invisible marker naming the part, so the symbol stays with it.
 const PLACEHOLDER_MARK = { verb: '\u200b', noun: '\u200c' } as const;
-const MARK_CLASS: Record<string, MontessoriWordClass> = { '\u200b': 'verb', '\u200c': 'noun' };
-const DICTIONARY_TYPES: [MontessoriWordClass, string][] = [['propernoun', 'Name (proper noun)'], ['noun', 'Noun'], ['verb', 'Verb'], ['adjective', 'Adjective'], ['adverb', 'Adverb'], ['interjection', 'Interjection']];
+const MARK_CLASS: Record<string, SymbolWordClass> = { '\u200b': 'verb', '\u200c': 'noun' };
+const DICTIONARY_TYPES: [SymbolWordClass, string][] = [['propernoun', 'Name (proper noun)'], ['noun', 'Noun'], ['verb', 'Verb'], ['adjective', 'Adjective'], ['adverb', 'Adverb'], ['interjection', 'Interjection']];
 
 const WORD_RE = /[A-Za-z']+/g;
 const lastWordBefore = (text: string, pos: number) => text.slice(0, pos).match(/([A-Za-z']+)[^A-Za-z']*$/)?.[1];
@@ -144,7 +144,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
   const [speaking, setSpeaking] = useState<{ start: number; end: number } | null>(null);
   const caretMark = useRef<HTMLSpanElement>(null);
   const [focusLine, setFocusLine] = useState<number | null>(null);
-  const [newWord, setNewWord] = useState({ word: '', cls: 'propernoun' as MontessoriWordClass });
+  const [newWord, setNewWord] = useState({ word: '', cls: 'propernoun' as SymbolWordClass });
   // "Write with this formula": her formula card above the page, each slot lighting up as the sentence fills it.
   const [frame, setFrame] = useState<{ slots: string[]; sentence: string; code: string; card?: string } | null>(null);
   const checkWin = useDragSpot('lm-writer-checkpos', { x: Math.max(16, (typeof window === 'undefined' ? 1200 : window.innerWidth) - 400), y: 140 });
@@ -335,7 +335,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
     return cp[it] ? 'todo' : 'ok';
   };
   // Open spots show only for the sentence being checked and the tab being looked at.
-  const gaps = new Map<number, MontessoriWordClass | null>();
+  const gaps = new Map<number, SymbolWordClass | null>();
   const wordSpots = new Set<number>();
   if (cs && cr && cp && checkTab !== 'formula' && status(checkTab) === 'todo') {
     const ws = [...cs.text.matchAll(WORD_RE)];
@@ -398,9 +398,9 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
       (phrase ? phrase.nodes : group ? group.nodes : mirror).push(...nodes);
     };
     const cuts = ranges.flatMap((r) => [r.start, r.end]);
-    const symRow = (classes: MontessoriWordClass[]) => (
+    const symRow = (classes: SymbolWordClass[]) => (
       <span key="sym" className={`lm-writer-sym${classes.length > 1 ? ' two' : ''}`}>
-        {classes.map((c, k) => <img key={k} src={MONTESSORI_WORD_CLASS_INFO[c].imageUrl} alt="" draggable={false} />)}
+        {classes.map((c, k) => <img key={k} src={GRAMMAR_SYMBOL_INFO[c].imageUrl} alt="" draggable={false} />)}
       </span>
     );
     const gapAt = (i: number) => (gaps.has(i) ? (
@@ -872,7 +872,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
               <div className={`lm-writer-frame${done ? ' done' : ''}`} role="group" aria-label="Formula to write with">
                 <div className="lm-writer-frame-slots">
                   {frame.slots.map((slot, i) => {
-                    const info = MONTESSORI_WORD_CLASS_INFO[slotClassOf(slot)];
+                    const info = GRAMMAR_SYMBOL_INFO[slotClassOf(slot)];
                     return (
                       <span key={i} className={`lm-writer-frame-slot${i < filled ? ' filled' : i === filled ? ' next' : ''}`}>
                         <span style={{ color: info.color }}>{slotLabel(slot)}</span>
@@ -1102,15 +1102,15 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
           <p className="muted" style={{ margin: '0 0 4px' }}>Words that are right but not in the word list, like names. Tap a marked word and choose "Add to my dictionary", or add one here.</p>
           <div className="lm-writer-fixes">
             <input className="lm-writer-input" style={{ flex: 1, marginTop: 0 }} value={newWord.word} onChange={(e) => setNewWord({ ...newWord, word: e.target.value })} placeholder="A word, like Xander" aria-label="New word" />
-            <select className="lm-writer-input" style={{ width: 'auto', marginTop: 0 }} value={newWord.cls} onChange={(e) => setNewWord({ ...newWord, cls: e.target.value as MontessoriWordClass })} aria-label="What kind of word">
+            <select className="lm-writer-input" style={{ width: 'auto', marginTop: 0 }} value={newWord.cls} onChange={(e) => setNewWord({ ...newWord, cls: e.target.value as SymbolWordClass })} aria-label="What kind of word">
               {DICTIONARY_TYPES.map(([cls, name]) => <option key={cls} value={cls}>{name}</option>)}
             </select>
             <button type="button" className="lm-tool-btn" disabled={!newWord.word.trim()} onClick={() => { addMyWord(newWord.word, newWord.cls); setNewWord({ ...newWord, word: '' }); }}>Add</button>
           </div>
           {myWords().map((w) => (
             <div key={w.word} className="lm-writer-book-row">
-              <span className="lm-writer-formula-symbols"><img src={MONTESSORI_WORD_CLASS_INFO[w.cls].imageUrl} alt="" /></span>
-              <span><strong>{w.word}</strong> · {MONTESSORI_WORD_CLASS_INFO[w.cls].name}</span>
+              <span className="lm-writer-formula-symbols"><img src={GRAMMAR_SYMBOL_INFO[w.cls].imageUrl} alt="" /></span>
+              <span><strong>{w.word}</strong> · {GRAMMAR_SYMBOL_INFO[w.cls].name}</span>
               <button type="button" className="lm-tool-btn" onClick={() => removeMyWord(w.word)}>Remove</button>
             </div>
           ))}

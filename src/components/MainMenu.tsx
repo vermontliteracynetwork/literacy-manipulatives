@@ -6,6 +6,7 @@ import { Icon } from './Icon';
 const LINKS = [
   { href: '/', label: 'All tools' },
   { href: '/words', label: 'Word Explorer' },
+  { href: '/formulas', label: 'Formula Search' },
   { href: '/write', label: 'Word Processor' },
   { href: '/whiteboard?welcome=0', label: 'Whiteboard' },
 ];

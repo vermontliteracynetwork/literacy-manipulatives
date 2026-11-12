@@ -8,6 +8,7 @@ const read = (): Record<string, ReviewStatus> => { try { return JSON.parse(local
 let store = read();
 const listeners = new Set<() => void>();
 export const onReview = (f: () => void) => { listeners.add(f); return () => { listeners.delete(f); }; };
+export const reviewKeys = () => Object.keys(store).filter((k) => store[k] === 'approved');
 export const statusOf = (key: string, fallback: ReviewStatus): ReviewStatus => store[key] ?? fallback;
 export function setStatus(key: string, status: ReviewStatus) {
   store = { ...store, [key]: status };

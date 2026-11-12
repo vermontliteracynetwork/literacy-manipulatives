@@ -1,0 +1,28 @@
+/* Formula Search: one bar in the middle of the page, like a web search home page. Uses Word Explorer's tokens. */
+.fs-main { max-width: 860px; margin: 0 auto; padding: 18vh 16px 48px; display: flex; flex-direction: column; gap: 20px; }
+.fs-main.searched { padding-top: 32px; }
+.fs-title { margin: 0; text-align: center; font-size: 3rem; font-weight: 700; letter-spacing: -0.01em; }
+.fs-main.searched .fs-title { font-size: 1.75rem; }
+.fs-title a { color: var(--primary); text-decoration: none; }
+.fs-bar { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 20px; border: 2px solid var(--line); border-radius: 999px; background: var(--surface); box-shadow: 0 2px 10px rgba(43, 35, 64, 0.08); color: var(--ink-soft); }
+.fs-bar:focus-within { border-color: var(--primary); box-shadow: 0 4px 16px rgba(43, 35, 64, 0.14); }
+.fs-bar input { flex: 1; min-width: 0; min-height: 48px; border: 0; outline: none; background: transparent; font: inherit; font-size: var(--text-body-lg); color: var(--ink); }
+.fs-bar .wx-btn { border-radius: 999px; }
+.fs-home-links { display: flex; justify-content: center; }
+.fs-result { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+.fs-sentence { display: flex; align-items: center; gap: 12px; font-size: var(--text-body-lg); font-weight: 600; }
+.fs-pattern { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; }
+.fs-code { font-weight: 700; color: var(--primary); }
+.fs-cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.fs-card { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; border: 1px solid var(--line); border-radius: var(--r-tile); padding: 12px; }
+.fs-card img { width: min(360px, 100%); height: auto; border-radius: 8px; background: #fff; }
+.fs-card-text { display: flex; flex-direction: column; gap: 4px; flex: 1 1 200px; }
+.fs-nomatch { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.fs-nomatch p { margin: 0; }
+.fs-logged { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fs-close-h { margin-top: 12px; }
+.fs-log { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 24px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; overflow-x: auto; }
+.fs-table { border-collapse: collapse; width: 100%; }
+.fs-table th, .fs-table td { text-align: left; vertical-align: top; padding: 8px; border-bottom: 1px solid var(--line); }
+.fs .lm-formula-slot-label { color: var(--ink) !important; }
+@media (max-width: 600px) { .fs-title { font-size: 2.25rem; } .fs-main { padding-top: 10vh; } }

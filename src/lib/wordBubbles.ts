@@ -3,7 +3,7 @@
 // always have punctiuation as a separete icon. should be able to type words in bubbles, even replacing
 // default/random words". Shared helpers for the bubble under every Grammar Symbol and Symbol Sentence word.
 
-import { ADJECTIVES, ADVERBS, ARTICLES, COMMON_NOUNS, CONJUNCTIONS, INTERJECTIONS, OBJECT_PRONOUNS, PREPOSITIONS, PROPER_NOUNS, SUBJECT_PRONOUNS, type MontessoriWordClass } from './montessoriGrammar';
+import { ADJECTIVES, ADVERBS, ARTICLES, COMMON_NOUNS, CONJUNCTIONS, INTERJECTIONS, OBJECT_PRONOUNS, PREPOSITIONS, PROPER_NOUNS, SUBJECT_PRONOUNS, type SymbolWordClass } from './grammarSymbols';
 import { SANDBOX_VERBS } from './grammarContent';
 import type { SymbolSentence } from './symbolSentences';
 
@@ -33,7 +33,7 @@ export function textOn(hex: string): string {
 
 const pick = <T,>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)];
 
-export function randomWordFor(cls: MontessoriWordClass): string {
+export function randomWordFor(cls: SymbolWordClass): string {
   if (cls === 'noun') return pick(COMMON_NOUNS).text;
   if (cls === 'propernoun') return pick(PROPER_NOUNS).text;
   if (cls === 'pronoun') return pick([...SUBJECT_PRONOUNS, ...OBJECT_PRONOUNS]).text;
@@ -48,7 +48,7 @@ export function randomWordFor(cls: MontessoriWordClass): string {
 
 // A random word placed in a sentence: capitalized when it starts the sentence, when it's a proper noun, and
 // for the word I (her request 2026-10-15).
-export function randomWordInSentence(cls: MontessoriWordClass, first: boolean): string {
+export function randomWordInSentence(cls: SymbolWordClass, first: boolean): string {
   const w = randomWordFor(cls);
   if (first || cls === 'propernoun' || w.toLowerCase() === 'i') return w.charAt(0).toUpperCase() + w.slice(1);
   return w;

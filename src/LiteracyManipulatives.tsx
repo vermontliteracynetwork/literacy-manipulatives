@@ -18,7 +18,7 @@ import { addIdea } from './lib/writer/formulaBook';
 import { SettingsPanel } from './components/SettingsPanel';
 import { isFontChoice, useFontChoice, type FontChoice } from './lib/fontChoice';
 import { diffItems, isJoinRoute, myColor, shareConfigured, studentId as myStudentId, useHostSession, useStudentSession, type Ops, type Snapshot } from './lib/share';
-import { MONTESSORI_WORD_CLASS_INFO, TENSE_SYMBOLS, type MontessoriWordClass } from './lib/montessoriGrammar';
+import { GRAMMAR_SYMBOL_INFO, TENSE_SYMBOLS, type SymbolWordClass } from './lib/grammarSymbols';
 import { verbInTense, type Tense } from './lib/tenseSymbols';
 import { loadWords } from './lib/writer/spell';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
@@ -48,7 +48,7 @@ import type { GrammarPiece, TTSSettings } from './types';
 // This is now ONE shared canvas plus a left-side material palette
 // (nav moved off the old top bar, direct instruction: "the bar across
 // the top should move to the left hand side"), Polypad/GeoGebra-style:
-// every material (word tiles, blank Montessori grammar shapes, morpheme
+// every material (word tiles, blank grammar symbol shapes, morpheme
 // pieces, letters, sound-box frames) drags from the sidebar onto the
 // canvas and can be freely repositioned, mixed, and combined, with no
 // fixed target/correct-answer/completion state anywhere. The one
@@ -163,7 +163,7 @@ interface PlacedItem {
   x: number;
   y: number;
   pieceId?: string; // grammar
-  wordClass?: MontessoriWordClass; // shape
+  wordClass?: SymbolWordClass; // shape
   letter?: string; // letter
   boxCount?: number; // frame; also reused for symbolSentence's word count (sizing only)
   morphId?: string; // morpheme, id into lib/morphemes.ts
@@ -261,7 +261,7 @@ function vcColorFor(text: string | undefined, on: boolean): CSSProperties | unde
 }
 
 function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compact, punctId, vowelConsonantColors, cellSize, tileSize, linkedLeft, linkedRight, chipColor, customText, imageSrc, imageW, imageH, tense }: {
-  kind: PlacedKind; pieceId?: string; wordClass?: MontessoriWordClass; letter?: string; boxCount?: number;
+  kind: PlacedKind; pieceId?: string; wordClass?: SymbolWordClass; letter?: string; boxCount?: number;
   morphId?: string; compact?: boolean; punctId?: string; vowelConsonantColors?: boolean; cellSize?: number; tileSize?: number;
   linkedLeft?: boolean; linkedRight?: boolean; chipColor?: string; customText?: string; imageSrc?: string; imageW?: number; imageH?: number; tense?: Tense;
 }) {
@@ -320,7 +320,7 @@ function ItemVisual({ kind, pieceId, wordClass, letter, boxCount, morphId, compa
     // Also direct teacher instruction: hovering a symbol shows its name
     // and a simple definition (matching her reference "Parts of Speech"
     // sheet), pure-CSS hover/focus so it works everywhere this renders.
-    const info = MONTESSORI_WORD_CLASS_INFO[wordClass ?? 'noun'];
+    const info = GRAMMAR_SYMBOL_INFO[wordClass ?? 'noun'];
     const box = compact ? 48 : 96;
     const img = compact ? 40 : 80;
     // A23-ROADMAP Phase 1: generalized into the shared ReferencePopover
@@ -482,7 +482,7 @@ function Category({ label, color, open, onToggle, children }: {
 }
 
 // A Symbol Sentences tray card, direct teacher upload (a real
-// Montessori grammar-box deck: full sentences shown purely as a row of
+// Grammar symbol sentence deck: full sentences shown purely as a row of
 // colored symbols, no words). Dragging the card onto the board drops
 // its whole symbol row as one unit; the sentence text itself stays
 // symbols-only on the board, but direct follow-up instruction: "when
@@ -496,7 +496,7 @@ function Category({ label, color, open, onToggle, children }: {
 // A word that doesn't fit its symbol (her request 2026-10-15) shows faded, with bold red text.
 // Word bubbles are lowercase (her request 2026-10-15) except a proper noun, the word I, and the first word of
 // a sentence, which all get their capital automatically.
-function caseWord(word: string, cls: MontessoriWordClass | undefined, first: boolean): string {
+function caseWord(word: string, cls: SymbolWordClass | undefined, first: boolean): string {
   if (!word) return word;
   if (cls === 'propernoun') return word.charAt(0).toUpperCase() + word.slice(1);
   if (/^i(['’].*)?$/i.test(word)) return 'I' + word.slice(1);
@@ -504,7 +504,7 @@ function caseWord(word: string, cls: MontessoriWordClass | undefined, first: boo
 }
 const fade = (hex: string) => (/^#[0-9a-f]{6}$/i.test(hex) ? `${hex}66` : hex);
 // The dictionary's names for parts of speech, as the board's symbols.
-const DICT_PART: Record<string, MontessoriWordClass> = {
+const DICT_PART: Record<string, SymbolWordClass> = {
   noun: 'noun', verb: 'verb', adjective: 'adjective', adverb: 'adverb', pronoun: 'pronoun', preposition: 'preposition',
   conjunction: 'conjunction', interjection: 'interjection', article: 'article', determiner: 'article', exclamation: 'interjection',
 };
@@ -573,7 +573,7 @@ function SymbolSentenceCard({ sentence, onPointerDown }: {
           boxShadow: '2px 2px 0 rgba(31,17,71,0.15)',
         }}>
           {sentence.words.map((w, i) => (
-            <img key={i} src={MONTESSORI_WORD_CLASS_INFO[w.wordClass].imageUrl} alt="" draggable={false} style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0, pointerEvents: 'none' }} />
+            <img key={i} src={GRAMMAR_SYMBOL_INFO[w.wordClass].imageUrl} alt="" draggable={false} style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0, pointerEvents: 'none' }} />
           ))}
         </div>
       </ReferencePopover>
@@ -1263,10 +1263,10 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
   // A typed word that doesn't fit its symbol gets a small movable note (her request 2026-10-15), shown when the
   // student clicks out of the bubble. Words the board doesn't know are looked up in the dictionary, so "leaf" in
   // an adjective is caught too. Closing the note hides it for that word.
-  const [wordAlert, setWordAlert] = useState<{ key: string; owner: string; word: string; cls: MontessoriWordClass; looks: MontessoriWordClass; dx: number; dy: number } | null>(null);
+  const [wordAlert, setWordAlert] = useState<{ key: string; owner: string; word: string; cls: SymbolWordClass; looks: SymbolWordClass; dx: number; dy: number } | null>(null);
   const dismissedAlerts = useRef(new Set<string>());
   const [, setDictTick] = useState(0);
-  const wordProblem = (word: string | undefined, cls: MontessoriWordClass): MontessoriWordClass | null => {
+  const wordProblem = (word: string | undefined, cls: SymbolWordClass): SymbolWordClass | null => {
     const w = (word ?? '').trim();
     if (!w || w.includes(' ')) return null;
     const known = wordMismatch(w, cls);
@@ -1276,14 +1276,14 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
     const fit = fitsType(w, cls);
     if (fit === 'yes') return null;
     if (known) return known;
-    if (fit === 'no') { const t = typesOf(w)!; return (t.common[0] ?? t.all[0]) as MontessoriWordClass; }
+    if (fit === 'no') { const t = typesOf(w)!; return (t.common[0] ?? t.all[0]) as SymbolWordClass; }
     if (isKnownWord(w)) return null;
-    const parts = (peekDefinition(w)?.parts ?? []).map((pt) => DICT_PART[pt.toLowerCase()]).filter((c): c is MontessoriWordClass => !!c);
+    const parts = (peekDefinition(w)?.parts ?? []).map((pt) => DICT_PART[pt.toLowerCase()]).filter((c): c is SymbolWordClass => !!c);
     if (!parts.length || parts.includes(cls) || (cls === 'article' && parts.includes('adjective'))) return null;
     return parts[0];
   };
   const clearWordAlert = (owner: string, idx: number) => setWordAlert((a) => (a && a.key.startsWith(`${owner}:${idx}:`) ? null : a));
-  const checkWord = async (owner: string, idx: number, word: string, cls: MontessoriWordClass) => {
+  const checkWord = async (owner: string, idx: number, word: string, cls: SymbolWordClass) => {
     const w = word.trim();
     if (!w) return clearWordAlert(owner, idx);
     await loadWordTypes();
@@ -1400,7 +1400,7 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
     const band = (pp: PlacedItem) => Math.round((pp.y + measured(pp).h) / 60);
     return items.sort((a, b) => band(a) - band(b) || a.x - b.x);
   };
-  type SentencePart = { word: string; cls: MontessoriWordClass | null } | { punct: string };
+  type SentencePart = { word: string; cls: SymbolWordClass | null } | { punct: string };
   const sentenceParts = (items: PlacedItem[]): SentencePart[] => items.flatMap((pp): SentencePart[] => {
     if (pp.kind === 'shape') return [{ word: (pp.bubbleWord ?? '').trim(), cls: pp.wordClass ?? 'noun' }];
     if (pp.kind === 'punctuation') { const m = PUNCTUATION_MARKS.find((pm) => pm.id === pp.punctId); return m ? [{ punct: m.mark }] : []; }
@@ -1417,7 +1417,7 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
     return [];
   });
   const checkSentence = (parts: SentencePart[]) => {
-    const words = parts.filter((pt): pt is { word: string; cls: MontessoriWordClass | null } => 'word' in pt);
+    const words = parts.filter((pt): pt is { word: string; cls: SymbolWordClass | null } => 'word' in pt);
     const text = parts.map((pt, i) => ('punct' in pt ? pt.punct : `${i ? ' ' : ''}${pt.word}`)).join('').trim();
     const capital = /^[A-Z]/.test(words[0]?.word ?? '');
     const last = parts[parts.length - 1];
@@ -1464,7 +1464,7 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
     const words = tokens.filter((t) => !/^[.,!?;:]$/.test(t));
     const tagged = patternFor(words.join(' '))?.words ?? [];
     // Word classes from the symbols the box was made from, when the words still line up with them.
-    const fromSource = (box.sourcePieces ?? []).flatMap((pp): MontessoriWordClass[] => {
+    const fromSource = (box.sourcePieces ?? []).flatMap((pp): SymbolWordClass[] => {
       if (pp.kind === 'shape') return [pp.wordClass ?? 'noun'];
       if (pp.kind === 'symbolSentence') return ALL_SYMBOL_SENTENCES.find((ss) => ss.id === pp.symbolSentenceId)?.words.map((w) => w.wordClass) ?? [];
       return [];
@@ -2618,14 +2618,14 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
             <TraySearch value={searchFor('shapes')} onChange={setSearch('shapes')} placeholder="Find a grammar symbol" />
             <BubbleToggle value={bubbleDefault} onChange={setAllBubbles} />
             {(() => {
-              const byName = (Object.keys(MONTESSORI_WORD_CLASS_INFO) as MontessoriWordClass[]).filter((cls) => matches('shapes', MONTESSORI_WORD_CLASS_INFO[cls].name, MONTESSORI_WORD_CLASS_INFO[cls].label));
+              const byName = (Object.keys(GRAMMAR_SYMBOL_INFO) as SymbolWordClass[]).filter((cls) => matches('shapes', GRAMMAR_SYMBOL_INFO[cls].name, GRAMMAR_SYMBOL_INFO[cls].label));
               // Typing a word (not a part of speech name) shows that word's symbol, ready to drag out with the
               // word already in its bubble.
               const byWord = byName.length ? [] : symbolsForWords(searchFor('shapes'));
               return (
                 <div className="row-wrap" style={{ gap: 8 }}>
                   {byName.map((cls) => {
-                    const info = MONTESSORI_WORD_CLASS_INFO[cls];
+                    const info = GRAMMAR_SYMBOL_INFO[cls];
                     return (
                       <Draggable key={cls} label={info.label} onPointerDown={startDragNewItem(() => ({ kind: 'shape', wordClass: cls }))}>
                         <ItemVisual kind="shape" wordClass={cls} compact />
@@ -2633,7 +2633,7 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
                     );
                   })}
                   {byWord.map((w, i) => {
-                    const info = MONTESSORI_WORD_CLASS_INFO[w.wordClass];
+                    const info = GRAMMAR_SYMBOL_INFO[w.wordClass];
                     return (
                       <div key={`${w.word}-${i}`} className="lm-word-symbol">
                         <Draggable label={`${w.word}: ${info.name}`} onPointerDown={startDragNewItem(() => ({ kind: 'shape', wordClass: w.wordClass, bubbleWord: caseWord(w.word, w.wordClass, false) }))}>
@@ -2694,9 +2694,9 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
                     <Draggable label="Drag out this pattern" onPointerDown={startDragNewRow(pattern)} style={{ width: '100%' }}>
                       <div className="lm-pattern-card">
                         <span className="lm-pattern-icons">
-                          {pattern.map((w, i) => <img key={i} src={MONTESSORI_WORD_CLASS_INFO[w.wordClass].imageUrl} alt={MONTESSORI_WORD_CLASS_INFO[w.wordClass].name} draggable={false} />)}
+                          {pattern.map((w, i) => <img key={i} src={GRAMMAR_SYMBOL_INFO[w.wordClass].imageUrl} alt={GRAMMAR_SYMBOL_INFO[w.wordClass].name} draggable={false} />)}
                         </span>
-                        <span className="lm-pattern-text">{pattern.map((w) => w.word || MONTESSORI_WORD_CLASS_INFO[w.wordClass].name.toLowerCase()).join(' ')}</span>
+                        <span className="lm-pattern-text">{pattern.map((w) => w.word || GRAMMAR_SYMBOL_INFO[w.wordClass].name.toLowerCase()).join(' ')}</span>
                       </div>
                     </Draggable>
                   )}
@@ -2968,10 +2968,10 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
                   <div className="lm-bubble-row">
                     <WordBubble
                       value={p.bubbleWord ?? ''}
-                      placeholder={MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].name.toLowerCase()}
-                      color={MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].color}
+                      placeholder={GRAMMAR_SYMBOL_INFO[p.wordClass ?? 'noun'].name.toLowerCase()}
+                      color={GRAMMAR_SYMBOL_INFO[p.wordClass ?? 'noun'].color}
                       bubbleStyle={p.bubbleStyle ?? bubbleDefault}
-                      label={`${MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].name} word`}
+                      label={`${GRAMMAR_SYMBOL_INFO[p.wordClass ?? 'noun'].name} word`}
                       onChange={(v) => { setPlacedField(p.instanceId, { bubbleWord: v, bubbleWordOwn: undefined }); clearWordAlert(p.instanceId, 0); }}
                       onBlur={(v) => {
                         let cased = caseWord(v, p.wordClass, startsSentence(placed, p));
@@ -2988,7 +2988,7 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
                       wrong={!!wordProblem(p.bubbleWord, p.wordClass ?? 'noun')}
                     />
                     {toolsOpenFor(p.instanceId) && unitOf(p.instanceId).length > 1 && (
-                      <button type="button" className="lm-ctl lm-item-controls" style={{ position: 'absolute', top: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)' }} onPointerDown={(e) => e.stopPropagation()} onClick={() => randomizeWords(new Set([p.instanceId]))} aria-label={`Random ${MONTESSORI_WORD_CLASS_INFO[p.wordClass ?? 'noun'].name.toLowerCase()}`} title="Random word"><Icon name="dice" size={16} /></button>
+                      <button type="button" className="lm-ctl lm-item-controls" style={{ position: 'absolute', top: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)' }} onPointerDown={(e) => e.stopPropagation()} onClick={() => randomizeWords(new Set([p.instanceId]))} aria-label={`Random ${GRAMMAR_SYMBOL_INFO[p.wordClass ?? 'noun'].name.toLowerCase()}`} title="Random word"><Icon name="dice" size={16} /></button>
                     )}
                   </div>
                 )}
@@ -3274,8 +3274,8 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
               const owner = placed.find((pp) => pp.instanceId === wordAlert.owner);
               if (!owner) return null;
               const baseY = owner.y + measured(owner).h + 14;
-              const name = (c: MontessoriWordClass) => MONTESSORI_WORD_CLASS_INFO[c].name.toLowerCase();
-              const withA = (c: MontessoriWordClass) => `${/^[aeiou]/.test(name(c)) ? 'an' : 'a'} ${name(c)}`;
+              const name = (c: SymbolWordClass) => GRAMMAR_SYMBOL_INFO[c].name.toLowerCase();
+              const withA = (c: SymbolWordClass) => `${/^[aeiou]/.test(name(c)) ? 'an' : 'a'} ${name(c)}`;
               return (
                 <FloatingCard
                   x={owner.x + wordAlert.dx}
@@ -3405,7 +3405,7 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
                           return <div key={`p${t.slot}`} className="lm-sentence-col punct"><PunctIcon mark={mark} onTap={() => setSymbolSentencePunct(item.instanceId, t.slot, nextPunct(mark))} /></div>;
                         }
                         const w = sentence.words[t.index];
-                        const info = MONTESSORI_WORD_CLASS_INFO[w.wordClass];
+                        const info = GRAMMAR_SYMBOL_INFO[w.wordClass];
                         return (
                           <div key={t.index} className="lm-sentence-col" data-slot={t.index} data-verb-slot={w.wordClass === 'verb' ? '' : undefined}>
                             <ReferencePopover mode="hover" title={info.name} body={info.label}>

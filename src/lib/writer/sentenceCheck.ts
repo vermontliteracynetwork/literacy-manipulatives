@@ -1,6 +1,6 @@
 import { agreeWords, type PatternWord } from '../sentenceSearch';
 import { tagInContext, type TaggedWord } from './tagger';
-import type { MontessoriWordClass } from '../montessoriGrammar';
+import type { SymbolWordClass } from '../grammarSymbols';
 import type { SentenceFormula } from './formulas';
 import { cardSlotsOf, closestFormula, formulaCode, sentenceSlots } from './formulaMatch';
 
@@ -35,10 +35,10 @@ export function splitSentences(text: string): SentenceSpan[] {
   return out;
 }
 
-export const CODE: Record<MontessoriWordClass, string> = {
+export const CODE: Record<SymbolWordClass, string> = {
   article: 'A', noun: 'N', propernoun: 'PN', pronoun: 'P', verb: 'V', adjective: 'Adj', adverb: 'Adv',
   preposition: 'Pr', conjunction: 'C', interjection: 'I',
-} as Record<MontessoriWordClass, string>;
+} as Record<SymbolWordClass, string>;
 
 const IRREGULAR_PAST = new Set(['was', 'were', 'had', 'did', 'went', 'came', 'saw', 'got', 'made', 'took', 'gave', 'said', 'told', 'knew', 'thought', 'felt', 'ran', 'ate', 'drank', 'slept', 'sat', 'stood', 'swam', 'flew', 'wrote', 'drew', 'sang', 'rode', 'threw', 'caught', 'found', 'kept', 'built', 'brought', 'bought', 'sold', 'wore', 'held', 'hid', 'fell', 'grew', 'taught', 'won', 'lost', 'left', 'met', 'paid', 'sent', 'spent', 'woke', 'dug', 'fought', 'began', 'broke', 'chose', 'drove', 'forgot', 'heard', 'spoke', 'stole']);
 const HELPERS = new Set(['will', 'would', 'can', 'could', 'should', 'must', 'may', 'might', 'shall', 'to', 'do', 'does', 'did', "don't", "doesn't", "didn't", "can't", "won't"]);
@@ -46,7 +46,7 @@ const BE = new Set(['am', 'is', 'are', 'was', 'were', 'be', 'been', 'being']);
 const QUESTION_START = new Set(['is', 'are', 'am', 'was', 'were', 'do', 'does', 'did', 'can', 'could', 'will', 'would', 'should', 'have', 'has', 'who', 'what', 'where', 'when', 'why', 'how', 'which']);
 // Verbs whose base form already ends in -ed or -ing.
 const BASE_ED_ING = new Set(['bring', 'sing', 'ring', 'swing', 'sting', 'cling', 'fling', 'spring', 'string', 'wring', 'need', 'feed', 'bleed', 'breed', 'speed', 'shed', 'seed', 'weed', 'plead', 'heed', 'proceed', 'succeed', 'exceed']);
-const isWho = (c: MontessoriWordClass) => c === 'noun' || c === 'propernoun' || c === 'pronoun';
+const isWho = (c: SymbolWordClass) => c === 'noun' || c === 'propernoun' || c === 'pronoun';
 
 // Tag a sentence. A word the board doesn't know that sits where the Action belongs (right after the Who part)
 // counts as the Action, so a new verb isn't called missing; known nouns and describing words never do.
@@ -55,7 +55,7 @@ export function tagForCheck(text: string): TaggedWord[] {
   // Each word's job from the word itself and its place in the sentence (tagger.ts, which also makes sure a
   // sentence gets a verb when one of its words can be one); helping words (will, can, don't...) are verbs, as in
   // her formulas.
-  return tagInContext(text).map((w) => (MODALS.has(w.word.toLowerCase()) ? { ...w, wordClass: 'verb' as MontessoriWordClass } : w));
+  return tagInContext(text).map((w) => (MODALS.has(w.word.toLowerCase()) ? { ...w, wordClass: 'verb' as SymbolWordClass } : w));
 }
 
 export interface CheckResult {
@@ -78,8 +78,8 @@ export function checkSentence(s: SentenceSpan): CheckResult {
   const classes = words.map((w) => w.wordClass);
   const lower = words.map((w) => w.word.toLowerCase());
   // A contraction does both its jobs: "We've" is the subject and the verb.
-  const does = (i: number, test: (c: MontessoriWordClass) => boolean) => test(classes[i]) || !!words[i].parts?.some(test);
-  const isVerb = (c: MontessoriWordClass) => c === 'verb';
+  const does = (i: number, test: (c: SymbolWordClass) => boolean) => test(classes[i]) || !!words[i].parts?.some(test);
+  const isVerb = (c: SymbolWordClass) => c === 'verb';
   const hasAction = words.some((_, i) => does(i, isVerb));
   const whoIndex = words.findIndex((_, i) => does(i, isWho));
   const firstVerb = words.findIndex((_, i) => does(i, isVerb) && !(words[i].parts && words[i].parts![0] !== 'verb' && i === whoIndex));

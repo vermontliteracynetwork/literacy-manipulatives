@@ -7,7 +7,8 @@
 
 // slots: the words her card would show above each symbol ("article noun verb"), so the formula can be drawn.
 export interface BookEntry { code: string; sentence: string; at: string; slots?: string[] }
-export interface FormulaIdea { code: string; examples: string[]; names: string[]; count: number; slots?: string[] }
+// added: the day it was first logged. The Formula Search app (/formulas) adds to the same list with "Add suggested formula".
+export interface FormulaIdea { code: string; examples: string[]; names: string[]; count: number; slots?: string[]; added?: string }
 
 const BOOK = 'lm-formula-book';
 const IDEAS = 'lm-formula-ideas';
@@ -31,7 +32,7 @@ export const readIdeas = () => read<FormulaIdea>(IDEAS);
 export function addIdea(code: string, sentence: string, name = '', slots?: string[]): FormulaIdea[] {
   const ideas = readIdeas();
   let idea = ideas.find((i) => i.code === code);
-  if (!idea) { idea = { code, examples: [], names: [], count: 0, slots }; ideas.push(idea); }
+  if (!idea) { idea = { code, examples: [], names: [], count: 0, slots, added: new Date().toISOString().slice(0, 10) }; ideas.push(idea); }
   if (idea.examples.includes(sentence)) return ideas;
   idea.count++;
   idea.examples = [...idea.examples, sentence].slice(-5);
@@ -40,3 +41,8 @@ export function addIdea(code: string, sentence: string, name = '', slots?: strin
   return ideas;
 }
 export function clearIdeas() { write(IDEAS, []); }
+export function removeIdea(code: string): FormulaIdea[] {
+  const ideas = readIdeas().filter((i) => i.code !== code);
+  write(IDEAS, ideas);
+  return ideas;
+}

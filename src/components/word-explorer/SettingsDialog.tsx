@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Icon } from '../Icon';
 import type { WxSettings } from '../../lib/word-explorer/settings';
+import { PATTERNS, patternLabel } from '../../lib/word-explorer/phonics';
 
 type Option<T> = [T, string];
 function Choice<T extends string | number | boolean>({ label, value, options, onChange }: { label: string; value: T; options: Option<T>[]; onChange: (v: T) => void }) {
@@ -26,7 +27,7 @@ export function SettingsDialog({ settings, onChange, onClose }: { settings: WxSe
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
       if (e.key === 'Tab' && ref.current) {
-        const items = [...ref.current.querySelectorAll<HTMLElement>('button')];
+        const items = [...ref.current.querySelectorAll<HTMLElement>('button, select')];
         const first = items[0], last = items[items.length - 1];
         if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
         else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
@@ -48,6 +49,21 @@ export function SettingsDialog({ settings, onChange, onClose }: { settings: WxSe
         <Choice label="Reading speed" value={settings.speed} options={[[0.7, 'Slower'], [0.9, 'Normal'], [1.1, 'Faster']]} onChange={set('speed')} />
         <Choice label="Say button names when I tap them" value={settings.sayButtons} options={[[true, 'On'], [false, 'Off']]} onChange={set('sayButtons')} />
         <Choice label="Teacher view (shows drafts, review buttons and sources)" value={settings.teacherView} options={[[false, 'Off'], [true, 'On']]} onChange={set('teacherView')} />
+        {settings.teacherView && (
+          <>
+            <h3 className="wx-h2">Word of the Day</h3>
+            <Choice label="Who gets which word" value={settings.wotdFor} options={[['class', 'One word for the whole class'], ['student', 'A different word on each student device']]} onChange={set('wotdFor')} />
+            <Choice label="Choose words from" value={settings.wotdFrom} options={[['any', 'Any approved word'], ['tier1', 'Tier 1'], ['tier2', 'Tier 2'], ['tier3', 'Tier 3'], ['pattern', 'A spelling pattern'], ['root', 'The root of the week']]} onChange={set('wotdFrom')} />
+            {settings.wotdFrom === 'pattern' && (
+              <label className="wx-select-label">Spelling pattern
+                <select className="wx-input" value={settings.wotdPattern} onChange={(e) => onChange({ ...settings, wotdPattern: e.target.value })}>
+                  {PATTERNS.filter((p) => !p.extra).map((p) => <option key={p.id} value={p.id}>{patternLabel(p)}</option>)}
+                </select>
+              </label>
+            )}
+            <Choice label="Do not repeat a word for" value={settings.wotdRepeatDays} options={[[7, '7 days'], [30, '30 days'], [90, '90 days']]} onChange={set('wotdRepeatDays')} />
+          </>
+        )}
       </div>
     </div>
   );

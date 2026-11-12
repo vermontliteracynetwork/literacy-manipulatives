@@ -1,5 +1,5 @@
 import { wordJobs } from '../sentenceSearch';
-import type { MontessoriWordClass } from '../montessoriGrammar';
+import type { SymbolWordClass } from '../grammarSymbols';
 import { myWordClass } from './myWords';
 import { isDictionaryWord, typesOf } from '../wordTypes';
 
@@ -16,13 +16,13 @@ let loading: Promise<void> | null = null;
 // The jobs a dictionary lists for each word, most common first (public/writer/pos.json, built from WordNet by
 // scripts/build-pos.mjs): step 1 of choosing a word's symbol.
 // Rare jobs (a capital letter in the file) are kept apart: the tagger may use them, spell check doesn't.
-const POS = new Map<string, MontessoriWordClass[]>();
-const COMMON_POS = new Map<string, MontessoriWordClass[]>();
-const POS_CLASS: Record<string, MontessoriWordClass> = { n: 'noun', v: 'verb', a: 'adjective', r: 'adverb' };
+const POS = new Map<string, SymbolWordClass[]>();
+const COMMON_POS = new Map<string, SymbolWordClass[]>();
+const POS_CLASS: Record<string, SymbolWordClass> = { n: 'noun', v: 'verb', a: 'adjective', r: 'adverb' };
 // Words this list doesn't have use the live dictionary's answer once it has been looked up (src/lib/wordTypes.ts).
-const online = (raw: string) => { const t = typesOf(raw); return t?.from === 'online' ? t.all as MontessoriWordClass[] : undefined; };
-export const dictionaryJobs = (raw: string): MontessoriWordClass[] | undefined => POS.get(raw.toLowerCase()) ?? online(raw);
-export const commonDictionaryJobs = (raw: string): MontessoriWordClass[] | undefined => COMMON_POS.get(raw.toLowerCase()) ?? online(raw);
+const online = (raw: string) => { const t = typesOf(raw); return t?.from === 'online' ? t.all as SymbolWordClass[] : undefined; };
+export const dictionaryJobs = (raw: string): SymbolWordClass[] | undefined => POS.get(raw.toLowerCase()) ?? online(raw);
+export const commonDictionaryJobs = (raw: string): SymbolWordClass[] | undefined => COMMON_POS.get(raw.toLowerCase()) ?? online(raw);
 
 export function loadWords(): Promise<void> {
   loading ??= Promise.all([
@@ -261,4 +261,4 @@ export function completionsFor(prefix: string, prev?: string, limit = 3): string
 }
 
 const matchCase = (typed: string, w: string) => (/^[A-Z]/.test(typed) ? w.charAt(0).toUpperCase() + w.slice(1) : w);
-export type { MontessoriWordClass };
+export type { SymbolWordClass };

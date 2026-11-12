@@ -1,0 +1,1055 @@
+{
+ "_note": "Letter-sound patterns (build spec section 7.1): a neutral set, no program names, lesson numbers or order. Shared by scripts/build-word-explorer-phonics.py (which aligns every word to these) and src/lib/word-explorer/phonics.ts. 'extra' patterns are not in the spec list; the builder uses them for spellings the list does not cover and flags those words for review.",
+ "sounds": {
+  "b": {
+   "show": "/b/"
+  },
+  "d": {
+   "show": "/d/"
+  },
+  "f": {
+   "show": "/f/"
+  },
+  "g": {
+   "show": "/g/"
+  },
+  "h": {
+   "show": "/h/"
+  },
+  "j": {
+   "show": "/j/"
+  },
+  "k": {
+   "show": "/k/"
+  },
+  "l": {
+   "show": "/l/"
+  },
+  "m": {
+   "show": "/m/"
+  },
+  "n": {
+   "show": "/n/"
+  },
+  "p": {
+   "show": "/p/"
+  },
+  "r": {
+   "show": "/r/"
+  },
+  "s": {
+   "show": "/s/"
+  },
+  "t": {
+   "show": "/t/"
+  },
+  "v": {
+   "show": "/v/"
+  },
+  "w": {
+   "show": "/w/"
+  },
+  "y": {
+   "show": "/y/"
+  },
+  "z": {
+   "show": "/z/"
+  },
+  "kw": {
+   "show": "/kw/"
+  },
+  "ks": {
+   "show": "/ks/"
+  },
+  "gz": {
+   "show": "/gz/"
+  },
+  "sh": {
+   "show": "/sh/"
+  },
+  "ch": {
+   "show": "/ch/"
+  },
+  "zh": {
+   "show": "/zh/",
+   "label": "zh",
+   "ex": "treasure"
+  },
+  "th-v": {
+   "show": "/th/",
+   "label": "voiced",
+   "ex": "this"
+  },
+  "th-u": {
+   "show": "/th/",
+   "label": "unvoiced",
+   "ex": "thin"
+  },
+  "ng": {
+   "show": "/ŋ/",
+   "label": "ng",
+   "ex": "ring"
+  },
+  "nk": {
+   "show": "/ŋk/",
+   "label": "nk",
+   "ex": "pink"
+  },
+  "awl": {
+   "show": "/awl/",
+   "label": "glued sound",
+   "ex": "ball"
+  },
+  "ol": {
+   "show": "/ōl/",
+   "label": "glued sound",
+   "ex": "roll"
+  },
+  "ul": {
+   "show": "/ŭl/",
+   "label": "glued sound",
+   "ex": "gull"
+  },
+  "ă": {
+   "show": "/ă/",
+   "label": "short a",
+   "ex": "cat"
+  },
+  "ĕ": {
+   "show": "/ĕ/",
+   "label": "short e",
+   "ex": "bed"
+  },
+  "ĭ": {
+   "show": "/ĭ/",
+   "label": "short i",
+   "ex": "pig"
+  },
+  "ŏ": {
+   "show": "/ŏ/",
+   "label": "short o",
+   "ex": "hot"
+  },
+  "ŭ": {
+   "show": "/ŭ/",
+   "label": "short u",
+   "ex": "cup"
+  },
+  "ā": {
+   "show": "/ā/",
+   "label": "long a",
+   "ex": "cake"
+  },
+  "ē": {
+   "show": "/ē/",
+   "label": "long e",
+   "ex": "tree"
+  },
+  "ī": {
+   "show": "/ī/",
+   "label": "long i",
+   "ex": "kite"
+  },
+  "ō": {
+   "show": "/ō/",
+   "label": "long o",
+   "ex": "snow"
+  },
+  "ū": {
+   "show": "/ū/",
+   "label": "long u",
+   "ex": "moon"
+  },
+  "yū": {
+   "show": "/yū/",
+   "label": "long u",
+   "ex": "cube"
+  },
+  "oo": {
+   "show": "/oo/",
+   "label": "short oo",
+   "ex": "book"
+  },
+  "aw": {
+   "show": "/aw/",
+   "label": "aw",
+   "ex": "saw"
+  },
+  "oi": {
+   "show": "/oi/",
+   "label": "oi",
+   "ex": "coin"
+  },
+  "ow": {
+   "show": "/ow/",
+   "label": "ow",
+   "ex": "cow"
+  },
+  "er": {
+   "show": "/er/",
+   "label": "r-controlled",
+   "ex": "her"
+  },
+  "ar": {
+   "show": "/ar/",
+   "label": "r-controlled",
+   "ex": "car"
+  },
+  "or": {
+   "show": "/or/",
+   "label": "r-controlled",
+   "ex": "corn"
+  },
+  "air": {
+   "show": "/air/",
+   "label": "r-controlled",
+   "ex": "hair"
+  },
+  "ear": {
+   "show": "/ear/",
+   "label": "r-controlled",
+   "ex": "ear"
+  },
+  "ə": {
+   "show": "/ə/",
+   "label": "schwa",
+   "ex": "about"
+  },
+  "": {
+   "show": "silent"
+  }
+ },
+ "patterns": [
+  {
+   "id": "b",
+   "letters": "b",
+   "sound": "b",
+   "group": "Single consonants"
+  },
+  {
+   "id": "c",
+   "letters": "c",
+   "sound": "k",
+   "group": "Single consonants"
+  },
+  {
+   "id": "d",
+   "letters": "d",
+   "sound": "d",
+   "group": "Single consonants"
+  },
+  {
+   "id": "f",
+   "letters": "f",
+   "sound": "f",
+   "group": "Single consonants"
+  },
+  {
+   "id": "g",
+   "letters": "g",
+   "sound": "g",
+   "group": "Single consonants"
+  },
+  {
+   "id": "h",
+   "letters": "h",
+   "sound": "h",
+   "group": "Single consonants"
+  },
+  {
+   "id": "j",
+   "letters": "j",
+   "sound": "j",
+   "group": "Single consonants"
+  },
+  {
+   "id": "k",
+   "letters": "k",
+   "sound": "k",
+   "group": "Single consonants"
+  },
+  {
+   "id": "l",
+   "letters": "l",
+   "sound": "l",
+   "group": "Single consonants"
+  },
+  {
+   "id": "m",
+   "letters": "m",
+   "sound": "m",
+   "group": "Single consonants"
+  },
+  {
+   "id": "n",
+   "letters": "n",
+   "sound": "n",
+   "group": "Single consonants"
+  },
+  {
+   "id": "p",
+   "letters": "p",
+   "sound": "p",
+   "group": "Single consonants"
+  },
+  {
+   "id": "qu",
+   "letters": "qu",
+   "sound": "kw",
+   "group": "Single consonants"
+  },
+  {
+   "id": "r",
+   "letters": "r",
+   "sound": "r",
+   "group": "Single consonants"
+  },
+  {
+   "id": "s",
+   "letters": "s",
+   "sound": "s",
+   "group": "Single consonants"
+  },
+  {
+   "id": "t",
+   "letters": "t",
+   "sound": "t",
+   "group": "Single consonants"
+  },
+  {
+   "id": "v",
+   "letters": "v",
+   "sound": "v",
+   "group": "Single consonants"
+  },
+  {
+   "id": "w",
+   "letters": "w",
+   "sound": "w",
+   "group": "Single consonants"
+  },
+  {
+   "id": "x",
+   "letters": "x",
+   "sound": "ks",
+   "group": "Single consonants"
+  },
+  {
+   "id": "y",
+   "letters": "y",
+   "sound": "y",
+   "group": "Single consonants"
+  },
+  {
+   "id": "z",
+   "letters": "z",
+   "sound": "z",
+   "group": "Single consonants"
+  },
+  {
+   "id": "a-short",
+   "letters": "a",
+   "sound": "ă",
+   "group": "Short vowels"
+  },
+  {
+   "id": "e-short",
+   "letters": "e",
+   "sound": "ĕ",
+   "group": "Short vowels"
+  },
+  {
+   "id": "i-short",
+   "letters": "i",
+   "sound": "ĭ",
+   "group": "Short vowels"
+  },
+  {
+   "id": "o-short",
+   "letters": "o",
+   "sound": "ŏ",
+   "group": "Short vowels"
+  },
+  {
+   "id": "u-short",
+   "letters": "u",
+   "sound": "ŭ",
+   "group": "Short vowels"
+  },
+  {
+   "id": "am",
+   "letters": "am",
+   "sound": "ă",
+   "group": "Nasalized a",
+   "tagOnly": true
+  },
+  {
+   "id": "an",
+   "letters": "an",
+   "sound": "ă",
+   "group": "Nasalized a",
+   "tagOnly": true
+  },
+  {
+   "id": "sh",
+   "letters": "sh",
+   "sound": "sh",
+   "group": "Digraphs"
+  },
+  {
+   "id": "th-voiced",
+   "letters": "th",
+   "sound": "th-v",
+   "group": "Digraphs"
+  },
+  {
+   "id": "th-unvoiced",
+   "letters": "th",
+   "sound": "th-u",
+   "group": "Digraphs"
+  },
+  {
+   "id": "ch",
+   "letters": "ch",
+   "sound": "ch",
+   "group": "Digraphs"
+  },
+  {
+   "id": "ck",
+   "letters": "ck",
+   "sound": "k",
+   "group": "Digraphs"
+  },
+  {
+   "id": "wh",
+   "letters": "wh",
+   "sound": "w",
+   "group": "Digraphs"
+  },
+  {
+   "id": "ph",
+   "letters": "ph",
+   "sound": "f",
+   "group": "Digraphs"
+  },
+  {
+   "id": "ng",
+   "letters": "ng",
+   "sound": "ng",
+   "group": "Digraphs"
+  },
+  {
+   "id": "nk",
+   "letters": "nk",
+   "sound": "nk",
+   "group": "Digraphs"
+  },
+  {
+   "id": "ff",
+   "letters": "ff",
+   "sound": "f",
+   "group": "Doubled final consonants"
+  },
+  {
+   "id": "ll",
+   "letters": "ll",
+   "sound": "l",
+   "group": "Doubled final consonants"
+  },
+  {
+   "id": "ss",
+   "letters": "ss",
+   "sound": "s",
+   "group": "Doubled final consonants"
+  },
+  {
+   "id": "zz",
+   "letters": "zz",
+   "sound": "z",
+   "group": "Doubled final consonants"
+  },
+  {
+   "id": "all",
+   "letters": "all",
+   "sound": "awl",
+   "group": "Glued sounds"
+  },
+  {
+   "id": "oll",
+   "letters": "oll",
+   "sound": "ol",
+   "group": "Glued sounds"
+  },
+  {
+   "id": "ull",
+   "letters": "ull",
+   "sound": "ul",
+   "group": "Glued sounds"
+  },
+  {
+   "id": "a_e",
+   "letters": "a_e",
+   "sound": "ā",
+   "group": "Silent e (VCe)"
+  },
+  {
+   "id": "i_e",
+   "letters": "i_e",
+   "sound": "ī",
+   "group": "Silent e (VCe)"
+  },
+  {
+   "id": "o_e",
+   "letters": "o_e",
+   "sound": "ō",
+   "group": "Silent e (VCe)"
+  },
+  {
+   "id": "e_e",
+   "letters": "e_e",
+   "sound": "ē",
+   "group": "Silent e (VCe)"
+  },
+  {
+   "id": "u_e",
+   "letters": "u_e",
+   "sound": "ū",
+   "group": "Silent e (VCe)"
+  },
+  {
+   "id": "u_e-yu",
+   "letters": "u_e",
+   "sound": "yū",
+   "group": "Silent e (VCe)"
+  },
+  {
+   "id": "_ce",
+   "letters": "ce",
+   "sound": "s",
+   "group": "Soft c and g"
+  },
+  {
+   "id": "_ge",
+   "letters": "ge",
+   "sound": "j",
+   "group": "Soft c and g"
+  },
+  {
+   "id": "c-soft",
+   "letters": "c",
+   "sound": "s",
+   "group": "Soft c and g"
+  },
+  {
+   "id": "g-soft",
+   "letters": "g",
+   "sound": "j",
+   "group": "Soft c and g"
+  },
+  {
+   "id": "tch",
+   "letters": "tch",
+   "sound": "ch",
+   "group": "Ending spellings"
+  },
+  {
+   "id": "dge",
+   "letters": "dge",
+   "sound": "j",
+   "group": "Ending spellings"
+  },
+  {
+   "id": "y-long-i",
+   "letters": "y",
+   "sound": "ī",
+   "group": "Ending spellings"
+  },
+  {
+   "id": "y-long-e",
+   "letters": "y",
+   "sound": "ē",
+   "group": "Ending spellings"
+  },
+  {
+   "id": "cle",
+   "letters": "le",
+   "sound": "l",
+   "group": "Ending spellings",
+   "name": "consonant + le"
+  },
+  {
+   "id": "ild",
+   "letters": "ild",
+   "sound": "ī",
+   "group": "Long vowel before two consonants"
+  },
+  {
+   "id": "old",
+   "letters": "old",
+   "sound": "ō",
+   "group": "Long vowel before two consonants"
+  },
+  {
+   "id": "ind",
+   "letters": "ind",
+   "sound": "ī",
+   "group": "Long vowel before two consonants"
+  },
+  {
+   "id": "olt",
+   "letters": "olt",
+   "sound": "ō",
+   "group": "Long vowel before two consonants"
+  },
+  {
+   "id": "ost",
+   "letters": "ost",
+   "sound": "ō",
+   "group": "Long vowel before two consonants"
+  },
+  {
+   "id": "ar",
+   "letters": "ar",
+   "sound": "ar",
+   "group": "R-controlled"
+  },
+  {
+   "id": "or",
+   "letters": "or",
+   "sound": "or",
+   "group": "R-controlled"
+  },
+  {
+   "id": "ore",
+   "letters": "ore",
+   "sound": "or",
+   "group": "R-controlled"
+  },
+  {
+   "id": "er",
+   "letters": "er",
+   "sound": "er",
+   "group": "R-controlled"
+  },
+  {
+   "id": "ir",
+   "letters": "ir",
+   "sound": "er",
+   "group": "R-controlled"
+  },
+  {
+   "id": "ur",
+   "letters": "ur",
+   "sound": "er",
+   "group": "R-controlled"
+  },
+  {
+   "id": "w-or",
+   "letters": "or",
+   "sound": "er",
+   "group": "R-controlled",
+   "name": "w + or"
+  },
+  {
+   "id": "ar-er",
+   "letters": "ar",
+   "sound": "er",
+   "group": "R-controlled",
+   "ex": "dollar"
+  },
+  {
+   "id": "or-er",
+   "letters": "or",
+   "sound": "er",
+   "group": "R-controlled",
+   "ex": "doctor"
+  },
+  {
+   "id": "air",
+   "letters": "air",
+   "sound": "air",
+   "group": "R-controlled"
+  },
+  {
+   "id": "are",
+   "letters": "are",
+   "sound": "air",
+   "group": "R-controlled"
+  },
+  {
+   "id": "ear-air",
+   "letters": "ear",
+   "sound": "air",
+   "group": "R-controlled"
+  },
+  {
+   "id": "ear",
+   "letters": "ear",
+   "sound": "ear",
+   "group": "R-controlled"
+  },
+  {
+   "id": "ai",
+   "letters": "ai",
+   "sound": "ā",
+   "group": "Vowel teams (long)"
+  },
+  {
+   "id": "ay",
+   "letters": "ay",
+   "sound": "ā",
+   "group": "Vowel teams (long)"
+  },
+  {
+   "id": "ee",
+   "letters": "ee",
+   "sound": "ē",
+   "group": "Vowel teams (long)"
+  },
+  {
+   "id": "ea",
+   "letters": "ea",
+   "sound": "ē",
+   "group": "Vowel teams (long)"
+  },
+  {
+   "id": "ey",
+   "letters": "ey",
+   "sound": "ē",
+   "group": "Vowel teams (long)"
+  },
+  {
+   "id": "oa",
+   "letters": "oa",
+   "sound": "ō",
+   "group": "Vowel teams (long)"
+  },
+  {
+   "id": "ow-long-o",
+   "letters": "ow",
+   "sound": "ō",
+   "group": "Vowel teams (long)"
+  },
+  {
+   "id": "oe",
+   "letters": "oe",
+   "sound": "ō",
+   "group": "Vowel teams (long)"
+  },
+  {
+   "id": "ie",
+   "letters": "ie",
+   "sound": "ī",
+   "group": "Vowel teams (long)"
+  },
+  {
+   "id": "igh",
+   "letters": "igh",
+   "sound": "ī",
+   "group": "Vowel teams (long)"
+  },
+  {
+   "id": "oo-book",
+   "letters": "oo",
+   "sound": "oo",
+   "group": "Other vowel teams"
+  },
+  {
+   "id": "u-book",
+   "letters": "u",
+   "sound": "oo",
+   "group": "Other vowel teams",
+   "ex": "put"
+  },
+  {
+   "id": "oo-moon",
+   "letters": "oo",
+   "sound": "ū",
+   "group": "Other vowel teams"
+  },
+  {
+   "id": "ew",
+   "letters": "ew",
+   "sound": "ū",
+   "group": "Other vowel teams"
+  },
+  {
+   "id": "ui",
+   "letters": "ui",
+   "sound": "ū",
+   "group": "Other vowel teams"
+  },
+  {
+   "id": "ue",
+   "letters": "ue",
+   "sound": "ū",
+   "group": "Other vowel teams"
+  },
+  {
+   "id": "au",
+   "letters": "au",
+   "sound": "aw",
+   "group": "Other vowel teams"
+  },
+  {
+   "id": "aw",
+   "letters": "aw",
+   "sound": "aw",
+   "group": "Other vowel teams"
+  },
+  {
+   "id": "augh",
+   "letters": "augh",
+   "sound": "aw",
+   "group": "Other vowel teams"
+  },
+  {
+   "id": "ea-short-e",
+   "letters": "ea",
+   "sound": "ĕ",
+   "group": "Other vowel teams"
+  },
+  {
+   "id": "a-short-o",
+   "letters": "a",
+   "sound": "ŏ",
+   "group": "Other vowel teams"
+  },
+  {
+   "id": "oi",
+   "letters": "oi",
+   "sound": "oi",
+   "group": "Diphthongs"
+  },
+  {
+   "id": "oy",
+   "letters": "oy",
+   "sound": "oi",
+   "group": "Diphthongs"
+  },
+  {
+   "id": "ou",
+   "letters": "ou",
+   "sound": "ow",
+   "group": "Diphthongs"
+  },
+  {
+   "id": "ow-ow",
+   "letters": "ow",
+   "sound": "ow",
+   "group": "Diphthongs"
+  },
+  {
+   "id": "ei-a",
+   "letters": "ei",
+   "sound": "ā",
+   "group": "Less common spellings"
+  },
+  {
+   "id": "ey-a",
+   "letters": "ey",
+   "sound": "ā",
+   "group": "Less common spellings"
+  },
+  {
+   "id": "eigh",
+   "letters": "eigh",
+   "sound": "ā",
+   "group": "Less common spellings"
+  },
+  {
+   "id": "aigh",
+   "letters": "aigh",
+   "sound": "ā",
+   "group": "Less common spellings"
+  },
+  {
+   "id": "ea-a",
+   "letters": "ea",
+   "sound": "ā",
+   "group": "Less common spellings"
+  },
+  {
+   "id": "ew-yu",
+   "letters": "ew",
+   "sound": "yū",
+   "group": "Less common spellings"
+  },
+  {
+   "id": "eu-yu",
+   "letters": "eu",
+   "sound": "yū",
+   "group": "Less common spellings"
+  },
+  {
+   "id": "ue-yu",
+   "letters": "ue",
+   "sound": "yū",
+   "group": "Less common spellings"
+  },
+  {
+   "id": "ou-u",
+   "letters": "ou",
+   "sound": "ū",
+   "group": "Less common spellings"
+  },
+  {
+   "id": "ough-aw",
+   "letters": "ough",
+   "sound": "aw",
+   "group": "Less common spellings"
+  },
+  {
+   "id": "ough-o",
+   "letters": "ough",
+   "sound": "ō",
+   "group": "Less common spellings"
+  },
+  {
+   "id": "kn",
+   "letters": "kn",
+   "sound": "n",
+   "group": "Silent letters and others"
+  },
+  {
+   "id": "wr",
+   "letters": "wr",
+   "sound": "r",
+   "group": "Silent letters and others"
+  },
+  {
+   "id": "mb",
+   "letters": "mb",
+   "sound": "m",
+   "group": "Silent letters and others"
+  },
+  {
+   "id": "gn",
+   "letters": "gn",
+   "sound": "n",
+   "group": "Silent letters and others"
+  },
+  {
+   "id": "gh",
+   "letters": "gh",
+   "sound": "g",
+   "group": "Silent letters and others"
+  },
+  {
+   "id": "silent-t",
+   "letters": "t",
+   "sound": "",
+   "group": "Silent letters and others",
+   "name": "silent t"
+  },
+  {
+   "id": "ch-sh",
+   "letters": "ch",
+   "sound": "sh",
+   "group": "Silent letters and others"
+  },
+  {
+   "id": "ch-k",
+   "letters": "ch",
+   "sound": "k",
+   "group": "Silent letters and others"
+  },
+  {
+   "id": "a-long",
+   "letters": "a",
+   "sound": "ā",
+   "group": "Long vowel at the end of a syllable",
+   "extra": true
+  },
+  {
+   "id": "e-long",
+   "letters": "e",
+   "sound": "ē",
+   "group": "Long vowel at the end of a syllable",
+   "extra": true
+  },
+  {
+   "id": "i-long",
+   "letters": "i",
+   "sound": "ī",
+   "group": "Long vowel at the end of a syllable",
+   "extra": true
+  },
+  {
+   "id": "o-long",
+   "letters": "o",
+   "sound": "ō",
+   "group": "Long vowel at the end of a syllable",
+   "extra": true
+  },
+  {
+   "id": "u-long",
+   "letters": "u",
+   "sound": "ū",
+   "group": "Long vowel at the end of a syllable",
+   "extra": true
+  },
+  {
+   "id": "u-long-yu",
+   "letters": "u",
+   "sound": "yū",
+   "group": "Long vowel at the end of a syllable",
+   "extra": true
+  },
+  {
+   "id": "ed",
+   "letters": "ed",
+   "sound": "d",
+   "group": "Other spellings",
+   "extra": true,
+   "name": "-ed ending"
+  },
+  {
+   "id": "es",
+   "letters": "es",
+   "sound": "z",
+   "group": "Other spellings",
+   "extra": true,
+   "name": "-es ending"
+  },
+  {
+   "id": "tion",
+   "letters": "tion",
+   "sound": "sh",
+   "group": "Other spellings",
+   "extra": true,
+   "name": "tion"
+  },
+  {
+   "id": "schwa",
+   "letters": "",
+   "sound": "ə",
+   "group": "Other spellings",
+   "extra": true,
+   "name": "schwa"
+  },
+  {
+   "id": "s-z",
+   "letters": "s",
+   "sound": "z",
+   "group": "Other spellings",
+   "extra": true
+  },
+  {
+   "id": "silent-e",
+   "letters": "e",
+   "sound": "",
+   "group": "Other spellings",
+   "extra": true,
+   "name": "silent e"
+  },
+  {
+   "id": "other",
+   "letters": "",
+   "sound": "",
+   "group": "Other spellings",
+   "extra": true,
+   "name": "other spelling"
+  }
+ ]
+}

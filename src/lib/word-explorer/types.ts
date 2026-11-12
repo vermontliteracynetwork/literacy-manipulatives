@@ -80,6 +80,8 @@ export interface WordEntry {
   status: ReviewStatus;
   // Every part of speech the word can be, most common first (from the word type engine), for the header symbols.
   partsOfSpeech: PartOfSpeech[];
+  // The phonics engine needed a spelling outside the pattern list (flagged for her review).
+  phonicsUncertain?: boolean;
 }
 
 export const PART_NAMES: Record<PartOfSpeech, string> = {

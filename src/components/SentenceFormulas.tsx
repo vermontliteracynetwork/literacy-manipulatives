@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MONTESSORI_WORD_CLASS_INFO, TENSE_SYMBOLS, type MontessoriWordClass } from '../lib/montessoriGrammar';
+import { GRAMMAR_SYMBOL_INFO, TENSE_SYMBOLS, type SymbolWordClass } from '../lib/grammarSymbols';
 import { SENTENCE_FORMULAS, type SentenceFormula } from '../lib/writer/formulas';
 import { tagForCheck } from '../lib/writer/sentenceCheck';
 import { cardSlotsOf, formulaCode, formulasLike, sentenceSlots, slotClass, slotLabel } from '../lib/writer/formulaMatch';
@@ -13,7 +13,7 @@ import { removeFromBook, clearIdeas, type BookEntry, type FormulaIdea } from '..
 // the formula ideas collected from writing. The window moves, resizes from its corner, and expands to full screen.
 
 // Old saved entries used letter codes (A-N-V); newer ones carry her card words.
-const OLD_CODE: Record<string, MontessoriWordClass> = { A: 'article', N: 'noun', PN: 'propernoun', P: 'pronoun', V: 'verb', Adj: 'adjective', Adv: 'adverb', Pr: 'preposition', C: 'conjunction', I: 'interjection' };
+const OLD_CODE: Record<string, SymbolWordClass> = { A: 'article', N: 'noun', PN: 'propernoun', P: 'pronoun', V: 'verb', Adj: 'adjective', Adv: 'adverb', Pr: 'preposition', C: 'conjunction', I: 'interjection' };
 const slotsFromOldCode = (code: string) => (/^[A-Za-z]+(-[A-Za-z]+)*$/.test(code) ? code.split('-').map((c) => OLD_CODE[c]).filter(Boolean) : []);
 
 // A row of symbols with her card words above them ("article", "noun", "be"...), drawn like her formula cards.
@@ -22,7 +22,7 @@ export function FormulaSymbols({ slots, code, labels = false }: { slots?: string
   return (
     <span className={`lm-writer-formula-symbols${labels ? ' labeled' : ''}`}>
       {list.map((s, i) => {
-        const info = MONTESSORI_WORD_CLASS_INFO[slotClass(s)];
+        const info = GRAMMAR_SYMBOL_INFO[slotClass(s)];
         if (!info) return null;
         return (
           <span key={i} className="lm-formula-slot">

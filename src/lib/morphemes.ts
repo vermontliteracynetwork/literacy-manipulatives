@@ -125,7 +125,8 @@ const LIST_SUFFIXES = make('suffix', undefined, [
   ['cracy', 'rule', 'democracy'],
   ['ist', 'one who', 'technologist'],
   ['eer', 'one who', 'engineer'],
-  ['mania', 'madness', 'Pokémania'],
+  // Her build spec (2026-11-12): respectful wording for mania, and no trademark example.
+  ['mania', 'a very strong interest or excitement', 'bibliomania'],
   ['ology', 'to study', 'geology'],
   ['phobia', 'fear', 'claustrophobia'],
 ]);

@@ -2,14 +2,21 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Icon } from '../Icon';
 import { BAND_NAMES, PosTag, SpeakButton, Spoken, StatusTag, TapWord, wordCount } from './parts';
 import { clearEntryCache, getEntry } from '../../lib/word-explorer/data';
-import { onReview, setStatus } from '../../lib/word-explorer/review';
+import { onReview } from '../../lib/word-explorer/review';
+import { ReviewButtons } from './ReviewButtons';
+import { PicturesTab, SoundsTab, WordPartsTab } from './StudyTabs';
 import { baseWords } from '../../lib/word-explorer/search';
 import { readSentenceWhy, onWordTypes, type WordType } from '../../lib/wordTypes';
 import { addMyWord, myWords, removeMyWord, subscribeMyWords } from '../../lib/writer/myWords';
 import { visibleTo, type Example, type PartOfSpeech, type Provenance, type Sense, type WordEntry } from '../../lib/word-explorer/types';
 
-type Tab = 'dictionary';
-const TABS: { id: Tab; label: string; icon: 'book' }[] = [{ id: 'dictionary', label: 'Dictionary', icon: 'book' }];
+type Tab = 'dictionary' | 'sounds' | 'parts' | 'pictures';
+const TABS: { id: Tab; label: string; icon: 'book' | 'speaker' | 'puzzle' | 'image' }[] = [
+  { id: 'dictionary', label: 'Dictionary', icon: 'book' },
+  { id: 'sounds', label: 'Sounds', icon: 'speaker' },
+  { id: 'parts', label: 'Word Parts', icon: 'puzzle' },
+  { id: 'pictures', label: 'Pictures', icon: 'image' },
+];
 
 export function WordPage({ word, teacher, note }: { word: string; teacher: boolean; note?: string }) {
   const [entry, setEntry] = useState<WordEntry | null | undefined>(undefined);
@@ -43,6 +50,9 @@ export function WordPage({ word, teacher, note }: { word: string; teacher: boole
         </nav>
         <div role="tabpanel" id={`wx-panel-${tab}`} aria-labelledby={`wx-tab-${tab}`} className="wx-panel">
           {tab === 'dictionary' && <DictionaryTab entry={entry} teacher={teacher} />}
+          {tab === 'sounds' && <SoundsTab entry={entry} teacher={teacher} />}
+          {tab === 'parts' && <WordPartsTab entry={entry} teacher={teacher} />}
+          {tab === 'pictures' && <PicturesTab entry={entry} teacher={teacher} />}
         </div>
       </div>
     </article>
@@ -84,24 +94,12 @@ function WordHeader({ entry, teacher }: { entry: WordEntry; teacher: boolean }) 
   );
 }
 
-function ReviewButtons({ statusKey, status, what }: { statusKey: string; status: string; what: string }) {
-  return (
-    <div className="wx-review" role="group" aria-label={`Review ${what}`}>
-      <span className="wx-review-label">Review {what}:</span>
-      {(['draft', 'reviewed', 'approved'] as const).map((s) => (
-        <button key={s} type="button" className={`wx-btn wx-btn-small${status === s ? ' wx-btn-primary' : ''}`} aria-pressed={status === s} onClick={() => setStatus(statusKey, s)}>
-          {s === 'draft' ? 'Draft' : s === 'reviewed' ? 'Reviewed' : 'Approve'}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function DictionaryTab({ entry, teacher }: { entry: WordEntry; teacher: boolean }) {
   const senses = entry.senses.filter((s) => visibleTo(s.definition.status, teacher));
   const showFacts = visibleTo(entry.status, teacher);
   const synonyms = uniq(senses.flatMap((s) => s.synonyms.map((x) => x.wordId))).slice(0, 10);
   const antonyms = uniq(senses.flatMap((s) => s.antonyms.map((x) => x.wordId))).slice(0, 8);
+  const picture = senses.find((s) => s.pictures.length)?.pictures[0];
   const family = uniqBy(senses.flatMap((s) => s.family), (f) => f.wordId).slice(0, 10);
   const sources = uniqBy([...entry.senses.flatMap((s) => [...s.definition.provenance, ...s.explanation.provenance]), ...entry.forms.provenance, ...entry.frequencyBand.provenance, ...entry.tier.provenance], (p) => p.source);
 
@@ -115,6 +113,11 @@ function DictionaryTab({ entry, teacher }: { entry: WordEntry; teacher: boolean 
         {senses.map((s, i) => <SenseCard key={s.id} entry={entry} sense={s} n={i + 1} teacher={teacher} />)}
       </div>
       <aside className="wx-side" aria-label="More about this word">
+        {picture && (
+          <figure className="wx-side-card wx-side-picture">
+            <img src={picture.assetId} alt={entry.headword} width={120} height={120} />
+          </figure>
+        )}
         {showFacts && <Forms entry={entry} />}
         {family.length > 0 && (
           <section className="wx-side-card">
@@ -238,7 +241,7 @@ function ExampleRow({ e, id, entry, pos, teacher }: { e: Example; id: string; en
         <SpeakButton id={id} text={e.text} label="Read this example" />
         <span className="wx-example-text"><Spoken id={id} text={e.text} /></span>
         {e.time && <span className={`wx-time wx-time-${e.time}`}>{e.time}</span>}
-        {teacher && <span className="wx-code">{e.formulaCode ? `Formula ${e.formulaCode}` : 'Formula code: not set'}</span>}
+        {e.formulaCode ? <span className="wx-code">Formula {e.formulaCode}</span> : teacher && <span className="wx-code">No formula card matches</span>}
       </div>
       {why && (
         <p className="wx-why">

@@ -1,6 +1,6 @@
 // Literacy Manipulatives, design-tokens color/symbol source (A23-ROADMAP
 // Phase 0, "extract one design-tokens color/symbol source"). The gap
-// analysis flagged that montessoriGrammar.ts's palette and types.ts's
+// analysis flagged that grammarSymbols.ts's palette and types.ts's
 // GRAMMAR_WORD_CLASS_COLORS both assign colors to "noun"/"verb" but
 // disagree (e.g. noun is red-triangle in one, yellow in the other).
 //
@@ -9,8 +9,8 @@
 // design decision reused twice by accident, they are two genuinely
 // separate, both teacher-specified systems for two different tile kinds
 // that happen to share the English word "noun":
-//   1. MONTESSORI_WORD_CLASS_INFO (montessoriGrammar.ts), the 9-class
-//      real Montessori shape+color symbol set (Grammar Symbols category),
+//   1. GRAMMAR_SYMBOL_INFO (grammarSymbols.ts), the 9-class
+//      real grammar symbol shape+color set (Grammar Symbols category),
 //      colors pixel-measured from the teacher's own uploaded artwork.
 //   2. GRAMMAR_WORD_CLASS_COLORS (types.ts), the older 2-class
 //      noun/verb WORD-TILE palette (the dormant "Sentence Grammar"
@@ -26,7 +26,7 @@
 // heart words, writing scaffolds...) should import its own tokens from,
 // so the reconciliation problem (two competing sources) doesn't happen a
 // third time.
-export { MONTESSORI_WORD_CLASS_INFO, type MontessoriWordClass, type WordClassInfo } from './montessoriGrammar';
+export { GRAMMAR_SYMBOL_INFO, type SymbolWordClass, type WordClassInfo } from './grammarSymbols';
 export { GRAMMAR_WORD_CLASS_COLORS, GRAMMAR_WORD_CLASS_TEXT_COLORS, type GrammarWordClass } from '../types';
 
 // New shared tokens for Phase 2/3 material added to Literacy

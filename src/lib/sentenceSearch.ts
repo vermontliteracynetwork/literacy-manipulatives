@@ -3,16 +3,16 @@
 // plus the pattern itself to drag out as its own row of symbols.
 
 import {
-  ADJECTIVES, ADVERBS, ARTICLES, COMMON_NOUNS, CONJUNCTIONS, INTERJECTIONS, MONTESSORI_WORD_CLASS_INFO,
-  OBJECT_PRONOUNS, PREPOSITIONS, PROPER_NOUNS, SUBJECT_PRONOUNS, type MontessoriWordClass,
-} from './montessoriGrammar';
+  ADJECTIVES, ADVERBS, ARTICLES, COMMON_NOUNS, CONJUNCTIONS, INTERJECTIONS, GRAMMAR_SYMBOL_INFO,
+  OBJECT_PRONOUNS, PREPOSITIONS, PROPER_NOUNS, SUBJECT_PRONOUNS, type SymbolWordClass,
+} from './grammarSymbols';
 import { SANDBOX_VERBS } from './grammarContent';
 import { ALL_SYMBOL_SENTENCES, type SymbolSentence } from './symbolSentences';
 
-export interface PatternWord { wordClass: MontessoriWordClass; word: string }
+export interface PatternWord { wordClass: SymbolWordClass; word: string }
 
 // Part-of-speech names a teacher might type, longest first so "proper noun" wins over "noun".
-const CLASS_NAMES: [string, MontessoriWordClass][] = ([
+const CLASS_NAMES: [string, SymbolWordClass][] = ([
   ['proper nouns', 'propernoun'], ['proper noun', 'propernoun'], ['propernoun', 'propernoun'],
   ['nouns', 'noun'], ['noun', 'noun'], ['verbs', 'verb'], ['verb', 'verb'],
   ['adjectives', 'adjective'], ['adjective', 'adjective'], ['adj', 'adjective'],
@@ -20,11 +20,11 @@ const CLASS_NAMES: [string, MontessoriWordClass][] = ([
   ['articles', 'article'], ['article', 'article'], ['pronouns', 'pronoun'], ['pronoun', 'pronoun'],
   ['prepositions', 'preposition'], ['preposition', 'preposition'], ['prep', 'preposition'],
   ['conjunctions', 'conjunction'], ['conjunction', 'conjunction'], ['interjections', 'interjection'], ['interjection', 'interjection'],
-] as [string, MontessoriWordClass][]).filter(([, c]) => c in MONTESSORI_WORD_CLASS_INFO);
+] as [string, SymbolWordClass][]).filter(([, c]) => c in GRAMMAR_SYMBOL_INFO);
 
-function parseClassNames(q: string): MontessoriWordClass[] | null {
+function parseClassNames(q: string): SymbolWordClass[] | null {
   let rest = q.toLowerCase().replace(/[,+]/g, ' ').replace(/\s+/g, ' ').trim();
-  const out: MontessoriWordClass[] = [];
+  const out: SymbolWordClass[] = [];
   while (rest) {
     const hit = CLASS_NAMES.find(([name]) => rest === name || rest.startsWith(`${name} `));
     if (!hit) return null;
@@ -35,11 +35,11 @@ function parseClassNames(q: string): MontessoriWordClass[] | null {
 }
 
 // Every word the board already knows the job of: the symbol sentence deck itself, then the word banks.
-const LEXICON = new Map<string, MontessoriWordClass>();
+const LEXICON = new Map<string, SymbolWordClass>();
 // Every job each known word can do (some words, like "fish", can be more than one).
-const JOBS = new Map<string, Set<MontessoriWordClass>>();
-const learn = (list: { text: string }[], cls: MontessoriWordClass) => {
-  if (!(cls in MONTESSORI_WORD_CLASS_INFO)) return;
+const JOBS = new Map<string, Set<SymbolWordClass>>();
+const learn = (list: { text: string }[], cls: SymbolWordClass) => {
+  if (!(cls in GRAMMAR_SYMBOL_INFO)) return;
   for (const { text } of list) {
     const key = text.toLowerCase().replace(/[^a-z' ]/g, '').trim();
     if (!key) continue;
@@ -76,11 +76,11 @@ for (const v of VERB_BASES.split(/\s+/)) {
   const stem = v.endsWith('e') ? v.slice(0, -1) : v;
   VERBS.add(`${stem}ed`); VERBS.add(`${stem}ing`); VERBS.add(`${v}ed`); VERBS.add(`${v}ing`);
 }
-const FUNCTION_CLASSES: MontessoriWordClass[] = ['article', 'pronoun', 'preposition', 'conjunction', 'interjection', 'adjective', 'adverb'];
+const FUNCTION_CLASSES: SymbolWordClass[] = ['article', 'pronoun', 'preposition', 'conjunction', 'interjection', 'adjective', 'adverb'];
 
 // Best guess for a word the board hasn't seen: a known verb is a verb; a capital in the middle of a sentence
 // is a proper noun; -ly an adverb; -ed / -ing a verb; anything else a noun.
-function tagWord(raw: string, first: boolean): MontessoriWordClass {
+function tagWord(raw: string, first: boolean): SymbolWordClass {
   const key = raw.toLowerCase();
   const known = LEXICON.get(key);
   if (known && known !== 'noun' && known !== 'propernoun') return known;
@@ -114,7 +114,7 @@ export function patternFor(query: string): { words: PatternWord[]; fromNames: bo
   return { words: ensureVerb(raw.map((w, i) => ({ wordClass: tagWord(w, i === 0), word: w }))), fromNames: false };
 }
 
-const key = (classes: MontessoriWordClass[]) => classes.join(' ');
+const key = (classes: SymbolWordClass[]) => classes.join(' ');
 
 // Sentences with exactly this pattern first, then ones whose text contains what was typed.
 export function searchSymbolSentences(query: string): { pattern: PatternWord[] | null; matches: SymbolSentence[] } {
@@ -142,7 +142,7 @@ export function isKnownWord(raw: string | undefined): boolean {
   const key = (raw ?? '').toLowerCase().replace(/[^a-z' ]/g, '').trim();
   return !!key && (JOBS.has(key) || VERBS.has(key));
 }
-export function wordMismatch(raw: string | undefined, cls: MontessoriWordClass): MontessoriWordClass | null {
+export function wordMismatch(raw: string | undefined, cls: SymbolWordClass): SymbolWordClass | null {
   const word = (raw ?? '').trim();
   const key = word.toLowerCase().replace(/[^a-z' ]/g, '').trim();
   if (!key || key.includes(' ')) return null;
@@ -155,7 +155,7 @@ export function wordMismatch(raw: string | undefined, cls: MontessoriWordClass):
   if (!jobs.size || jobs.has(cls)) return null;
   // Names are nouns too, and an action word can name a thing ("a jump", "a swim").
   if (cls === 'noun' && (jobs.has('propernoun') || BASE_VERBS.has(key))) return null;
-  for (const pref of ['noun', 'verb', 'adjective', 'adverb', 'pronoun', 'article', 'preposition', 'conjunction', 'interjection', 'propernoun'] as MontessoriWordClass[]) {
+  for (const pref of ['noun', 'verb', 'adjective', 'adverb', 'pronoun', 'article', 'preposition', 'conjunction', 'interjection', 'propernoun'] as SymbolWordClass[]) {
     if (jobs.has(pref)) return pref;
   }
   return null;
@@ -179,7 +179,7 @@ function baseOf(v: string): string | null {
   if (/[^s]s$/.test(v)) return v.slice(0, -1);
   return /^[a-z]+$/.test(v) ? v : null;
 }
-function subjectNumber(word: string, cls: MontessoriWordClass): 'one' | 'many' | 'i' | null {
+function subjectNumber(word: string, cls: SymbolWordClass): 'one' | 'many' | 'i' | null {
   const w = word.toLowerCase();
   if (cls === 'pronoun') return w === 'i' ? 'i' : SINGULAR_PRONOUNS.has(w) ? 'one' : PLURAL_PRONOUNS.has(w) ? 'many' : null;
   if (cls === 'propernoun') return 'one';
@@ -196,7 +196,7 @@ function agreeVerb(verb: string, n: 'one' | 'many' | 'i'): string {
   if (!base) return verb;
   return keepCap(n === 'one' ? thirdPerson(base) : base);
 }
-export function agreeWords(words: { word: string; cls: MontessoriWordClass }[]): string[] {
+export function agreeWords(words: { word: string; cls: SymbolWordClass }[]): string[] {
   let subject: 'one' | 'many' | 'i' | null = null;
   return words.map(({ word, cls }) => {
     if (!word) return word;
@@ -217,7 +217,7 @@ export function tagWordsPlain(text: string): PatternWord[] {
   const raw = text.match(/[A-Za-z']+/g) ?? [];
   return raw.map((w, i) => ({ wordClass: tagWord(w, i === 0), word: w }));
 }
-export function wordJobs(raw: string): Set<MontessoriWordClass> {
+export function wordJobs(raw: string): Set<SymbolWordClass> {
   const key = raw.toLowerCase().replace(/[^a-z']/g, '');
   const jobs = new Set(JOBS.get(key) ?? []);
   if (VERBS.has(key)) jobs.add('verb');

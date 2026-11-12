@@ -15,7 +15,7 @@ context without digging through another repo's history.
 
 The tool was originally built as a scripted, activity-based mode-switcher
 (Mad Libs, target-word Sound Boxes, fixed Word Sorts, a tap-to-attach
-Morpheme Web, a Montessori decision-tree Sentence Builder). The teacher
+Morpheme Web, a decision-tree Sentence Builder). The teacher
 rejected that version outright after seeing it live:
 
 > "the literacy manipulatives is just not up to par... the design of the
@@ -30,15 +30,15 @@ That's the standing design principle this whole tool is built around:
 **one open, unscripted whiteboard. No modes, no lessons, no scoring, no
 completion state, nothing gated.** It's a thinking-and-building space —
 the digital equivalent of physical letter tiles, grammar boxes, and
-word-building materials in a Montessori-style literacy classroom — not
+word-building materials in a hands-on literacy classroom — not
 an assessment.
 
 ### The full feature set as it shipped (16 sidebar categories)
 
-1. **Grammar Symbols** — 9 real Montessori shape+color symbols (teacher-
+1. **Grammar Symbols** — 9 real grammar symbols (shape+color) (teacher-
    designed art) as blank draggable objects; hover/focus shows the part-
    of-speech name and a plain-language definition.
-2. **Symbol Sentences** — 33 real Montessori grammar-box sentences
+2. **Symbol Sentences** — 33 real grammar symbol sentences
    (teacher-uploaded deck), symbol-only preview cards, drag drops the
    whole sentence as a unit.
 3. **Morphemes** — root/prefix/suffix jigsaw pieces that only visually
@@ -135,7 +135,7 @@ an assessment.
 ### Deliberately never built (kept out on purpose, not forgotten)
 
 Mad Libs, word-target Sound Boxes/Blending Board, fixed-bucket Word
-Sorts, the old tap-to-attach Morpheme Web, the Montessori decision-tree
+Sorts, the old tap-to-attach Morpheme Web, the decision-tree
 Sentence Builder, Sentence Formula mastery-gating/auto-detection, a
 randomizer, a module-menu/split-view redesign, a Lesson Builder/Activity
 mode, and a morphology mini-lesson. **No scripted, target-word, or graded
@@ -176,7 +176,7 @@ lived on — see Part 4. Free/paid tiers and accounts are an explicit
 
 Every content library is pure data with zero dependency on the
 dashboard's account/store system, so it copied over untouched:
-`grammarContent`, `morphemeContent`, `montessoriGrammar`,
+`grammarContent`, `morphemeContent`, `grammarSymbols`,
 `symbolSentences`, `punctuationContent`, `wordChainContent`,
 `heartWordContent`, `spellingRuleContent`, `writingScaffoldContent`,
 `sentenceFormulas`, `soundContent`, `literacyDesignTokens`. The board
@@ -227,7 +227,7 @@ real, deliberate design decision once accounts exist (see Part 5).
   material directly (a screen recording, screenshots, or a document
   upload — the same pattern that unblocked the Morpheme content
   originally).
-- **Montessori "predictable sentence frames"** — referenced but not
+- **"Predictable sentence frames"** — referenced but not
   independently verified from a live source; only the pasted example
   images she supplied were used.
 - **Graphemes set vs. UFLI's specific scope-and-sequence** — same
@@ -570,7 +570,7 @@ She uploaded two folders: "Sentence Formulas" (the formula cards) and "Grammar S
 - The ten grammar symbols are the same designs as the ones already in the app (4000 px masters with more space
   around them); the app keeps its tightly cropped 256 px copies so the symbols stay the same size above words.
 - New: her **past, present and future** symbols ("Additional Symbols") are in `public/literacy/grammar-symbols/`
-  (`TENSE_SYMBOLS` in `src/lib/montessoriGrammar.ts`). They label the Past / Present / Future versions in Sentence
+  (`TENSE_SYMBOLS` in `src/lib/grammarSymbols.ts`). They label the Past / Present / Future versions in Sentence
   formulas and show as a key on Sentence Check's Tense tab.
 
 Honest limits: hidden pages are hidden in the student's screen, but their text still travels on the shared
@@ -590,7 +590,7 @@ Teacher request (verbatim): "lets update the literacy manipulatives whiteboard w
   preposition = brown box, interjection = orange exclamation mark (cut from her grid sheet), and a **new
   tenth symbol: proper noun = red crown**. Each PNG had its white background removed, was trimmed and
   centered at 256 px. Definitions on hover are her own words from the key sheet; colors were measured
-  from the new art (`src/lib/montessoriGrammar.ts`).
+  from the new art (`src/lib/grammarSymbols.ts`).
 - **Fix found on the way:** this standalone repo never had a `public/literacy/grammar-symbols/` folder
   (the art only existed in the dashboard repo), so the symbol pictures were missing on the live site.
   They ship with this repo now.
@@ -754,3 +754,49 @@ core lookup. A new card on the tools dashboard opens it at `/words` (`/words?w=h
   Browse, Word List Maker, teacher locks, Report a problem. `api/tts.ts`, `morphology.ts` and `isBlockedTerm` named
   in the spec did not exist in this repo: read aloud uses the device's most natural voice for now, and
   `isBlockedTerm` is new in `src/lib/word-explorer/safety.ts`.
+
+---
+
+## 2026-11-12: "Grammar symbols" everywhere (no other name)
+
+Her rule: the symbols are called grammar symbols, in every place. `src/lib/montessoriGrammar.ts` is now
+`src/lib/grammarSymbols.ts`; `MontessoriWordClass` is `SymbolWordClass`; `MONTESSORI_WORD_CLASS_INFO` is
+`GRAMMAR_SYMBOL_INFO`; every comment and this log were reworded. No other name for them remains in the code or docs.
+
+## 2026-11-12: Formula Search (new tool, `/formulas`)
+
+Her request: one search bar like a web search home page. Type any sentence (not just a model sentence) and the
+formulas from her Formula Master List that match it appear, with the formula card, code, model sentence and lesson.
+A contraction formula (We're: P'V) only matches a sentence with that contraction. When nothing matches, the page
+shows the suggested formula (her code, worked out the same way as Write mode) and **Add suggested formula**, plus the
+closest formulas. Added formulas go in the **Formula log** (code, symbols, sentences, date first added; Remove;
+Download as a spreadsheet). The log is the same list as Write mode's "Formula ideas", kept in this browser.
+Code: `src/components/FormulaSearch.tsx`, `formulaSearch.css`, `removeIdea` and `added` in `src/lib/writer/formulaBook.ts`.
+
+## 2026-11-12: Word Explorer, Phase 2 (words, sounds and parts)
+
+- **Sounds tab:** letter-sound tiles (`ai /ā/ (long a ex. cake)`, `r /r/`; vowel tiles peach), tap to hear; syllables
+  with read aloud, their type and a note; pattern tags; "More words with this pattern" and "Other spellings of this
+  sound". Check: rainbow shows r /r/, ai /ā/ (long a ex. cake), n /n/, b /b/, ow /ō/ (long o ex. snow) and two vowel
+  team syllables (passes).
+- **Phonics engine:** `scripts/build-word-explorer-phonics.py` lines up 35,302 words' letters with their CMU
+  Pronouncing Dictionary sounds using the section 7.1 pattern list (`src/lib/word-explorer/phonicsPatterns.json`),
+  splits syllables and names their types. 7,964 words needed a spelling outside the list and are flagged (Draft, for
+  her review); the rest show to students. Data: `public/word-explorer/phonics/`, `patterns.json`, `CMUDICT-LICENSE.txt`.
+- **Word Parts tab:** word sum tiles (prefix peach and dashed, base lavender and solid, suffix pink and dotted) with
+  meanings, the sum (`un + happy/i + ness → unhappiness`), spelling notes, how the suffix changes the part of speech,
+  and the word matrix for the family. A part only counts when WordNet links the words or the meaning uses the base
+  (so "corner" is not corn + er). Origin notes show only in Teacher view as "Draft: needs a cited source".
+  **Root of the week** from her 111 roots list (forms and meanings only; its example words are not used): words pass
+  the spelling check automatically and wait for her approval for the meaning check. Fixed from the source list:
+  mania now means "a very strong interest or excitement" and the trademark example is gone (also on the board's
+  morpheme piece); portcullis, osteoporosis and translucent are never offered as port, petr or lumin words.
+- **Pictures tab:** 403 Twemoji pictures (CC BY 4.0) for everyday nouns, with source and license; also in the
+  Dictionary side panel. Script: `scripts/build-word-explorer-pictures.py` (weapons, alcohol and clothing left out).
+- **Word of the Day** on Home: word, read aloud, sound-out, symbol, Tier, frequency, picture, definition,
+  explanation, an example with its formula code and time, a "Use it today" sentence frame with a box to finish it,
+  Open word page and Save to My Words. Only approved words. Teacher settings: one word for the class or one per
+  student device; any approved word, a Tier, a spelling pattern, or the root of the week; no repeats for 7, 30 or 90 days.
+- **Formula codes on examples:** an example that matches one of her formula cards shows its code (Formula S3.P).
+- Not done: Word of the Day by theme or unit (no topic data yet); "Make a list with this pattern" (Word List Maker,
+  Phase 4); tile sounds use the device voice naming the sound with the word, until recorded human audio exists.

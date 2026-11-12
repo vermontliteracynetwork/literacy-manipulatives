@@ -7,8 +7,14 @@ export interface WxSettings {
   speed: number;           // reading speed, 0.6 to 1.3
   sayButtons: boolean;     // read button names aloud when tapped
   teacherView: boolean;    // shows drafts, review buttons and sources
+  // Word of the Day (spec 4.1): one word for the class or one per student; where it comes from; no repeats for N days.
+  wotdFor: 'class' | 'student';
+  wotdFrom: 'any' | 'tier1' | 'tier2' | 'tier3' | 'pattern' | 'root';
+  wotdPattern: string;     // a pattern id from the Sounds list, when wotdFrom is 'pattern'
+  wotdRepeatDays: number;
 }
-export const DEFAULT_SETTINGS: WxSettings = { theme: 'light', textSize: 'medium', speed: 0.9, sayButtons: true, teacherView: false };
+export const DEFAULT_SETTINGS: WxSettings = { theme: 'light', textSize: 'medium', speed: 0.9, sayButtons: true, teacherView: false,
+  wotdFor: 'class', wotdFrom: 'any', wotdPattern: 'ai', wotdRepeatDays: 30 };
 const KEY = 'wx-settings-v1';
 export function readSettings(): WxSettings {
   try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') }; } catch { return DEFAULT_SETTINGS; }

@@ -1,6 +1,6 @@
-// Montessori Sentence Builder, direct teacher request, with real
-// reference images: a decision-tree sentence builder using the real
-// Montessori grammar-symbol shapes/colors (already read from her own
+// Grammar symbols (her symbol set), direct teacher request, with real
+// reference images: a decision-tree sentence builder using her real
+// grammar symbol shapes/colors (already read from her own
 // reference sheets and logged in docs/DEVELOPMENT_PLAN.md's Literacy
 // Workspace section). This is a real, separate word-class system from
 // GrammarWordClass in types.ts (which only ever covers the original
@@ -18,11 +18,11 @@
 //
 // Content only, ordinary uncontroversial grammar (articles, common verbs,
 // prepositions...), ordinary vocabulary drawn from Kayden's own Sentence
-// Formulas Template 7 word lists plus her real Montessori adverb list
+// Formulas Template 7 word lists plus her real adverb list
 // (image upload), ordinary, not a specialized curriculum standard
 // needing outside verification.
 
-export type MontessoriWordClass =
+export type SymbolWordClass =
   | 'interjection' | 'article' | 'adjective' | 'noun' | 'propernoun' | 'pronoun'
   | 'verb' | 'adverb' | 'preposition' | 'conjunction';
 
@@ -41,7 +41,7 @@ export interface WordClassInfo {
   imageUrl: string;
 }
 
-// Real Montessori shape/color convention, colors/artwork sourced
+// Her grammar symbol shapes and colors, colors/artwork sourced
 // directly from the teacher's own designed symbol files.
 // Symbol set updated again (2026-10-14, teacher uploads "Recreated_Grammar_Symbols_4.zip" and
 // "Grammar_Symbol_Cards.zip", a full replacement of the prior artwork): noun = red pointing hand,
@@ -49,7 +49,7 @@ export interface WordClassInfo {
 // with a pencil, article = pink triangle (was a magnet until the 2026-10-26 symbol update), pronoun = yellow circling arrows, conjunction = purple two-way
 // arrow, preposition = brown box, interjection = orange exclamation mark, and a new tenth symbol,
 // proper noun = red crown. Definitions are her own words from the key sheet; colors measured from the PNGs.
-export const MONTESSORI_WORD_CLASS_INFO: Record<MontessoriWordClass, WordClassInfo> = {
+export const GRAMMAR_SYMBOL_INFO: Record<SymbolWordClass, WordClassInfo> = {
   noun: { shape: 'triangle-lg', color: '#D02028', name: 'Noun', label: 'Person, place, thing, animal', imageUrl: '/literacy/grammar-symbols/noun.png?v=2' },
   propernoun: { shape: 'crown', color: '#D02028', name: 'Proper noun', label: 'A specific noun (it has a name)', imageUrl: '/literacy/grammar-symbols/propernoun.png?v=2' },
   article: { shape: 'triangle-sm', color: '#F7B3CF', name: 'Article', label: 'Refers to nouns', imageUrl: '/literacy/grammar-symbols/article.png?v=2' },
@@ -115,7 +115,7 @@ export const ADJECTIVES: WordOption[] = [
 // same hand-verified verb set. Imported below, not redefined here.
 
 export const ADVERBS: WordOption[] = [
-  // A representative slice of Kayden's own real Montessori adverb
+  // A representative slice of Kayden's own real adverb
   // reference list (image upload), not the full ~50, but the same real
   // words, not invented ones.
   'quickly', 'slowly', 'happily', 'sadly', 'carefully', 'quietly', 'loudly', 'bravely',
@@ -140,7 +140,7 @@ export const INTERJECTIONS: WordOption[] = ['Wow!', 'Fantastic!', 'Oh boy!', 'Yi
 export interface GrammarState {
   id: string;
   canEnd: boolean;
-  options: { wordClass: MontessoriWordClass; next: string }[];
+  options: { wordClass: SymbolWordClass; next: string }[];
 }
 
 // A "noun" or "pronoun" option means something different depending on
@@ -152,7 +152,7 @@ export interface GrammarState {
 const DIRECT_NOUN_STATES = new Set(['start', 'afterVerb', 'prepPhrase']);
 const SUBJECT_PRONOUN_STATES = new Set(['start']);
 
-export function optionWordList(stateId: string, wordClass: MontessoriWordClass): WordOption[] {
+export function optionWordList(stateId: string, wordClass: SymbolWordClass): WordOption[] {
   if (wordClass === 'noun') return DIRECT_NOUN_STATES.has(stateId) ? PROPER_NOUNS : COMMON_NOUNS;
   if (wordClass === 'propernoun') return PROPER_NOUNS;
   if (wordClass === 'pronoun') return SUBJECT_PRONOUN_STATES.has(stateId) ? SUBJECT_PRONOUNS : OBJECT_PRONOUNS;

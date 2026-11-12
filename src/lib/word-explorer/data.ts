@@ -6,6 +6,10 @@ import { pastOf, third } from '../writer/tenses';
 import { SEED_ENTRIES, type SeedSense } from './seed';
 import { statusOf } from './review';
 import { timeOf } from './time';
+import { formulaFor } from './formula';
+import { phonicsOf } from './phonics';
+import { pictureFor, TWEMOJI } from './pictures';
+import { loadWords } from '../writer/spell';
 
 // Loads the dictionary data built by scripts/build-word-explorer-data.py and turns it into WordEntry records.
 // UI-free.
@@ -22,6 +26,7 @@ export const WORD_LIST: Provenance = {
 };
 export const ESTIMATE: Provenance = { source: 'Estimated by Word Explorer from frequency, needs review', license: 'Owned' };
 export const IPA_SOURCE: Provenance = { ...OEWN, source: 'Open English WordNet 2024 pronunciations, respelled by Word Explorer' };
+export const CMU: Provenance = { source: 'CMU Pronouncing Dictionary, letters lined up with sounds by Word Explorer', license: 'BSD-style (CMU)', url: 'https://github.com/cmusphinx/cmudict' };
 export const DRAFTED: Provenance = { source: 'Drafted for her review (not yet approved)', license: 'Owned' };
 
 // ---------- the index (every word, for search) ----------
@@ -54,11 +59,11 @@ export const indexWord = (w: string) => byWord.get(w.toLowerCase());
 export const irregularBase = (w: string) => forms[w.toLowerCase()];
 
 // ---------- one word's raw meanings ----------
-interface RawSense { id: string; def: string; lex: string; ex?: string[]; syn?: string[]; sim?: string[]; ant?: string[]; fam?: [string, string][] }
-interface RawWord { ipa?: string; parts: { pos: 'noun' | 'verb' | 'adjective' | 'adverb'; forms?: string[]; senses: RawSense[] }[] }
+export interface RawSense { id: string; def: string; lex: string; ex?: string[]; syn?: string[]; sim?: string[]; ant?: string[]; fam?: [string, string][] }
+export interface RawWord { ipa?: string; parts: { pos: 'noun' | 'verb' | 'adjective' | 'adverb'; forms?: string[]; senses: RawSense[] }[] }
 const shards = new Map<string, Promise<Record<string, RawWord>>>();
 const shardKey = (w: string) => (`${w}_`).slice(0, 2).replace(/[^a-z]/g, '_');
-function rawWord(w: string): Promise<RawWord | undefined> {
+export function rawWord(w: string): Promise<RawWord | undefined> {
   const k = shardKey(w);
   if (!shards.has(k)) {
     shards.set(k, fetch(`/word-explorer/entries/${k}.json`).then((r) => (r.ok ? r.json() : {})).catch(() => { shards.delete(k); return {}; }));
@@ -120,14 +125,14 @@ function seedSense(word: string, s: SeedSense, i: number): Sense {
     definition: { value: s.definition, provenance: [DRAFTED], status: st('sense') },
     explanation: { value: s.explanation, provenance: [DRAFTED], status: st('sense') },
     grammar: { patterns: s.patterns ?? [], countable: s.countable, needsObject: s.needsObject },
-    examples: s.examples.map((text) => ({ text, formulaCode: '', time: timeOf(text), provenance: [DRAFTED], status: st('sense') })),
+    examples: s.examples.map((text) => ({ text, formulaCode: formulaFor(text), time: timeOf(text), provenance: [DRAFTED], status: st('sense') })),
     synonyms: [], antonyms: [], pictures: [], pictureable: false, safetyRating: 'ok', family: [],
   };
 }
 
 function oewnSense(word: string, pos: PartOfSpeech, s: RawSense): Sense {
   const status: ReviewStatus = statusOf(`${s.id}:sense`, 'draft');
-  const examples: Example[] = (s.ex ?? []).filter((t) => !isBlockedText(t)).map((text) => ({ text, formulaCode: '', time: timeOf(text), provenance: [OEWN], status }));
+  const examples: Example[] = (s.ex ?? []).filter((t) => !isBlockedText(t)).map((text) => ({ text, formulaCode: formulaFor(text), time: timeOf(text), provenance: [OEWN], status }));
   const near = [...(s.syn ?? []), ...(s.sim ?? [])].filter((w) => !isBlockedTerm(w));
   return {
     id: s.id, signpost: signpostFor(s), pos,
@@ -156,7 +161,7 @@ export function getEntry(raw: string): Promise<WordEntry | null> {
 export const clearEntryCache = () => cache.clear();
 
 async function buildEntry(word: string): Promise<WordEntry | null> {
-  await Promise.all([loadIndex(), loadWordTypes()]);
+  await Promise.all([loadIndex(), loadWordTypes(), loadWords()]);
   const rw = await rawWord(word);
   const seed = SEED_ENTRIES[word];
   const iw = indexWord(word);
@@ -180,6 +185,12 @@ async function buildEntry(word: string): Promise<WordEntry | null> {
   });
   for (const p of rw?.parts ?? []) for (const s of p.senses) if (!matched.has(s.id)) senses.push(oewnSense(word, p.pos, s));
 
+  const [ph, pic] = await Promise.all([phonicsOf(word), pictureFor(word)]);
+  if (pic) {
+    const target = senses.find((x) => x.pos === 'noun' && x.pictureable) ?? senses.find((x) => x.pos === 'noun') ?? senses[0];
+    if (target) { target.pictures = [{ assetId: pic.file, provenance: [TWEMOJI] }]; target.pictureable = true; }
+  }
+
   const parts: PartOfSpeech[] = [];
   for (const t of [...(types?.common ?? []), ...(types?.all ?? [])]) { const p = WORDTYPE_POS[t]; if (p && !parts.includes(p)) parts.push(p); }
   for (const s of senses) if (!parts.includes(s.pos)) parts.push(s.pos);
@@ -201,6 +212,13 @@ async function buildEntry(word: string): Promise<WordEntry | null> {
     subjectTags: [],
     safety: { blocked: false },
     homophones: [], homographs: [], confusables: [],
+    phonics: ph ? {
+      value: { graphemes: ph.graphemes, syllables: ph.syllables },
+      provenance: [CMU],
+      // Alignments that used only listed patterns are shown; ones that needed another spelling wait for her review.
+      status: statusOf(`${word}:phonics`, ph.uncertain ? 'draft' : 'approved'),
+    } : undefined,
+    phonicsUncertain: !!ph?.uncertain,
     status: entryStatus,
     partsOfSpeech: parts,
   };
