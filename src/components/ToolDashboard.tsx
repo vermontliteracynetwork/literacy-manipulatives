@@ -24,6 +24,13 @@ const TOOLS: Tool[] = [
     image: '/dashboard/word-processor.png',
     tags: ['Student-facing', 'Writing'],
   },
+  {
+    title: 'Word Explorer',
+    description: 'A dictionary and thesaurus: hear a word, see what it means with her grammar symbols, and hop to words like it.',
+    href: '/words',
+    image: '/dashboard/word-explorer.png',
+    tags: ['Student-facing', 'Vocabulary'],
+  },
 ];
 
 export function ToolDashboard() {

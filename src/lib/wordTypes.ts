@@ -180,6 +180,14 @@ export function fitsType(raw: string, want: WordType, wholeTypes = false): 'yes'
 const LINKING = words('am is are was were be been being feel feels felt seem seems seemed look looks looked become becomes became stay stays stayed sound sounds smell smells taste tastes get gets got');
 const ORDER: WordType[] = ['article', 'pronoun', 'preposition', 'conjunction', 'interjection', 'verb', 'noun', 'adjective', 'adverb'];
 export function readSentence(list: string[]): WordType[] {
+  return readSentenceWhy(list).map((r) => r.type);
+}
+
+// The same reading, with each word's reason in plain words (Word Explorer's "why" line, build spec Phase 1):
+// "'they' comes before 'jump', so 'jump' is a verb."
+export interface WordReading { type: WordType; why: string }
+const plain = (raw: string) => raw.replace(/^[^A-Za-z0-9']+|[^A-Za-z0-9']+$/g, '');
+export function readSentenceWhy(list: string[]): WordReading[] {
   const cand = list.map((raw, i) => {
     const t = typesOf(raw);
     const named = i > 0 && /^[A-Z]/.test(raw) && raw !== 'I' && !CLOSED.has(key(raw));
@@ -188,40 +196,91 @@ export function readSentence(list: string[]): WordType[] {
     return /^[A-Z]/.test(raw) && i > 0 ? ['propernoun'] as WordType[] : ['noun'] as WordType[];
   });
   const out: WordType[] = [];
+  const whys: string[] = [];
   const can = (i: number, t: WordType) => !!cand[i]?.includes(t);
   const nounish = (i: number) => can(i, 'noun') || can(i, 'propernoun');
   cand.forEach((c, i) => {
     const w = key(list[i]);
+    const me = `'${plain(list[i])}'`;
+    const before = `'${plain(list[i - 1] ?? '')}'`;
+    const after = `'${plain(list[i + 1] ?? '')}'`;
     const prev = out[i - 1];
     const prevWord = key(list[i - 1] ?? '');
     let pick: WordType | undefined;
-    if (c.length === 1) pick = c[0];
+    let why = '';
+    if (c.length === 1) {
+      pick = c[0];
+      // A word with one type still gets a reason from its neighbors when they show the job it does.
+      const nextNoun = i + 1 < list.length && nounish(i + 1);
+      if (pick === 'propernoun' && i > 0 && /^[A-Z]/.test(list[i])) why = `${me} starts with a capital letter in the middle of the sentence, so it is a proper noun.`;
+      else if (pick === 'adjective' && prev === 'verb' && LINKING.includes(prevWord)) why = `${before} comes before ${me}, so ${me} describes the subject and is an adjective.`;
+      else if (pick === 'adjective' && nextNoun) why = `${me} comes before ${after} and describes it, so it is an adjective.`;
+      else if (pick === 'verb' && ((prev === 'pronoun' && SUBJECT.includes(prevWord)) || prev === 'noun' || prev === 'propernoun' || HELPER.includes(prevWord) || prevWord === 'to')) why = `${before} comes before ${me}, so ${me} is a verb.`;
+      else if (pick === 'noun' && (prev === 'article' || prev === 'adjective' || (prev === 'pronoun' && POSSESSIVE.includes(prevWord)))) why = `${before} comes before ${me}, so ${me} is a noun.`;
+      else if (pick === 'adverb' && prev === 'verb') why = `${me} comes after the verb ${before} and tells how, so it is an adverb.`;
+      else why = `${me} is always ${TYPE_NAME[pick]}.`;
+    }
     // A joining word only when a sentence part follows; otherwise "after", "since" and "until" are prepositions.
-    else if (c.includes('conjunction') && c.includes('preposition')) pick = can(i + 1, 'pronoun') && SUBJECT.includes(key(list[i + 1] ?? '')) ? 'conjunction' : 'preposition';
-    else if (POINTING.includes(w) || QUANTITY.includes(w)) pick = i + 1 < list.length && (nounish(i + 1) || can(i + 1, 'adjective')) ? 'adjective' : 'pronoun';
+    else if (c.includes('conjunction') && c.includes('preposition')) {
+      const joins = can(i + 1, 'pronoun') && SUBJECT.includes(key(list[i + 1] ?? ''));
+      pick = joins ? 'conjunction' : 'preposition';
+      why = joins ? `A new sentence part starts with ${after} after ${me}, so ${me} is a conjunction.` : `${me} points to the words after it, so it is a preposition.`;
+    }
+    else if (POINTING.includes(w) || QUANTITY.includes(w)) {
+      const describes = i + 1 < list.length && (nounish(i + 1) || can(i + 1, 'adjective'));
+      pick = describes ? 'adjective' : 'pronoun';
+      why = describes ? `${me} comes before ${after} and tells which one, so it is an adjective.` : `${me} stands in for a noun here, so it is a pronoun.`;
+    }
     // A how, when or where word ("today", "here") when no noun follows it.
-    else if (CLOSED.get(w)?.includes('adverb') && !nounish(i + 1) && !can(i + 1, 'adjective')) pick = 'adverb';
+    else if (CLOSED.get(w)?.includes('adverb') && !nounish(i + 1) && !can(i + 1, 'adjective')) {
+      pick = 'adverb';
+      why = `${me} tells how, when or where, so it is an adverb.`;
+    }
     // After a, the, my or a describing word: a describing word when a noun still follows, else the noun.
     else if (prev === 'article' || (prev === 'pronoun' && POSSESSIVE.includes(prevWord)) || prev === 'adjective') {
       pick = c.includes('adjective') && i + 1 < list.length && nounish(i + 1) && !can(i + 1, 'preposition') ? 'adjective' : c.includes('noun') ? 'noun' : c.includes('adjective') ? 'adjective' : undefined;
+      if (pick === 'adjective' && i + 1 < list.length && nounish(i + 1)) why = `${me} comes between ${before} and ${after}, so it describes ${after} and is an adjective.`;
+      else if (pick) why = `${before} comes before ${me}, so ${me} is ${TYPE_NAME[pick]}.`;
     }
     // After "I", "she", a name or a noun: the doing word.
     else if ((prev === 'pronoun' && SUBJECT.includes(prevWord)) || prev === 'noun' || prev === 'propernoun') {
       pick = c.includes('verb') ? 'verb' : c.includes('adverb') ? 'adverb' : undefined;
+      if (pick) why = `${before} comes before ${me}, so ${me} is ${TYPE_NAME[pick]}.`;
     }
     // After a helping verb or "to": the doing word.
-    else if ((prev === 'verb' && HELPER.includes(prevWord) && !LINKING.includes(prevWord)) || prevWord === 'to') pick = c.includes('verb') ? 'verb' : undefined;
+    else if ((prev === 'verb' && HELPER.includes(prevWord) && !LINKING.includes(prevWord)) || prevWord === 'to') {
+      pick = c.includes('verb') ? 'verb' : undefined;
+      if (pick) why = `${before} comes before ${me}, so ${me} is a verb.`;
+    }
     // A place or time word with something after it to point to ("over a jump", "after the bus").
-    else if (c.includes('preposition') && (can(i + 1, 'article') || nounish(i + 1) || (can(i + 1, 'pronoun') && !SUBJECT.includes(key(list[i + 1] ?? ''))))) pick = 'preposition';
+    else if (c.includes('preposition') && (can(i + 1, 'article') || nounish(i + 1) || (can(i + 1, 'pronoun') && !SUBJECT.includes(key(list[i + 1] ?? ''))))) {
+      pick = 'preposition';
+      why = `${me} points to ${after}, so it is a preposition.`;
+    }
     // After is, feels, looks: describing the subject; after other verbs: telling how.
     else if (prev === 'verb') {
-      if (LINKING.includes(prevWord)) pick = c.includes('adjective') ? 'adjective' : c.includes('verb') && /ing$/.test(w) ? 'verb' : undefined;
-      else pick = c.includes('adverb') ? 'adverb' : c.includes('noun') ? 'noun' : undefined;
+      if (LINKING.includes(prevWord)) {
+        pick = c.includes('adjective') ? 'adjective' : c.includes('verb') && /ing$/.test(w) ? 'verb' : undefined;
+        if (pick === 'adjective') why = `${before} comes before ${me}, so ${me} describes the subject and is an adjective.`;
+        else if (pick) why = `${before} comes before ${me}, so ${me} is a verb.`;
+      } else {
+        pick = c.includes('adverb') ? 'adverb' : c.includes('noun') ? 'noun' : undefined;
+        if (pick === 'adverb') why = `${me} comes after the verb ${before} and tells how, so it is an adverb.`;
+        else if (pick) why = `${me} comes after the verb ${before} and names a thing, so it is a noun.`;
+      }
     }
-    else if (prev === 'preposition') pick = c.includes('noun') ? (c.includes('adjective') && nounish(i + 1) ? 'adjective' : 'noun') : undefined;
-    else if (i === 0 && c.includes('verb') && !c.includes('pronoun') && !c.includes('article')) pick = c.includes('noun') && (can(i + 1, 'verb') && !can(i + 1, 'noun')) ? 'noun' : c[0];
+    else if (prev === 'preposition') {
+      pick = c.includes('noun') ? (c.includes('adjective') && nounish(i + 1) ? 'adjective' : 'noun') : undefined;
+      if (pick) why = `${before} comes before ${me}, so ${me} is ${TYPE_NAME[pick]}.`;
+    }
+    else if (i === 0 && c.includes('verb') && !c.includes('pronoun') && !c.includes('article')) {
+      pick = c.includes('noun') && (can(i + 1, 'verb') && !can(i + 1, 'noun')) ? 'noun' : c[0];
+      why = pick === 'verb' ? `${me} starts the sentence and tells someone what to do, so it is a verb.` : `${me} starts the sentence and ${after} comes after it, so ${me} is ${TYPE_NAME[pick]}.`;
+    }
     pick ??= ORDER.find((o) => c.includes(o) && o === c[0]) ?? c[0];
+    if (!why) why = `${me} is most often ${TYPE_NAME[pick]}.`;
     out.push(pick);
+    whys.push(why);
   });
-  return out;
+  return out.map((type, i) => ({ type, why: whys[i] }));
 }

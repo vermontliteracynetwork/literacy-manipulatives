@@ -714,3 +714,43 @@ board's title and the Writer's "All tools" button lead back to the dashboard.
 Her words: "i need a connection for a dictionary to truly reference what word types are (ex. part of speech) and really have a better engine behind the symbolic grammar function on the dashbaord and literacy manipulatives".
 
 `src/lib/wordTypes.ts` (the same file as the dashboard's) gives every word its types from the full small-word lists, WordNet (`public/writer/pos.json`), then a live dictionary (dictionaryapi.dev, then Datamuse) remembered on the device. Symbol bubbles check a typed word with it first (so "light" can describe, and "happy" in a verb bubble is caught), and Write mode looks up unknown finished words live so they get a symbol.
+
+---
+
+## 2026-11-12: Word Explorer (dictionary and thesaurus), Phase 1
+
+Her build spec "Word Explorer: Build Spec" v1 (2026-11-12) is the source of truth. Phase 1 of 5 is in: the shell and
+core lookup. A new card on the tools dashboard opens it at `/words` (`/words?w=happy` opens a word page).
+
+- **One view:** header (Word Explorer goes Home, search with autocomplete, Search by sound (say a word), Settings),
+  the word trail (tap a word to go back), and the center panel. The one floating button is the main menu
+  (`src/components/MainMenu.tsx`), bottom right; pages leave room so it never covers a control.
+- **Search:** autocomplete, base words ("ran" opens run with a note), contractions ("don't" = do + not), sound-alike
+  spellings ("fone" offers phone) and close spellings ("hapy" offers happy). Blocked words get a neutral message.
+- **Word page, Dictionary tab:** word, read aloud, sound-out (HAP-ee, from WordNet pronunciations; draft until the
+  CMUdict phonics engine in Phase 2), her part of speech symbols with their names, Tier, frequency band, Save to My
+  Words (the Write mode My Words list). One card per meaning: signpost, part of speech, read aloud with word-by-word
+  highlighting, definition, explanation, examples tagged past, present or future, a plain-words "why" line from the
+  word type engine ("'they' comes before 'jump', so 'jump' is a verb"), and grammar patterns. Side panel: forms, word
+  family, quick synonyms and opposites, sources.
+- **Students see Approved only.** Everything starts as Draft. Settings > Teacher view shows drafts, sources and
+  Draft / Reviewed / Approve buttons for each meaning and for the word facts (kept on this device until accounts).
+- **Starter entries** drafted in her definition style for happy, sad, curious, run, jump, brave, friend, rainbow,
+  quick and help (`src/lib/word-explorer/seed.ts`), waiting for her approval.
+- **Design:** Inclusive Sans Variable (self-hosted, OFL), her palette tokens with light, dark and high contrast
+  themes, 44 px targets (56 px with Extra large text), Settings for colors, text size, reading speed, saying button
+  names aloud, and Teacher view.
+- **Data:** Open English WordNet 2024 (CC BY 4.0) for meanings, examples, synonyms, opposites and word families,
+  built by `scripts/build-word-explorer-data.py` into `public/word-explorer/` (credit in `OEWN-LICENSE.txt`), kid-safe
+  filtered with `src/lib/word-explorer/blocklist.json` (`isBlockedTerm` in `safety.ts`). Frequency bands use the
+  SCOWL word list levels until frequency counts are added; Tier is an estimate marked for review.
+- **Engines (UI-free, for reuse by the kids dashboard):** `src/lib/word-explorer/` (types, data, search, safety,
+  sound-out, speech, time, review, settings). `src/lib/wordTypes.ts` (merged from `claude/word-types-597`) gained
+  `readSentenceWhy()` for the reasons.
+- **Checks:** `npm run lint` now also runs `scripts/check-text.mjs` (no em dashes in Word Explorer code or data).
+  Checked in a browser: no target under 44 px on Home or a word page, keyboard focus order runs skip link, Home,
+  search, Search, Search by sound, Settings, trail.
+- **Not built yet (later phases):** Thesaurus, Word Parts, Sounds, Pictures and Lists tabs, Word of the Day,
+  Browse, Word List Maker, teacher locks, Report a problem. `api/tts.ts`, `morphology.ts` and `isBlockedTerm` named
+  in the spec did not exist in this repo: read aloud uses the device's most natural voice for now, and
+  `isBlockedTerm` is new in `src/lib/word-explorer/safety.ts`.

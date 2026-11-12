@@ -1,7 +1,20 @@
 {
   "rewrites": [
-    { "source": "/join", "destination": "/index.html" },
-    { "source": "/whiteboard", "destination": "/index.html" },
-    { "source": "/write", "destination": "/index.html" }
+    {
+      "source": "/join",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/whiteboard",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/write",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/words",
+      "destination": "/index.html"
+    }
   ]
 }

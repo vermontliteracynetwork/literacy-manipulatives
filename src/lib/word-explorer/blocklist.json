@@ -1,0 +1,22 @@
+{
+  "_note": "Kid-safe filter for Word Explorer (spec section 10). 'words' are never shown or looked up. 'meaningTerms' hide a meaning, example or synonym whose text uses one of them. Shared by scripts/build-word-explorer-data.py and src/lib/word-explorer/safety.ts. Add terms here, then rerun the build script.",
+  "words": [
+    "sex", "sexy", "sexual", "sexually", "porn", "porno", "pornography", "penis", "vagina", "nude", "naked", "nudity",
+    "fuck", "shit", "bitch", "asshole", "bastard", "damn", "crap", "cunt", "dick", "cock", "pussy", "whore", "slut",
+    "rape", "raped", "rapist", "suicide", "murder", "murderer", "cocaine", "heroin", "meth", "marijuana", "weed",
+    "vodka", "whiskey", "booze", "drunk", "erotic", "orgasm", "prostitute", "prostitution", "brothel", "condom",
+    "blood", "bloody", "bleed", "bleeding", "bled", "gore", "gory", "wound", "wounded", "wounds", "corpse", "carcass",
+    "slaughter", "massacre", "torture", "behead", "decapitate", "mutilate", "dismember", "genocide", "lynch",
+    "nigger", "faggot", "fag", "retard", "retarded", "spastic", "tranny", "dyke", "kike", "chink", "spic", "wetback",
+    "boob", "boobs", "breast", "breasts", "buttocks", "testicle", "testicles", "scrotum", "anus", "rectum", "semen",
+    "masturbate", "masturbation", "intercourse", "fornicate", "fornication", "adultery", "pimp", "hooker", "stripper"
+  ],
+  "meaningTerms": [
+    "sex", "sexual", "sexually", "genital", "genitals", "penis", "vagina", "copulat", "intercourse", "erotic", "orgasm",
+    "prostitut", "pornograph", "obscen", "vulgar", "offensive term", "offensive word", "offensive name", "derogatory", "ethnic slur", "disparaging",
+    "blood", "bleed", "wound", "gore", "corpse", "carcass", "dead body", "decapitat", "mutilat", "dismember", "slaughter",
+    "torture", "american indian", "murder", "suicide", "rape", "massacre", "genocide", "lynch",
+    "cocaine", "heroin", "narcotic", "marijuana", "intoxicat", "drunk", "liquor", "alcoholic", "whiskey", "vodka",
+    "excrement", "feces", "faeces", "urine", "semen", "menstrua", "buttocks", "breast", "testicle", "anus", "rectum"
+  ]
+}

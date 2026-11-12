@@ -1,0 +1,6 @@
+Word Explorer meanings, examples, synonyms, opposites and word families come from
+Open English WordNet (2024 edition), https://github.com/globalwordnet/english-wordnet
+Licensed under the Creative Commons Attribution 4.0 International License (CC BY 4.0),
+https://creativecommons.org/licenses/by/4.0/
+Open English WordNet is based on Princeton WordNet 3.0 (see public/writer/WORDNET-LICENSE.txt).
+Changes: filtered to everyday words, kid-safe filtered, trimmed to the most common meanings.
