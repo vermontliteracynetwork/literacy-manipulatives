@@ -158,3 +158,13 @@ export function wordsOfList(l: SavedList): string[] {
   const base = runRecipe(l.recipe).map((w) => w.word).filter((w) => !l.removed.includes(w));
   return [...base, ...l.added.filter((w) => !base.includes(w))];
 }
+
+// Opening the Word List Maker (/lists) from Word Explorer with filters ready.
+const START = 'wx-list-start';
+export function startList(recipe: Recipe, name: string) {
+  try { sessionStorage.setItem(START, JSON.stringify({ recipe, name })); } catch { /* opens empty */ }
+  window.location.assign('/lists');
+}
+export function takeListStart(): { recipe: Recipe; name: string } | null {
+  try { const v = sessionStorage.getItem(START); sessionStorage.removeItem(START); return v ? JSON.parse(v) : null; } catch { return null; }
+}

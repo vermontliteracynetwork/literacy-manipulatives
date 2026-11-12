@@ -32,6 +32,13 @@ const TOOLS: Tool[] = [
     tags: ['Student-facing', 'Vocabulary'],
   },
   {
+    title: 'Word List Maker',
+    description: 'Build word lists by spelling pattern, syllable type, word part, part of speech, Tier, topic and more. Save, print cards, or assign with a link.',
+    href: '/lists',
+    image: '/dashboard/word-lists.png',
+    tags: ['Teacher tool', 'Student-facing', 'Phonics'],
+  },
+  {
     title: 'Formula Search',
     description: 'Type any sentence to find its sentence formulas. No match? Add the suggested formula to the formula log.',
     href: '/formulas',

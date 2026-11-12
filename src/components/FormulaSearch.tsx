@@ -4,6 +4,7 @@ import './formulaSearch.css';
 import { useEffect, useMemo, useState } from 'react';
 import { Icon } from './Icon';
 import { MainMenu } from './MainMenu';
+import { HomeButton } from './HomeButton';
 import { FormulaSymbols } from './SentenceFormulas';
 import { SENTENCE_FORMULAS } from '../lib/writer/formulas';
 import { splitSentences, tagForCheck } from '../lib/writer/sentenceCheck';
@@ -21,7 +22,7 @@ import { speak } from '../lib/word-explorer/speech';
 
 // Her "All Sentence Formulas" list is the main list. Each formula's pattern is read from its own example sentence
 // by the same engine that reads the typed sentence, so they are compared the same way.
-interface Listed extends ListedFormula { slots: Slot[]; cardSlots: string[]; card?: string }
+interface Listed extends ListedFormula { slots: Slot[]; cardSlots: string[]; card?: string; uses?: Listed[] }
 let listed: Listed[] | null = null;
 function listedFormulas(): Listed[] {
   listed ??= FORMULA_LIST.map((f) => {
@@ -43,13 +44,21 @@ function readSentence(sentence: string): Reading | null {
   const sameShape = (f: Listed) => f.code.includes("'") === code.includes("'");
   const ranked = listedFormulas().map((f) => ({ f, d: bare(f.code) === code ? 0 : slotDistance(f.cardSlots, mine) + (sameShape(f) ? 0 : 1) }))
     .sort((x, y) => x.d - y.d);
-  const once = (list: Listed[]) => list.filter((f, i) => list.findIndex((g) => g.code === f.code && g.breakdown === f.breakdown) === i);
+  // Each formula code shows once (her request 2026-11-12): rows of her list with the same code become one card that
+  // lists every way it is used. A code that matches is never shown again under Close formulas.
+  const merge = (list: Listed[]): Listed[] => {
+    const byCode = new Map<string, Listed[]>();
+    for (const f of list) byCode.set(bare(f.code), [...(byCode.get(bare(f.code)) ?? []), f]);
+    return [...byCode.values()].map((g) => ({ ...g[0], uses: listedFormulas().filter((x) => bare(x.code) === bare(g[0].code)) }));
+  };
+  const exact = merge(ranked.filter((r) => r.d === 0).map((r) => r.f));
+  const exactCodes = new Set(exact.map((f) => bare(f.code)));
   return {
     sentence,
     slots: cardSlotsOf(mine),
     code,
-    exact: once(ranked.filter((r) => r.d === 0).map((r) => r.f)),
-    close: once(ranked.filter((r) => r.d > 0 && r.d <= 1).map((r) => r.f)).slice(0, 3),
+    exact,
+    close: merge(ranked.filter((r) => r.d > 0 && r.d <= 1 && !exactCodes.has(bare(r.f.code))).map((r) => r.f)).slice(0, 3),
   };
 }
 
@@ -82,6 +91,7 @@ export function FormulaSearch() {
 
   return (
     <div className="wx fs" data-theme="light">
+      <div className="fs-top"><HomeButton className="wx-btn" /></div>
       <main className={`fs-main${searched ? ' searched' : ''}`}>
         <h1 className="fs-title"><a href="/formulas" onClick={(e) => { e.preventDefault(); setText(''); go(''); }}>Formula Search</a></h1>
         <form className="fs-bar" role="search" onSubmit={(e) => { e.preventDefault(); go(text); }}>
@@ -113,7 +123,7 @@ export function FormulaSearch() {
               {r.exact.length > 0 ? (
                 <>
                   <h2 className="wx-h2">{r.exact.length === 1 ? 'Matching formula' : `${r.exact.length} matching formulas`}</h2>
-                  <ul className="fs-cards">{r.exact.map((f) => <FormulaCard key={`${f.code}-${f.example}`} f={f} />)}</ul>
+                  <ul className="fs-cards">{r.exact.map((f) => <FormulaCard key={f.code} f={f} />)}</ul>
                 </>
               ) : (
                 <div className="fs-nomatch">
@@ -129,7 +139,7 @@ export function FormulaSearch() {
                   {r.close.length > 0 && (
                     <>
                       <h3 className="wx-h3 fs-close-h">Close formulas (one part different)</h3>
-                      <ul className="fs-cards">{r.close.map((f) => <FormulaCard key={`${f.code}-${f.example}`} f={f} />)}</ul>
+                      <ul className="fs-cards">{r.close.map((f) => <FormulaCard key={f.code} f={f} />)}</ul>
                     </>
                   )}
                 </div>
@@ -174,15 +184,22 @@ export function FormulaSearch() {
 }
 
 function FormulaCard({ f }: { f: Listed }) {
+  const uses = f.uses ?? [f];
+  const card = uses.find((u) => u.card)?.card;
+  const levels = [...new Set(uses.flatMap((u) => u.levels))].sort();
   return (
     <li className="fs-card">
-      {f.card ? <img src={f.card} alt={`Formula card: ${f.breakdown}`} loading="lazy" /> : <FormulaSymbols slots={f.cardSlots} labels />}
+      {card ? <img src={card} alt={`Formula card: ${f.breakdown}`} loading="lazy" /> : <FormulaSymbols slots={f.cardSlots} labels />}
       <div className="fs-card-text">
         <span className="fs-code">{f.code}</span>
-        <span>{f.breakdown}</span>
-        <span className="wx-muted">Example: {f.example}</span>
-        <span className="wx-muted">Required words: {f.required}</span>
-        <span className="wx-muted">Levels {f.levels.join(', ')}</span>
+        {uses.map((u, i) => (
+          <span key={i} className="fs-use">
+            <span>{u.breakdown}</span>
+            <span className="wx-muted">Example: {u.example}</span>
+            <span className="wx-muted">Required words: {u.required}</span>
+          </span>
+        ))}
+        <span className="wx-muted">Levels {levels.join(', ')}</span>
       </div>
     </li>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 import type * as Y from 'yjs';
 import { Icon } from './Icon';
+import { HomeButton } from './HomeButton';
 import { SentenceFormulas, FormulaSymbols } from './SentenceFormulas';
 import { GRAMMAR_SYMBOL_INFO, TENSE_SYMBOLS, type SymbolWordClass } from '../lib/grammarSymbols';
 import { lookUpWords, onWordTypes } from '../lib/wordTypes';
@@ -752,7 +753,7 @@ export function Writer({ settings, canChangeSettings, onSettings, onBack, studen
   return (
     <div className={`lm-writer theme-${theme}${focusModeOn ? ' focus-mode' : ''}`}>
       <header className="lm-writer-bar">
-        {onBack && <a className="btn btn-sm" href="/" title="Back to all tools">All tools</a>}
+        {onBack && <HomeButton />}
         {onBack && <button type="button" className="btn btn-sm" onClick={onBack}>← Whiteboard</button>}
         <span className="lm-sidebar-title">Write{studentName ? `: ${studentName}` : ''}</span>
         <span className="lm-writer-count">{wordCount} {wordCount === 1 ? 'word' : 'words'} · {sentences.length} {sentences.length === 1 ? 'sentence' : 'sentences'}</span>

@@ -23,6 +23,10 @@
     {
       "source": "/procedure",
       "destination": "/index.html"
+    },
+    {
+      "source": "/lists",
+      "destination": "/index.html"
     }
   ]
 }

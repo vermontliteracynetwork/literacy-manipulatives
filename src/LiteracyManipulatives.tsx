@@ -8,6 +8,7 @@ import { fitsType, loadWordTypes, typesOf } from './lib/wordTypes';
 import { MorphemePiece, pieceBodyWidth, pieceOuterSize } from './components/MorphemePiece';
 import { FloatingCard } from './components/FloatingCard';
 import { Icon } from './components/Icon';
+import { HomeButton } from './components/HomeButton';
 import { SharePanel } from './components/SharePanel';
 import { JoinScreen } from './components/JoinScreen';
 import { WelcomeChoice } from './components/WelcomeChoice';
@@ -2568,7 +2569,10 @@ export default function LiteracyManipulatives({ startInWriter = false, embed }: 
             {embed ? null : joinMode ? (
               <span className="lm-sidebar-title" style={{ marginRight: 8 }}>Literacy Manipulatives</span>
             ) : (
-              <a className="lm-sidebar-title lm-home-link" href="/" style={{ marginRight: 8 }} title="Back to all tools">Literacy Manipulatives</a>
+              <>
+                <HomeButton />
+                <a className="lm-sidebar-title lm-home-link" href="/" style={{ marginRight: 8 }} title="Back to all tools">Whiteboard</a>
+              </>
             )}
             {!embed?.presenting && <button className="btn btn-sm" onClick={() => setSidebarOpen((v) => !v)} aria-label={sidebarOpen ? 'Hide materials' : 'Show materials'}>{embed ? (sidebarOpen ? 'Hide materials' : 'Materials') : sidebarOpen ? '⟨⟨' : '⟩⟩'}</button>}
             <span className="lm-toolbar-divider" />

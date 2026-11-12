@@ -11,6 +11,7 @@ import { addMyWord } from '../../lib/writer/myWords';
 import { newId } from '../../lib/procedures/types';
 import { BAND_NAMES } from './parts';
 import type { PartOfSpeech, SyllableType } from '../../lib/word-explorer/types';
+import type { WxSettings } from '../../lib/word-explorer/settings';
 
 // The Word List Maker (build spec 4.4 and section 6): filter blocks on the left, the live list on the right.
 
@@ -42,22 +43,30 @@ function ModeControl({ kind, b, set }: { kind: 'spelling' | 'syllables' | 'parts
   );
 }
 
-function BlockCard({ n, title, children, picked, onClear }: { n: number; title: string; children: React.ReactNode; picked: number; onClear: () => void }) {
+// A teacher can lock any block for a student (spec section 6): the block keeps the teacher's picks and the student
+// cannot change it.
+interface LockCtl { teacher: boolean; locked: boolean; toggle: () => void }
+function BlockCard({ n, title, children, picked, onClear, lock }: { n: number; title: string; children: React.ReactNode; picked: number; onClear: () => void; lock?: LockCtl }) {
   const [open, setOpen] = useState(n <= 2);
+  const frozen = !!lock && lock.locked && !lock.teacher;
   return (
     <section className="wx-block">
       <div className="wx-block-head">
         <button type="button" className="wx-block-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
           <span>{n}. {title}</span>{picked > 0 && <span className="wx-fact">{picked} picked</span>}
         </button>
-        {picked > 0 && <button type="button" className="wx-btn wx-btn-small" onClick={onClear}>Clear</button>}
+        {lock?.locked && <span className="wx-status wx-status-reviewed">Locked</span>}
+        {picked > 0 && !frozen && <button type="button" className="wx-btn wx-btn-small" onClick={onClear}>Clear</button>}
+        {lock?.teacher && <button type="button" className={`wx-btn wx-btn-small${lock.locked ? ' wx-btn-primary' : ''}`} aria-pressed={lock.locked} onClick={lock.toggle}>{lock.locked ? 'Unlock' : 'Lock for students'}</button>}
       </div>
-      {open && <div className="wx-block-body">{children}</div>}
+      {open && (frozen
+        ? <fieldset disabled className="wx-block-body wx-frozen"><p className="wx-hint">Your teacher set this filter.</p>{children}</fieldset>
+        : <div className="wx-block-body">{children}</div>)}
     </section>
   );
 }
 
-export function ListMaker({ initial, initialName, teacher }: { initial?: Recipe; initialName?: string; teacher: boolean }) {
+export function ListMaker({ initial, initialName, teacher, settings, onSettings }: { initial?: Recipe; initialName?: string; teacher: boolean; settings?: WxSettings; onSettings?: (s: WxSettings) => void }) {
   const [ready, setReady] = useState(listWords().length > 0);
   const [recipe, setRecipe] = useState<Recipe>(initial ?? emptyRecipe());
   const [name, setName] = useState(initialName ?? 'My word list');
@@ -82,7 +91,17 @@ export function ListMaker({ initial, initialName, teacher }: { initial?: Recipe;
   const set = <K extends keyof Recipe>(k: K, v: Recipe[K]) => setRecipe((r) => ({ ...r, [k]: v }));
   const setBlock = (k: 'spelling' | 'syllables' | 'parts' | 'pos') => (b: Block) => set(k, b);
 
-  const results = useMemo(() => (ready ? runRecipe(recipe) : []), [recipe, ready]);
+  const locked = settings?.lockedBlocks ?? {};
+  const eff = useMemo<Recipe>(() => (teacher ? recipe : { ...recipe, ...(locked as Partial<Recipe>) }), [recipe, locked, teacher]);
+  const lockFor = (key: keyof Recipe): LockCtl | undefined => (settings && onSettings ? {
+    teacher, locked: key in locked,
+    toggle: () => {
+      const next = { ...locked };
+      if (key in next) delete next[key]; else next[key] = recipe[key] ?? null;
+      onSettings({ ...settings, lockedBlocks: next });
+    },
+  } : undefined);
+  const results = useMemo(() => (ready ? runRecipe(eff) : []), [eff, ready]);
   const byWord = useMemo(() => new Map(listWords().map((w) => [w.word, w])), [ready]);
   const live = useMemo(() => {
     if (lockedWords) return lockedWords.map((w) => byWord.get(w)).filter((w): w is ListWord => !!w);
@@ -110,14 +129,16 @@ export function ListMaker({ initial, initialName, teacher }: { initial?: Recipe;
     set('related', next);
   };
 
-  const letterHits = letterQ.trim() ? LISTED.filter((p) => p.letters.replace('_', '').includes(letterQ.trim().toLowerCase().replace('_', ''))) : [];
+  const lq = letterQ.trim().toLowerCase().replace('_', '');
+  // Letters typed exactly come first ("ai" before "air").
+  const letterHits = lq ? LISTED.filter((p) => p.letters.replace('_', '').includes(lq)).sort((x, y) => Number(y.letters.replace('_', '') === lq) - Number(x.letters.replace('_', '') === lq) || x.letters.length - y.letters.length) : [];
   const soundKeys = Object.keys(SOUNDS).filter((k) => k && spellingsOfSound(k).length > 1);
   const allParts = [...PREFIXES.map((p) => `prefix:${p.text}`), ...[...new Set(SUFFIXES.map((s) => s.text))].map((s) => `suffix:${s}`), ...ROOTS.map((r) => `root:${r.text}`)];
   const partHits = allParts.filter((p) => !partQ.trim() || p.split(':')[1].startsWith(partQ.trim().toLowerCase()));
 
   const save = () => {
     const words = live.map((w) => w.word);
-    const entry: SavedList = { id: currentId ?? newId(), name: name.trim() || 'Word list', recipe, keepUpdating, words, added, removed, sort, updatedAt: new Date().toISOString() };
+    const entry: SavedList = { id: currentId ?? newId(), name: name.trim() || 'Word list', recipe: eff, keepUpdating, words, added, removed, sort, updatedAt: new Date().toISOString() };
     const next = [entry, ...saved.filter((l) => l.id !== entry.id)];
     writeLists(next); setSaved(next); setCurrentId(entry.id);
     setMessage('Saved'); window.setTimeout(() => setMessage(''), 2000);
@@ -134,7 +155,7 @@ export function ListMaker({ initial, initialName, teacher }: { initial?: Recipe;
     try { await navigator.clipboard.writeText(url); setMessage('Link copied. Send it to students or post it in the unit.'); } catch { window.prompt('Copy this link for students:', url); }
   };
 
-  const spellingPicked = recipe.spelling.sel;
+  const spellingPicked = eff.spelling.sel;
   return (
     <div className="wx-listmaker">
       <div className="wx-lm-filters">
@@ -153,58 +174,58 @@ export function ListMaker({ initial, initialName, teacher }: { initial?: Recipe;
         )}
         {lockedWords && <p className="wx-note">This list is locked: its words stay the same. Choose "Keep updating" to use the filters again.</p>}
 
-        <BlockCard n={1} title="Spelling patterns and sounds" picked={spellingPicked.length} onClear={() => setBlock('spelling')({ ...recipe.spelling, sel: [] })}>
-          <ModeControl kind="spelling" b={recipe.spelling} set={setBlock('spelling')} />
+        <BlockCard n={1} lock={lockFor('spelling')} title="Spelling patterns and sounds" picked={spellingPicked.length} onClear={() => setBlock('spelling')({ ...eff.spelling, sel: [] })}>
+          <ModeControl kind="spelling" b={eff.spelling} set={setBlock('spelling')} />
           <label className="wx-swap-label" htmlFor="lm-letters">Find letters (like ai)</label>
           <input id="lm-letters" className="wx-input" value={letterQ} onChange={(e) => setLetterQ(e.target.value)} placeholder="Type letters" autoComplete="off" />
-          {letterHits.length > 0 && <div className="wx-chips">{letterHits.map((p) => <Chip key={p.id} on={spellingPicked.includes(p.id)} onClick={() => setBlock('spelling')({ ...recipe.spelling, sel: toggleIn(spellingPicked, p.id) })}>{patternLabel(p)}</Chip>)}</div>}
+          {letterHits.length > 0 && <div className="wx-chips">{letterHits.map((p) => <Chip key={p.id} on={spellingPicked.includes(p.id)} onClick={() => setBlock('spelling')({ ...eff.spelling, sel: toggleIn(spellingPicked, p.id) })}>{patternLabel(p)}</Chip>)}</div>}
           <p className="wx-small-head">All spellings of a sound</p>
           <div className="wx-chips">
             {soundKeys.map((k) => {
               const ids = spellingsOfSound(k).map((p) => p.id);
               const on = ids.every((id) => spellingPicked.includes(id));
-              return <Chip key={k} on={on} label={`All spellings of ${soundLabel(k)}`} onClick={() => setBlock('spelling')({ ...recipe.spelling, sel: on ? spellingPicked.filter((x) => !ids.includes(x)) : [...new Set([...spellingPicked, ...ids])] })}>{soundLabel(k)}</Chip>;
+              return <Chip key={k} on={on} label={`All spellings of ${soundLabel(k)}`} onClick={() => setBlock('spelling')({ ...eff.spelling, sel: on ? spellingPicked.filter((x) => !ids.includes(x)) : [...new Set([...spellingPicked, ...ids])] })}>{soundLabel(k)}</Chip>;
             })}
           </div>
           {PATTERN_GROUPS.filter((g) => LISTED.some((p) => p.group === g)).map((g) => (
             <details key={g} className="wx-group">
               <summary>{g}</summary>
-              <div className="wx-chips">{LISTED.filter((p) => p.group === g).map((p) => <Chip key={p.id} on={spellingPicked.includes(p.id)} onClick={() => setBlock('spelling')({ ...recipe.spelling, sel: toggleIn(spellingPicked, p.id) })}>{patternLabel(p)}</Chip>)}</div>
+              <div className="wx-chips">{LISTED.filter((p) => p.group === g).map((p) => <Chip key={p.id} on={spellingPicked.includes(p.id)} onClick={() => setBlock('spelling')({ ...eff.spelling, sel: toggleIn(spellingPicked, p.id) })}>{patternLabel(p)}</Chip>)}</div>
             </details>
           ))}
         </BlockCard>
 
-        <BlockCard n={2} title="Syllable types" picked={recipe.syllables.sel.length} onClear={() => setBlock('syllables')({ ...recipe.syllables, sel: [] })}>
-          <ModeControl kind="syllables" b={recipe.syllables} set={setBlock('syllables')} />
-          <div className="wx-chips">{SYLLABLES.map((s) => <Chip key={s} on={recipe.syllables.sel.includes(s)} onClick={() => setBlock('syllables')({ ...recipe.syllables, sel: toggleIn(recipe.syllables.sel, s) })}>{s}</Chip>)}</div>
+        <BlockCard n={2} lock={lockFor('syllables')} title="Syllable types" picked={eff.syllables.sel.length} onClear={() => setBlock('syllables')({ ...eff.syllables, sel: [] })}>
+          <ModeControl kind="syllables" b={eff.syllables} set={setBlock('syllables')} />
+          <div className="wx-chips">{SYLLABLES.map((s) => <Chip key={s} on={eff.syllables.sel.includes(s)} onClick={() => setBlock('syllables')({ ...eff.syllables, sel: toggleIn(eff.syllables.sel, s) })}>{s}</Chip>)}</div>
         </BlockCard>
 
-        <BlockCard n={3} title="Prefixes, suffixes and roots" picked={recipe.parts.sel.length} onClear={() => setBlock('parts')({ ...recipe.parts, sel: [] })}>
-          <ModeControl kind="parts" b={recipe.parts} set={setBlock('parts')} />
+        <BlockCard n={3} lock={lockFor('parts')} title="Prefixes, suffixes and roots" picked={eff.parts.sel.length} onClear={() => setBlock('parts')({ ...eff.parts, sel: [] })}>
+          <ModeControl kind="parts" b={eff.parts} set={setBlock('parts')} />
           <input className="wx-input" value={partQ} onChange={(e) => setPartQ(e.target.value)} placeholder="Find a word part" aria-label="Find a word part" autoComplete="off" />
-          <div className="wx-chips wx-chips-scroll">{partHits.map((p) => <Chip key={p} on={recipe.parts.sel.includes(p)} onClick={() => setBlock('parts')({ ...recipe.parts, sel: toggleIn(recipe.parts.sel, p) })}>{p.replace(':', ': ')}</Chip>)}</div>
+          <div className="wx-chips wx-chips-scroll">{partHits.map((p) => <Chip key={p} on={eff.parts.sel.includes(p)} onClick={() => setBlock('parts')({ ...eff.parts, sel: toggleIn(eff.parts.sel, p) })}>{p.replace(':', ': ')}</Chip>)}</div>
         </BlockCard>
 
-        <BlockCard n={4} title="Part of speech" picked={recipe.pos.sel.length} onClear={() => setBlock('pos')({ ...recipe.pos, sel: [] })}>
-          <ModeControl kind="pos" b={recipe.pos} set={setBlock('pos')} />
-          <div className="wx-chips">{POS.map((p) => <Chip key={p} on={recipe.pos.sel.includes(p)} onClick={() => setBlock('pos')({ ...recipe.pos, sel: toggleIn(recipe.pos.sel, p) })}><PosSymbol pos={p} size={20} decorative />{p}</Chip>)}</div>
+        <BlockCard n={4} lock={lockFor('pos')} title="Part of speech" picked={eff.pos.sel.length} onClear={() => setBlock('pos')({ ...eff.pos, sel: [] })}>
+          <ModeControl kind="pos" b={eff.pos} set={setBlock('pos')} />
+          <div className="wx-chips">{POS.map((p) => <Chip key={p} on={eff.pos.sel.includes(p)} onClick={() => setBlock('pos')({ ...eff.pos, sel: toggleIn(eff.pos.sel, p) })}><PosSymbol pos={p} size={20} decorative />{p}</Chip>)}</div>
         </BlockCard>
 
-        <BlockCard n={5} title="Tier" picked={recipe.tier.length} onClear={() => set('tier', [])}>
-          <div className="wx-chips">{['1', '2', '3'].map((t) => <Chip key={t} on={recipe.tier.includes(t)} onClick={() => set('tier', toggleIn(recipe.tier, t))}>Tier {t}</Chip>)}</div>
+        <BlockCard n={5} lock={lockFor('tier')} title="Tier" picked={eff.tier.length} onClear={() => set('tier', [])}>
+          <div className="wx-chips">{['1', '2', '3'].map((t) => <Chip key={t} on={eff.tier.includes(t)} onClick={() => set('tier', toggleIn(eff.tier, t))}>Tier {t}</Chip>)}</div>
         </BlockCard>
-        <BlockCard n={6} title="Frequency" picked={recipe.band.length} onClear={() => set('band', [])}>
-          <div className="wx-chips">{['1', '2', '3', '4', '5'].map((b) => <Chip key={b} on={recipe.band.includes(b)} onClick={() => set('band', toggleIn(recipe.band, b))}>{BAND_NAMES[Number(b)]}</Chip>)}</div>
+        <BlockCard n={6} lock={lockFor('band')} title="Frequency" picked={eff.band.length} onClear={() => set('band', [])}>
+          <div className="wx-chips">{['1', '2', '3', '4', '5'].map((b) => <Chip key={b} on={eff.band.includes(b)} onClick={() => set('band', toggleIn(eff.band, b))}>{BAND_NAMES[Number(b)]}</Chip>)}</div>
         </BlockCard>
-        <BlockCard n={7} title="Topic, unit or formula" picked={recipe.topic.length} onClear={() => set('topic', [])}>
-          <div className="wx-chips">{TOPICS.map((t) => <Chip key={t} on={recipe.topic.includes(t)} onClick={() => set('topic', toggleIn(recipe.topic, t))}>{t}</Chip>)}</div>
+        <BlockCard n={7} lock={lockFor('topic')} title="Topic, unit or formula" picked={eff.topic.length} onClear={() => set('topic', [])}>
+          <div className="wx-chips">{TOPICS.map((t) => <Chip key={t} on={eff.topic.includes(t)} onClick={() => set('topic', toggleIn(eff.topic, t))}>{t}</Chip>)}</div>
           <p className="wx-small-head">Words in her formula units' model sentences</p>
-          <div className="wx-chips">{UNITS.map((u) => <Chip key={u} on={recipe.topic.includes(`unit:${u}`)} onClick={() => set('topic', toggleIn(recipe.topic, `unit:${u}`))}>Unit {u}</Chip>)}</div>
+          <div className="wx-chips">{UNITS.map((u) => <Chip key={u} on={eff.topic.includes(`unit:${u}`)} onClick={() => set('topic', toggleIn(eff.topic, `unit:${u}`))}>Unit {u}</Chip>)}</div>
         </BlockCard>
-        <BlockCard n={8} title="Has a picture" picked={recipe.picture ? 1 : 0} onClear={() => set('picture', false)}>
-          <Chip on={recipe.picture} onClick={() => set('picture', !recipe.picture)}>Only words with a picture</Chip>
+        <BlockCard n={8} lock={lockFor('picture')} title="Has a picture" picked={eff.picture ? 1 : 0} onClear={() => set('picture', false)}>
+          <Chip on={eff.picture} onClick={() => set('picture', !eff.picture)}>Only words with a picture</Chip>
         </BlockCard>
-        <BlockCard n={9} title="Synonyms and antonyms" picked={recipe.related && (recipe.related.synonyms || recipe.related.antonyms) ? 1 : 0} onClear={() => { set('related', undefined); setSeed(''); }}>
+        <BlockCard n={9} lock={lockFor('related')} title="Synonyms and antonyms" picked={recipe.related && (recipe.related.synonyms || recipe.related.antonyms) ? 1 : 0} onClear={() => { set('related', undefined); setSeed(''); }}>
           <p className="wx-hint">Pick a word and one of its meanings. The other filters' modes do not change this one.</p>
           <input className="wx-input" value={seed} onChange={(e) => setSeed(e.target.value)} placeholder="Seed word, like happy" aria-label="Seed word" autoComplete="off" />
           {seedSenses.length > 0 && (
@@ -277,7 +298,7 @@ export function ListMaker({ initial, initialName, teacher }: { initial?: Recipe;
         {message && <p className="wx-note" role="status">{message}</p>}
         <details className="wx-recipe">
           <summary>Recipe (the filters this list saves)</summary>
-          <pre>{JSON.stringify(recipe, (k, v) => (k === 'words' ? undefined : v), 1)}</pre>
+          <pre>{JSON.stringify(eff, (k, v) => (k === 'words' ? undefined : v), 1)}</pre>
         </details>
       </aside>
       {print && <PrintSheet kind={print.kind} large={print.large} contrast={print.contrast} title={name} words={live.map((w) => w.word)} groups={recipe.spelling.sel.slice(0, 2)} onDone={() => setPrint(null)} />}

@@ -888,3 +888,32 @@ with codes from it.
 - Data: `scripts/build-word-explorer-lists.py` writes `public/word-explorer/lists.json` (36,500 words).
 - Not done here: teacher locks on blocks (Phase 5); sending lists to question sets and symbol bubbles (those tools do
   not exist yet); assigning to signed-in students (no accounts yet, so Assign makes a link).
+
+## 2026-11-12: Word Explorer Phase 5, Word List Maker as its own tool, Home buttons, no duplicate formulas
+
+Her requests: "move to phase 5", "formulas should never be duplicated in search", "add word list maker as separate
+app entirely", "add a home button to all apps that return to main dashboard screen of literacy manipulatives".
+
+- **Phase 5 settings** (per student; a student's device is that student until accounts exist): colors, text size, line
+  spacing (Standard, More, Most), letter and word spacing together (Standard, Wider, Widest), font as a personal
+  choice (Inclusive Sans, OpenDyslexic, the device's font), button size (44 px or Extra large 56 px), reduce motion
+  (on by default), calm mode (hides side panels, why lines, Tier and frequency tags, the word trail), reading speed,
+  saying button names, and the **word page view preset**: Simple (picture, explanation, one example), Full, Grammar,
+  Word study, Thesaurus.
+- **Teacher locks:** in Teacher view every setting has a Lock button; locked settings show "Your teacher set this" to
+  students. A **teacher PIN** keeps students from turning on Teacher view. In the Word List Maker each filter block has
+  "Lock for students": it keeps the teacher's picks and students cannot change them.
+- **Report a problem** on every word page (Teacher view), and a **Sources and licenses** page (`/words?view=sources`,
+  linked from Settings) listing every source and license, with the problem reports (mark fixed, download).
+- **Allow live lookups** (teacher setting, off by default, per her spec section 10): outside dictionaries
+  (dictionaryapi.dev, Datamuse) are used only when it is on. This also covers Write mode's lookups of unknown words and
+  the whiteboard's word-part meanings; with it off, the whiteboard's meanings come from Word Explorer's own WordNet data.
+- **Word List Maker is its own tool** at `/lists` with a dashboard card, its own header (Home, Word Explorer,
+  Settings) and the main menu. Word Explorer's Word Lists button, "Make a list with this pattern" and "Make a list from
+  this word" open it with the filters ready; old `/words?view=list&l=...` links go to `/lists?l=...`.
+- **Formula Search:** each formula code shows once. Rows of her list with the same code (S1.A.B "The dog ran quickly"
+  and S1.A.B as an answer, "The cat went home") are one card listing every use, and a code that matches is never
+  repeated under Close formulas.
+- **Home button** on every tool (Whiteboard, Word Processor, Word Explorer, Word List Maker, Formula Search, Daily
+  Procedure), back to the dashboard (`src/components/HomeButton.tsx`). In Word Explorer the word trail's first chip is
+  now "Start" (Word Explorer's own start page), so "Home" always means the dashboard.

@@ -1,6 +1,7 @@
 import '@fontsource-variable/inclusive-sans/wght.css';
 import '@fontsource-variable/inclusive-sans/wght-italic.css';
 import './wordExplorer.css';
+import '../../lib/fontChoice';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Icon } from '../Icon';
 import { MainMenu } from '../MainMenu';
@@ -9,8 +10,9 @@ import { WordPage } from './WordPage';
 import { SettingsDialog } from './SettingsDialog';
 import { WordOfDayCard } from './WordOfDay';
 import { Browse, type BrowseMode } from './Browse';
-import { ListMaker, SharedList } from './ListMaker';
-import type { Recipe } from '../../lib/word-explorer/lists';
+import { SourcesPage } from './SourcesPage';
+import { startList } from '../../lib/word-explorer/lists';
+import { HomeButton } from '../HomeButton';
 import { loadIndex, onIndex, indexReady } from '../../lib/word-explorer/data';
 import { autocomplete, search, type SearchResult } from '../../lib/word-explorer/search';
 import { SEED_ENTRIES } from '../../lib/word-explorer/seed';
@@ -22,7 +24,7 @@ import { myWords, subscribeMyWords } from '../../lib/writer/myWords';
 // the center panel, which changes in place. Engines live in src/lib/word-explorer (UI-free).
 
 type Page = { kind: 'home' } | { kind: 'word'; word: string; note?: string; tab?: string } | { kind: 'results'; query: string }
-  | { kind: 'browse'; mode?: BrowseMode } | { kind: 'lists'; recipe?: Recipe; name?: string; n?: number } | { kind: 'shared'; data: string };
+  | { kind: 'browse'; mode?: BrowseMode } | { kind: 'sources' };
 
 function pageFromUrl(): Page {
   const p = new URLSearchParams(window.location.search);
@@ -32,16 +34,16 @@ function pageFromUrl(): Page {
   if (q) return { kind: 'results', query: q };
   const view = p.get('view');
   if (view === 'browse') return { kind: 'browse' };
-  if (view === 'lists') return { kind: 'lists' };
-  if (view === 'list' && p.get('l')) return { kind: 'shared', data: p.get('l')! };
+  if (view === 'sources') return { kind: 'sources' };
+  // The Word List Maker is its own tool now (/lists); old links still work.
+  if (view === 'lists' || view === 'list') { window.location.replace(`/lists${p.get('l') ? `?l=${encodeURIComponent(p.get('l')!)}` : ''}`); }
   return { kind: 'home' };
 }
 function urlFor(page: Page) {
   if (page.kind === 'word') return `/words?w=${encodeURIComponent(page.word)}${page.tab ? `&tab=${page.tab}` : ''}`;
   if (page.kind === 'results') return `/words?q=${encodeURIComponent(page.query)}`;
   if (page.kind === 'browse') return '/words?view=browse';
-  if (page.kind === 'lists') return '/words?view=lists';
-  if (page.kind === 'shared') return `/words?view=list&l=${encodeURIComponent(page.data)}`;
+  if (page.kind === 'sources') return '/words?view=sources';
   return '/words';
 }
 
@@ -96,21 +98,20 @@ export function WordExplorer() {
   return (
     <ReaderProvider rate={settings.speed}>
       <TapProvider open={openWord}>
-      <ListContext.Provider value={{ makeList: (recipe, name) => go({ kind: 'lists', recipe, name, n: Date.now() }) }}>
+      <ListContext.Provider value={{ makeList: (recipe, name) => startList(recipe, name) }}>
         <SayButtons on={settings.sayButtons}>
-          <div className="wx" data-theme={settings.theme} data-size={settings.textSize}>
+          <div className="wx" data-theme={settings.theme} data-size={settings.textSize} data-spacing={settings.spacing} data-lines={settings.lineSpacing} data-font={settings.font} data-buttons={settings.buttonSize} data-calm={settings.calm ? 'on' : 'off'} data-motion={settings.reduceMotion ? 'reduce' : 'full'}>
             <a className="wx-skip" href="#wx-main">Skip to the word</a>
-            <Header onHome={() => go({ kind: 'home' })} onSearch={runSearch} onSettings={() => setShowSettings(true)} onBrowse={() => go({ kind: 'browse' })} onLists={() => go({ kind: 'lists', n: Date.now() })} />
+            <Header onHome={() => go({ kind: 'home' })} onSearch={runSearch} onSettings={() => setShowSettings(true)} onBrowse={() => go({ kind: 'browse' })} />
             <Trail trail={trail} current={page.kind === 'word' ? page.word : null}
               onHome={() => go({ kind: 'home' })}
               onPick={(w, i) => { setTrail((t) => t.slice(0, i + 1)); setPage({ kind: 'word', word: w }); window.history.pushState(null, '', urlFor({ kind: 'word', word: w })); }} />
             <main id="wx-main" ref={mainRef} tabIndex={-1} className="wx-main">
-              {page.kind === 'home' && <Home onSearch={runSearch} settings={settings} onOpen={openWord} onBrowse={(m) => go({ kind: 'browse', mode: m })} onLists={() => go({ kind: 'lists', n: Date.now() })} />}
-              {page.kind === 'word' && <WordPage key={`${page.word}-${page.tab ?? ''}`} word={page.word} note={page.note} initialTab={page.tab} teacher={settings.teacherView} />}
+              {page.kind === 'home' && <Home onSearch={runSearch} settings={settings} onOpen={openWord} onBrowse={(m) => go({ kind: 'browse', mode: m })} onLists={() => window.location.assign('/lists')} />}
+              {page.kind === 'word' && <WordPage key={`${page.word}-${page.tab ?? ''}`} word={page.word} note={page.note} initialTab={page.tab} teacher={settings.teacherView} preset={settings.preset} />}
               {page.kind === 'results' && <Results result={search(page.query)} />}
               {page.kind === 'browse' && <Browse key={page.mode ?? 'az'} initialMode={page.mode} view={settings.browseView} onView={(v) => update({ ...settings, browseView: v })} />}
-              {page.kind === 'lists' && <ListMaker key={page.n ?? 0} initial={page.recipe} initialName={page.name} teacher={settings.teacherView} />}
-              {page.kind === 'shared' && <SharedList data={page.data} />}
+              {page.kind === 'sources' && <SourcesPage teacher={settings.teacherView} />}
             </main>
             {showSettings && <SettingsDialog settings={settings} onChange={update} onClose={() => setShowSettings(false)} />}
             <MainMenu />
@@ -142,7 +143,7 @@ type Recognizer = { lang: string; interimResults: boolean; maxAlternatives: numb
 const Recognition = typeof window === 'undefined' ? undefined
   : ((window as unknown as Record<string, unknown>).SpeechRecognition ?? (window as unknown as Record<string, unknown>).webkitSpeechRecognition) as (new () => Recognizer) | undefined;
 
-function Header({ onHome, onSearch, onSettings, onBrowse, onLists }: { onHome: () => void; onSearch: (q: string) => void; onSettings: () => void; onBrowse: () => void; onLists: () => void }) {
+function Header({ onHome, onSearch, onSettings, onBrowse }: { onHome: () => void; onSearch: (q: string) => void; onSettings: () => void; onBrowse: () => void }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -168,6 +169,7 @@ function Header({ onHome, onSearch, onSettings, onBrowse, onLists }: { onHome: (
 
   return (
     <header className="wx-header">
+      <HomeButton className="wx-btn" />
       <button type="button" className="wx-appname" onClick={onHome}><Icon name="book" size={28} /><span>Word Explorer</span></button>
       <form className="wx-search" role="search" onSubmit={(e) => { e.preventDefault(); setOpen(false); if (active >= 0 && options[active]) pick(options[active]); else onSearch(q); }}>
         <label htmlFor="wx-q" className="wx-sr">Search for a word</label>
@@ -198,7 +200,7 @@ function Header({ onHome, onSearch, onSettings, onBrowse, onLists }: { onHome: (
         </button>
       </form>
       <button type="button" className="wx-btn" onClick={onBrowse}><Icon name="book" size={22} /><span>Browse</span></button>
-      <button type="button" className="wx-btn" onClick={onLists}><Icon name="menu" size={22} /><span>Word Lists</span></button>
+      <a className="wx-btn" href="/lists"><Icon name="menu" size={22} /><span>Word Lists</span></a>
       <button type="button" className="wx-btn" onClick={onSettings}><Icon name="gear" size={22} /><span>Settings</span></button>
       {voiceMsg && <p className="wx-voice-msg" role="status">{voiceMsg}</p>}
     </header>
@@ -210,7 +212,7 @@ function Trail({ trail, current, onHome, onPick }: { trail: string[]; current: s
     <nav className="wx-trail" aria-label="Word trail">
       <span className="wx-trail-label">Word trail:</span>
       <ol>
-        <li><button type="button" className="wx-chip" onClick={onHome}><Icon name="home" size={20} /><span>Home</span></button></li>
+        <li><button type="button" className="wx-chip" onClick={onHome}><Icon name="book" size={20} /><span>Start</span></button></li>
         {trail.map((w, i) => (
           <li key={`${w}-${i}`}>
             <span className="wx-trail-sep" aria-hidden="true">&gt;</span>

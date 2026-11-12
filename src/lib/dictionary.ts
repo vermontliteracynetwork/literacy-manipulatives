@@ -1,3 +1,5 @@
+import { rawWord } from './word-explorer/data';
+import { liveLookupsAllowed } from './wordTypes';
 // Real definitions for words built from morpheme pieces, from the free Dictionary API
 // (https://dictionaryapi.dev, no key needed). Each word is looked up once per visit and remembered.
 
@@ -12,6 +14,17 @@ export const peekDefinition = (word: string): Definition | undefined => cache.ge
 
 export function lookupDefinition(word: string): Promise<Definition> {
   const key = word.toLowerCase();
+  // Live lookups are off unless a teacher allows them (Word Explorer Settings, "Allow live lookups"); then the
+  // meaning comes from Word Explorer's own dictionary data (Open English WordNet, on this site).
+  if (!liveLookupsAllowed()) {
+    const known = cache.get(key);
+    if (known) return Promise.resolve(known);
+    return rawWord(key).then((r): Definition => {
+      const d: Definition = r ? { text: r.parts[0]?.senses[0]?.def ?? null, partOfSpeech: r.parts[0]?.pos, parts: r.parts.map((p) => p.pos) } : { text: null };
+      cache.set(key, d);
+      return d;
+    }).catch((): Definition => ({ text: null }));
+  }
   const known = cache.get(key);
   if (known) return Promise.resolve(known);
   const inFlight = pending.get(key);

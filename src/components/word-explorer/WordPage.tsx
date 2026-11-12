@@ -4,6 +4,8 @@ import { BAND_NAMES, PosTag, SpeakButton, Spoken, StatusTag, TapWord, wordCount 
 import { clearEntryCache, getEntry } from '../../lib/word-explorer/data';
 import { onReview } from '../../lib/word-explorer/review';
 import { ReviewButtons } from './ReviewButtons';
+import { ReportProblem } from './SourcesPage';
+import type { Preset } from '../../lib/word-explorer/settings';
 import { ListsTab, PicturesTab, SoundsTab, WordPartsTab } from './StudyTabs';
 import { ThesaurusTab } from './ThesaurusTab';
 import { baseWords } from '../../lib/word-explorer/search';
@@ -21,10 +23,21 @@ const TABS: { id: Tab; label: string; icon: 'book' | 'speaker' | 'puzzle' | 'ima
   { id: 'lists', label: 'Lists', icon: 'menu' },
 ];
 
-export function WordPage({ word, teacher, note, initialTab }: { word: string; teacher: boolean; note?: string; initialTab?: string }) {
+// View presets (spec 4.2, Phase 5): which tabs a student sees. Teacher view always shows every tab.
+const PRESET_TABS: Record<Preset, Tab[]> = {
+  full: ['dictionary', 'thesaurus', 'sounds', 'parts', 'pictures', 'lists'],
+  simple: ['dictionary'],
+  grammar: ['dictionary', 'thesaurus'],
+  wordstudy: ['dictionary', 'sounds', 'parts', 'lists'],
+  thesaurus: ['dictionary', 'thesaurus', 'pictures'],
+};
+
+export function WordPage({ word, teacher, note, initialTab, preset = 'full' }: { word: string; teacher: boolean; note?: string; initialTab?: string; preset?: Preset }) {
+  const tabs = TABS.filter((t) => teacher || PRESET_TABS[preset].includes(t.id));
+  const simple = !teacher && preset === 'simple';
   const [entry, setEntry] = useState<WordEntry | null | undefined>(undefined);
   const [version, setVersion] = useState(0);
-  const [tab, setTab] = useState<Tab>(() => (TABS.some((t) => t.id === initialTab) ? initialTab as Tab : 'dictionary'));
+  const [tab, setTab] = useState<Tab>(() => (tabs.some((t) => t.id === initialTab) ? initialTab as Tab : 'dictionary'));
   useEffect(() => onReview(() => { clearEntryCache(); setVersion((v) => v + 1); }), []);
   useEffect(() => onWordTypes(() => setVersion((v) => v + 1)), []);
   useEffect(() => {
@@ -44,7 +57,7 @@ export function WordPage({ word, teacher, note, initialTab }: { word: string; te
       <div className="wx-word-body">
         <nav className="wx-sidemenu" aria-label="Word page sections">
           <div role="tablist" aria-orientation="vertical">
-            {TABS.map((t) => (
+            {tabs.map((t) => (
               <button key={t.id} type="button" role="tab" id={`wx-tab-${t.id}`} aria-selected={tab === t.id} aria-controls={`wx-panel-${t.id}`} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>
                 <Icon name={t.icon} size={24} /><span>{t.label}</span>
               </button>
@@ -52,7 +65,7 @@ export function WordPage({ word, teacher, note, initialTab }: { word: string; te
           </div>
         </nav>
         <div role="tabpanel" id={`wx-panel-${tab}`} aria-labelledby={`wx-tab-${tab}`} className="wx-panel">
-          {tab === 'dictionary' && <DictionaryTab entry={entry} teacher={teacher} />}
+          {tab === 'dictionary' && <DictionaryTab entry={entry} teacher={teacher} simple={simple} />}
           {tab === 'thesaurus' && <ThesaurusTab entry={entry} teacher={teacher} />}
           {tab === 'sounds' && <SoundsTab entry={entry} teacher={teacher} />}
           {tab === 'parts' && <WordPartsTab entry={entry} teacher={teacher} />}
@@ -95,11 +108,12 @@ function WordHeader({ entry, teacher }: { entry: WordEntry; teacher: boolean }) 
         </button>
       </div>
       {teacher && <ReviewButtons statusKey={`${entry.id}:entry`} status={entry.status} what="the word facts (forms, Tier, frequency, sound-out)" />}
+      {teacher && <ReportProblem word={entry.headword} />}
     </header>
   );
 }
 
-function DictionaryTab({ entry, teacher }: { entry: WordEntry; teacher: boolean }) {
+function DictionaryTab({ entry, teacher, simple }: { entry: WordEntry; teacher: boolean; simple: boolean }) {
   const senses = entry.senses.filter((s) => visibleTo(s.definition.status, teacher));
   const showFacts = visibleTo(entry.status, teacher);
   const synonyms = uniq(senses.flatMap((s) => s.synonyms.map((x) => x.wordId))).slice(0, 10);
@@ -115,9 +129,9 @@ function DictionaryTab({ entry, teacher }: { entry: WordEntry; teacher: boolean 
         {senses.length === 0 && (
           <p className="wx-waiting"><Spoken id="waiting" text="This word is waiting for a teacher to check it. Ask your teacher about it." /> <SpeakButton id="waiting" text="This word is waiting for a teacher to check it. Ask your teacher about it." label="Read this message" /></p>
         )}
-        {senses.map((s, i) => <SenseCard key={s.id} entry={entry} sense={s} n={i + 1} teacher={teacher} />)}
+        {senses.map((s, i) => <SenseCard key={s.id} entry={entry} sense={s} n={i + 1} teacher={teacher} simple={simple} />)}
       </div>
-      <aside className="wx-side" aria-label="More about this word">
+      {!simple && <aside className="wx-side" aria-label="More about this word">
         {picture && (
           <figure className="wx-side-card wx-side-picture">
             <img src={picture.assetId} alt={entry.headword} width={120} height={120} />
@@ -146,7 +160,7 @@ function DictionaryTab({ entry, teacher }: { entry: WordEntry; teacher: boolean 
           <h2 className="wx-h3">Sources</h2>
           <ul>{sources.map((p) => <li key={p.source}><SourceLine p={p} /></li>)}</ul>
         </section>
-      </aside>
+      </aside>}
     </div>
   );
 }
@@ -193,13 +207,15 @@ function whyLine(example: string, entry: WordEntry, pos: PartOfSpeech): string |
   return got === pos ? r.why : null;
 }
 
-function SenseCard({ entry, sense, n, teacher }: { entry: WordEntry; sense: Sense; n: number; teacher: boolean }) {
+// The Simple preset shows a picture, the explanation and one example (the definition when there is no explanation).
+function SenseCard({ entry, sense, n, teacher, simple = false }: { entry: WordEntry; sense: Sense; n: number; teacher: boolean; simple?: boolean }) {
   const id = `sense:${sense.id}`;
   const heading = `${entry.headword} (${sense.signpost})`;
   const def = sense.definition.value;
   const exp = visibleTo(sense.explanation.status, teacher) ? sense.explanation.value : '';
   const readText = [heading, `${sense.pos}.`, def, exp].filter(Boolean).join(' ');
-  const examples = sense.examples.filter((e) => visibleTo(e.status, teacher));
+  const examples = sense.examples.filter((e) => visibleTo(e.status, teacher)).slice(0, simple ? 1 : undefined);
+  const pic = simple ? sense.pictures[0] : undefined;
   const offDef = wordCount(heading) + 1;
   const offExp = offDef + wordCount(def);
   return (
@@ -210,19 +226,20 @@ function SenseCard({ entry, sense, n, teacher }: { entry: WordEntry; sense: Sens
         <SpeakButton id={id} text={readText} label={`Read meaning ${n}`} />
         {teacher && <StatusTag status={sense.definition.status} />}
       </div>
+      {pic && <img className="wx-sense-pic" src={pic.assetId} alt={`${entry.headword} (${sense.signpost})`} width={120} height={120} />}
       <dl className="wx-sense-body">
-        <dt>Definition</dt>
-        <dd className="wx-definition"><Spoken id={id} text={def} offset={offDef} /></dd>
+        {(!simple || !exp) && <><dt>Definition</dt>
+        <dd className="wx-definition"><Spoken id={id} text={def} offset={offDef} /></dd></>}
         {exp ? <><dt>Explanation</dt><dd className="wx-explanation"><Spoken id={id} text={exp} offset={offExp} /></dd></>
           : teacher && <><dt>Explanation</dt><dd className="wx-missing">Not written yet.</dd></>}
       </dl>
       {examples.length > 0 && (
         <div className="wx-examples">
           <h4 className="wx-h4">Examples</h4>
-          <ul>{examples.map((e, i) => <ExampleRow key={i} e={e} id={`${id}:ex${i}`} entry={entry} pos={sense.pos} teacher={teacher} />)}</ul>
+          <ul>{examples.map((e, i) => <ExampleRow key={i} e={e} id={`${id}:ex${i}`} entry={entry} pos={sense.pos} teacher={teacher} simple={simple} />)}</ul>
         </div>
       )}
-      {sense.grammar.patterns.length > 0 && (
+      {!simple && sense.grammar.patterns.length > 0 && (
         <div className="wx-patterns">
           <h4 className="wx-h4">How to use it</h4>
           <ul className="wx-chips">{sense.grammar.patterns.map((p) => <li key={p} className="wx-pattern">{p}</li>)}</ul>
@@ -238,7 +255,7 @@ function SenseCard({ entry, sense, n, teacher }: { entry: WordEntry; sense: Sens
   );
 }
 
-function ExampleRow({ e, id, entry, pos, teacher }: { e: Example; id: string; entry: WordEntry; pos: PartOfSpeech; teacher: boolean }) {
+function ExampleRow({ e, id, entry, pos, teacher, simple = false }: { e: Example; id: string; entry: WordEntry; pos: PartOfSpeech; teacher: boolean; simple?: boolean }) {
   const why = useMemo(() => whyLine(e.text, entry, pos), [e.text, entry, pos]);
   return (
     <li className="wx-example">
@@ -248,7 +265,7 @@ function ExampleRow({ e, id, entry, pos, teacher }: { e: Example; id: string; en
         {e.time && <span className={`wx-time wx-time-${e.time}`}>{e.time}</span>}
         {e.formulaCode ? <span className="wx-code">Formula {e.formulaCode}</span> : teacher && <span className="wx-code">No formula card matches</span>}
       </div>
-      {why && (
+      {why && !simple && (
         <p className="wx-why">
           <span className="wx-why-label">Why:</span> <Spoken id={`${id}:why`} text={why} />
           <SpeakButton id={`${id}:why`} text={why} label="Read why" />

@@ -898,3 +898,6 @@ a.btn { text-decoration: none; color: inherit; display: inline-flex; align-items
 .lm-embedded .lm-shell { min-height: 0; }
 .lm-shell-right { flex-direction: row-reverse; }
 .lm-shell-right .lm-sidebar { border-right: 0; border-left: 1px solid var(--content-border); }
+
+/* The Home button on every tool (back to the dashboard). */
+.lm-home-btn { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }

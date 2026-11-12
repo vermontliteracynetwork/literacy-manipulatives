@@ -2,6 +2,7 @@ import './procedures.css';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import LiteracyManipulatives, { type BoardData } from '../../LiteracyManipulatives';
 import { TemplateEditor, TemplateView } from './TemplatePages';
+import { HomeButton } from '../HomeButton';
 import { LibraryDialog, SaveDialog } from './Library';
 import { KIND_NAMES, PHASES, blankData, newId, newPage, phaseOf, type PageKind, type Phase, type Procedure, type ProcPage } from '../../lib/procedures/types';
 import { readOpen, saveProcedure, writeOpen } from '../../lib/procedures/library';
@@ -111,7 +112,8 @@ export function DailyProcedure() {
   return (
     <div className={`dp${learn ? ' dp-learn' : ' dp-edit'}`}>
       <header className="dp-toolbar">
-        <a className="lm-sidebar-title lm-home-link" href="/" title="Back to all tools">Daily Procedure</a>
+        <HomeButton />
+        <span className="lm-sidebar-title">Daily Procedure</span>
         {learn ? <span className="dp-doc-title">{proc.title}</span>
           : <input className="dp-doc-title-input" value={proc.title} onChange={(e) => change((p) => ({ ...p, title: e.target.value }))} aria-label="Procedure name" />}
         <span className="lm-toolbar-divider" />

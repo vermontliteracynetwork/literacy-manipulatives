@@ -454,3 +454,29 @@
   .wxp-contrast, .wxp-contrast * { color: #000 !important; border-color: #000 !important; }
   .wxp-contrast .wxp-card, .wxp-contrast .wxp-box, .wxp-contrast .wxp-col { border-width: 3pt; }
 }
+.wx-frozen { border: 0; margin: 0; min-width: 0; opacity: 0.85; }
+
+/* ---------- Phase 5: reading settings, presets, reports ---------- */
+.wx[data-buttons="xl"] { --target: 56px; }
+.wx[data-lines="more"] { line-height: 1.8; }
+.wx[data-lines="most"] { line-height: 2.1; }
+.wx[data-spacing="wider"] { letter-spacing: 0.05em; word-spacing: 0.16em; }
+.wx[data-spacing="widest"] { letter-spacing: 0.1em; word-spacing: 0.32em; }
+.wx[data-font="dyslexic"] { font-family: 'OpenDyslexic LM', "Inclusive Sans Variable", sans-serif; }
+.wx[data-font="system"] { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wx[data-motion="reduce"] *, .wx[data-motion="reduce"] *::before, .wx[data-motion="reduce"] *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+/* Calm mode hides extras: side panels, why lines, Tier and frequency facts, pattern extras. */
+.wx[data-calm="on"] .wx-side, .wx[data-calm="on"] .wx-why, .wx[data-calm="on"] .wx-fact, .wx[data-calm="on"] .wx-pattern-more,
+.wx[data-calm="on"] .wx-tier, .wx[data-calm="on"] .wx-code, .wx[data-calm="on"] .wx-trail { display: none !important; }
+.wx[data-calm="on"] .wx-dict { grid-template-columns: 1fr; }
+.wx-sense-pic { display: block; margin-bottom: var(--s3); background: #fff; border-radius: var(--r-tile); padding: var(--s2); border: 1px solid var(--line); }
+.wx-pin { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s2); margin: var(--s2) 0 var(--s4); }
+.wx-textarea { min-height: 88px; padding: var(--s2) var(--s3); }
+.wx-report { display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s3); max-width: 520px; }
+.wx-report-btn { margin-top: var(--s3); }
+.wx-table { width: 100%; border-collapse: collapse; }
+.wx-table th, .wx-table td { text-align: left; vertical-align: top; padding: var(--s2); border-bottom: 1px solid var(--line); }
+.wx-table a { display: inline-flex; min-height: var(--target); align-items: center; }
+.wx-reports { list-style: none; padding: 0; display: flex; flex-direction: column; gap: var(--s3); }
+.wx-reports li.fixed { opacity: 0.7; }
+.wx-reports a { display: inline-flex; min-height: var(--target); align-items: center; }

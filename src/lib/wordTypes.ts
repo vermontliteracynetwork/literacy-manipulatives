@@ -91,7 +91,11 @@ async function fetchTypes(w: string): Promise<WordType[] | null> {
   return found;
 }
 // Look up any of these words no dictionary here knows. Resolves when they're in, or after `ms` either way.
+// Outside dictionaries are behind a teacher setting, off unless a teacher turns on "Allow live lookups" (Word Explorer
+// build spec section 10; the setting is in Word Explorer's Settings, Teacher view).
+export const liveLookupsAllowed = () => { try { return localStorage.getItem('lm-live-lookups') === 'on'; } catch { return false; } };
 export function lookUpWords(list: string[], ms = 2500): Promise<void> {
+  if (!liveLookupsAllowed()) return Promise.resolve();
   const jobs = list.map(key).filter((w) => w.length > 1 && /^[a-z'-]+$/.test(w) && !localTypes(w) && !ONLINE.has(w) && !BLOCKED.test(w))
     .map((w) => {
       if (!pending.has(w)) pending.set(w, fetchTypes(w).then((t) => { if (t) { ONLINE.set(w, t.length ? t : null); save(); notify(); } }).finally(() => pending.delete(w)));
