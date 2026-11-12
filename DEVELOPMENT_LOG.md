@@ -861,3 +861,30 @@ with codes from it.
 - More words for each meaning: WordNet's more specific words for verbs and nouns (run: sprint, jog, scurry) are now
   in the data, and the ten starter words have drafted thesaurus words and opposites (happy: glad, cheerful, joyful;
   opposites sad, unhappy).
+
+## 2026-11-12: Word Explorer, Phase 4 (Browse and Word List Maker)
+
+- **Browse** (header button, and Home's "Find a word" tiles): A to Z (a letter grid in two rows of 13, guide words for
+  the page), Pictures, Sounds (pick a sound) and Topics (WordNet topics in plain words: Animals, Food, Feelings...).
+  Multi-select filter drop-downs: part of speech, Tier, frequency, topic, word part, and Has a picture. Results as
+  picture cards or a plain list (kept per device in Settings), 60 to a page; one tap says a word, two open it.
+- **Word List Maker** (header "Word Lists"): the nine filter blocks of spec section 6 on the left (spelling patterns
+  and sounds with letter search and "all spellings of a sound" chips; syllable types; prefixes, suffixes and roots;
+  part of speech; Tier; frequency; topic, unit or formula unit; has a picture; synonyms and antonyms of a seed word's
+  meaning), Only include / Must include (Any one or All) on blocks 1 to 4 with the hint text changing with the mode,
+  and the exact `passes()` rule in `src/lib/word-explorer/lists.ts`. A word must pass every block. Words without
+  letter-sound data (flagged by the phonics engine) never pass an active spelling or syllable block.
+- **The live list** on the right: name, word count, words (remove one, or add one by hand), sort (most common, A to
+  Z, by pattern), Keep updating or Lock this list, Save (words and recipe), My lists, Add to My Words, Assign (teacher:
+  copies a link that opens the list for students), and printables: word wall cards, flash cards, Frayer cards (with an
+  approved definition, else a blank box), two-column sort, spelling list, each with Large print and High contrast.
+- **Word page:** a **Lists** tab (saved lists that hold the word, and Make a list from this word); the Sounds tab's
+  pattern section has **Make a list with this pattern**.
+- **Acceptance checks** (run against the engine): {m, a /ă/, s, t, p, i /ĭ/} Only include + closed syllables gives mat,
+  sat, map, tap, pat, sit, mist and 35 more, none with n, ai or silent e; adding {n} brings in pin, tin, man and snap;
+  Must include, Any one {ai} gives 528 words, all with ai; Only include {verb} leaves out run, Must include {verb} has
+  it. **napkin** does not join with {m, a, s, t, p, i, n}: its k is not picked (it joins once k is added). "tit" and
+  "tits" are now on the kid-safe list.
+- Data: `scripts/build-word-explorer-lists.py` writes `public/word-explorer/lists.json` (36,500 words).
+- Not done here: teacher locks on blocks (Phase 5); sending lists to question sets and symbol bubbles (those tools do
+  not exist yet); assigning to signed-in students (no accounts yet, so Assign makes a link).

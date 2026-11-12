@@ -4,20 +4,21 @@ import { BAND_NAMES, PosTag, SpeakButton, Spoken, StatusTag, TapWord, wordCount 
 import { clearEntryCache, getEntry } from '../../lib/word-explorer/data';
 import { onReview } from '../../lib/word-explorer/review';
 import { ReviewButtons } from './ReviewButtons';
-import { PicturesTab, SoundsTab, WordPartsTab } from './StudyTabs';
+import { ListsTab, PicturesTab, SoundsTab, WordPartsTab } from './StudyTabs';
 import { ThesaurusTab } from './ThesaurusTab';
 import { baseWords } from '../../lib/word-explorer/search';
 import { readSentenceWhy, onWordTypes, type WordType } from '../../lib/wordTypes';
 import { addMyWord, myWords, removeMyWord, subscribeMyWords } from '../../lib/writer/myWords';
 import { visibleTo, type Example, type PartOfSpeech, type Provenance, type Sense, type WordEntry } from '../../lib/word-explorer/types';
 
-type Tab = 'dictionary' | 'thesaurus' | 'sounds' | 'parts' | 'pictures';
-const TABS: { id: Tab; label: string; icon: 'book' | 'speaker' | 'puzzle' | 'image' | 'tree' }[] = [
+type Tab = 'dictionary' | 'thesaurus' | 'sounds' | 'parts' | 'pictures' | 'lists';
+const TABS: { id: Tab; label: string; icon: 'book' | 'speaker' | 'puzzle' | 'image' | 'tree' | 'menu' }[] = [
   { id: 'dictionary', label: 'Dictionary', icon: 'book' },
   { id: 'thesaurus', label: 'Thesaurus', icon: 'tree' },
   { id: 'sounds', label: 'Sounds', icon: 'speaker' },
   { id: 'parts', label: 'Word Parts', icon: 'puzzle' },
   { id: 'pictures', label: 'Pictures', icon: 'image' },
+  { id: 'lists', label: 'Lists', icon: 'menu' },
 ];
 
 export function WordPage({ word, teacher, note, initialTab }: { word: string; teacher: boolean; note?: string; initialTab?: string }) {
@@ -56,6 +57,7 @@ export function WordPage({ word, teacher, note, initialTab }: { word: string; te
           {tab === 'sounds' && <SoundsTab entry={entry} teacher={teacher} />}
           {tab === 'parts' && <WordPartsTab entry={entry} teacher={teacher} />}
           {tab === 'pictures' && <PicturesTab entry={entry} teacher={teacher} />}
+          {tab === 'lists' && <ListsTab entry={entry} />}
         </div>
       </div>
     </article>

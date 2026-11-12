@@ -3,6 +3,7 @@ import { Icon } from '../Icon';
 import { speak, speechWords, stopSpeaking } from '../../lib/word-explorer/speech';
 import { GRAMMAR_SYMBOL_INFO } from '../../lib/grammarSymbols';
 import type { PartOfSpeech, ReviewStatus } from '../../lib/word-explorer/types';
+import type { Recipe } from '../../lib/word-explorer/lists';
 
 // Small shared pieces for Word Explorer: the reader (read aloud with word highlighting), tappable words, the
 // part of speech symbol and the speak button.
@@ -95,3 +96,6 @@ export function StatusTag({ status }: { status: ReviewStatus }) {
 }
 
 export const BAND_NAMES = ['', 'Very common', 'Common', 'Less common', 'Not common', 'Rare'];
+
+// Opening the Word List Maker from a word page ("Make a list with this pattern", "Make a list from this word").
+export const ListContext = createContext<{ makeList: (recipe: Recipe, name: string) => void }>({ makeList: () => {} });

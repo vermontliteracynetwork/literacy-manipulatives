@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { PosTag, SpeakButton, Spoken, StatusTag, TapWord, useReader } from './parts';
+import { useContext, useEffect, useState } from 'react';
+import { ListContext, PosTag, SpeakButton, Spoken, StatusTag, TapWord, useReader } from './parts';
+import { emptyRecipe, loadLists, readLists, wordsOfList } from '../../lib/word-explorer/lists';
 import { ReviewButtons } from './ReviewButtons';
 import { onReview, statusOf } from '../../lib/word-explorer/review';
 import { patternLabel, patternTags, PATTERN_BY_ID, soundLabel, spellingsOfSound, SYLLABLE_TYPE_NOTES, tileLabel, tileSpeech, wordsWithPattern, type Grapheme } from '../../lib/word-explorer/phonics';
@@ -71,6 +72,7 @@ export function SoundsTab({ entry, teacher }: { entry: WordEntry; teacher: boole
         </div>
         {chosen && (
           <div className="wx-pattern-more">
+            <MakePatternList id={chosen.id} label={patternLabel(chosen)} />
             <h3 className="wx-h3">More words with {patternLabel(chosen)}</h3>
             {more.length ? <div className="wx-chips">{more.map((w) => <TapWord key={w} word={w} />)}</div> : <p className="wx-muted">No other words found yet.</p>}
             {chosen.sound && (
@@ -249,6 +251,30 @@ export function PicturesTab({ entry, teacher }: { entry: WordEntry; teacher: boo
           </div>
         </section>
       ))}
+    </div>
+  );
+}
+
+function MakePatternList({ id, label }: { id: string; label: string }) {
+  const { makeList } = useContext(ListContext);
+  return <button type="button" className="wx-btn wx-btn-secondary" onClick={() => { const r = emptyRecipe(); r.spelling = { sel: [id], mode: 'must', match: 'any' }; makeList(r, `Words with ${label}`); }}>Make a list with this pattern</button>;
+}
+
+// ---------- Lists ----------
+export function ListsTab({ entry }: { entry: WordEntry }) {
+  const { makeList } = useContext(ListContext);
+  const [ready, setReady] = useState(false);
+  useEffect(() => { loadLists().then(() => setReady(true)); }, []);
+  const lists = ready ? readLists().filter((l) => wordsOfList(l).includes(entry.headword)) : [];
+  return (
+    <div className="wx-tab-stack">
+      <section className="wx-card">
+        <h2 className="wx-h2">Lists with {entry.headword}</h2>
+        {lists.length ? <ul>{lists.map((l) => <li key={l.id}>{l.name} ({wordsOfList(l).length} words)</li>)}</ul> : <p className="wx-muted">None of your saved lists has this word yet.</p>}
+        <div className="wx-lm-actions">
+          <button type="button" className="wx-btn wx-btn-primary" onClick={() => { const r = emptyRecipe(); const s = entry.senses[0]; r.related = { seed: entry.headword, senseId: s?.id ?? '', synonyms: true, antonyms: false, words: s ? s.synonyms.map((x) => x.wordId) : [] }; makeList(r, `Words like ${entry.headword}`); }}>Make a list from this word</button>
+        </div>
+      </section>
     </div>
   );
 }

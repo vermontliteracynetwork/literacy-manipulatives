@@ -12,9 +12,10 @@ export interface WxSettings {
   wotdFrom: 'any' | 'tier1' | 'tier2' | 'tier3' | 'pattern' | 'root';
   wotdPattern: string;     // a pattern id from the Sounds list, when wotdFrom is 'pattern'
   wotdRepeatDays: number;
+  browseView: 'cards' | 'list'; // Browse results as picture cards or a plain list
 }
 export const DEFAULT_SETTINGS: WxSettings = { theme: 'light', textSize: 'medium', speed: 0.9, sayButtons: true, teacherView: false,
-  wotdFor: 'class', wotdFrom: 'any', wotdPattern: 'ai', wotdRepeatDays: 30 };
+  wotdFor: 'class', wotdFrom: 'any', wotdPattern: 'ai', wotdRepeatDays: 30, browseView: 'cards' };
 const KEY = 'wx-settings-v1';
 export function readSettings(): WxSettings {
   try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') }; } catch { return DEFAULT_SETTINGS; }

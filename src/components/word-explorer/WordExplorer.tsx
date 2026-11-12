@@ -4,10 +4,13 @@ import './wordExplorer.css';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Icon } from '../Icon';
 import { MainMenu } from '../MainMenu';
-import { ReaderProvider, SpeakButton, Spoken, TapProvider, TapWord, useReader } from './parts';
+import { ListContext, ReaderProvider, SpeakButton, Spoken, TapProvider, TapWord, useReader } from './parts';
 import { WordPage } from './WordPage';
 import { SettingsDialog } from './SettingsDialog';
 import { WordOfDayCard } from './WordOfDay';
+import { Browse, type BrowseMode } from './Browse';
+import { ListMaker, SharedList } from './ListMaker';
+import type { Recipe } from '../../lib/word-explorer/lists';
 import { loadIndex, onIndex, indexReady } from '../../lib/word-explorer/data';
 import { autocomplete, search, type SearchResult } from '../../lib/word-explorer/search';
 import { SEED_ENTRIES } from '../../lib/word-explorer/seed';
@@ -18,7 +21,8 @@ import { myWords, subscribeMyWords } from '../../lib/writer/myWords';
 // Word Explorer: the dictionary and thesaurus app (build spec, Phase 1). One view: the header, the word trail and
 // the center panel, which changes in place. Engines live in src/lib/word-explorer (UI-free).
 
-type Page = { kind: 'home' } | { kind: 'word'; word: string; note?: string; tab?: string } | { kind: 'results'; query: string };
+type Page = { kind: 'home' } | { kind: 'word'; word: string; note?: string; tab?: string } | { kind: 'results'; query: string }
+  | { kind: 'browse'; mode?: BrowseMode } | { kind: 'lists'; recipe?: Recipe; name?: string; n?: number } | { kind: 'shared'; data: string };
 
 function pageFromUrl(): Page {
   const p = new URLSearchParams(window.location.search);
@@ -26,11 +30,18 @@ function pageFromUrl(): Page {
   if (w) return { kind: 'word', word: w.toLowerCase(), tab: p.get('tab') ?? undefined };
   const q = p.get('q');
   if (q) return { kind: 'results', query: q };
+  const view = p.get('view');
+  if (view === 'browse') return { kind: 'browse' };
+  if (view === 'lists') return { kind: 'lists' };
+  if (view === 'list' && p.get('l')) return { kind: 'shared', data: p.get('l')! };
   return { kind: 'home' };
 }
 function urlFor(page: Page) {
   if (page.kind === 'word') return `/words?w=${encodeURIComponent(page.word)}${page.tab ? `&tab=${page.tab}` : ''}`;
   if (page.kind === 'results') return `/words?q=${encodeURIComponent(page.query)}`;
+  if (page.kind === 'browse') return '/words?view=browse';
+  if (page.kind === 'lists') return '/words?view=lists';
+  if (page.kind === 'shared') return `/words?view=list&l=${encodeURIComponent(page.data)}`;
   return '/words';
 }
 
@@ -85,22 +96,27 @@ export function WordExplorer() {
   return (
     <ReaderProvider rate={settings.speed}>
       <TapProvider open={openWord}>
+      <ListContext.Provider value={{ makeList: (recipe, name) => go({ kind: 'lists', recipe, name, n: Date.now() }) }}>
         <SayButtons on={settings.sayButtons}>
           <div className="wx" data-theme={settings.theme} data-size={settings.textSize}>
             <a className="wx-skip" href="#wx-main">Skip to the word</a>
-            <Header onHome={() => go({ kind: 'home' })} onSearch={runSearch} onSettings={() => setShowSettings(true)} />
+            <Header onHome={() => go({ kind: 'home' })} onSearch={runSearch} onSettings={() => setShowSettings(true)} onBrowse={() => go({ kind: 'browse' })} onLists={() => go({ kind: 'lists', n: Date.now() })} />
             <Trail trail={trail} current={page.kind === 'word' ? page.word : null}
               onHome={() => go({ kind: 'home' })}
               onPick={(w, i) => { setTrail((t) => t.slice(0, i + 1)); setPage({ kind: 'word', word: w }); window.history.pushState(null, '', urlFor({ kind: 'word', word: w })); }} />
             <main id="wx-main" ref={mainRef} tabIndex={-1} className="wx-main">
-              {page.kind === 'home' && <Home onSearch={runSearch} settings={settings} onOpen={openWord} />}
+              {page.kind === 'home' && <Home onSearch={runSearch} settings={settings} onOpen={openWord} onBrowse={(m) => go({ kind: 'browse', mode: m })} onLists={() => go({ kind: 'lists', n: Date.now() })} />}
               {page.kind === 'word' && <WordPage key={`${page.word}-${page.tab ?? ''}`} word={page.word} note={page.note} initialTab={page.tab} teacher={settings.teacherView} />}
               {page.kind === 'results' && <Results result={search(page.query)} />}
+              {page.kind === 'browse' && <Browse key={page.mode ?? 'az'} initialMode={page.mode} view={settings.browseView} onView={(v) => update({ ...settings, browseView: v })} />}
+              {page.kind === 'lists' && <ListMaker key={page.n ?? 0} initial={page.recipe} initialName={page.name} teacher={settings.teacherView} />}
+              {page.kind === 'shared' && <SharedList data={page.data} />}
             </main>
             {showSettings && <SettingsDialog settings={settings} onChange={update} onClose={() => setShowSettings(false)} />}
             <MainMenu />
           </div>
         </SayButtons>
+      </ListContext.Provider>
       </TapProvider>
     </ReaderProvider>
   );
@@ -126,7 +142,7 @@ type Recognizer = { lang: string; interimResults: boolean; maxAlternatives: numb
 const Recognition = typeof window === 'undefined' ? undefined
   : ((window as unknown as Record<string, unknown>).SpeechRecognition ?? (window as unknown as Record<string, unknown>).webkitSpeechRecognition) as (new () => Recognizer) | undefined;
 
-function Header({ onHome, onSearch, onSettings }: { onHome: () => void; onSearch: (q: string) => void; onSettings: () => void }) {
+function Header({ onHome, onSearch, onSettings, onBrowse, onLists }: { onHome: () => void; onSearch: (q: string) => void; onSettings: () => void; onBrowse: () => void; onLists: () => void }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -181,6 +197,8 @@ function Header({ onHome, onSearch, onSettings }: { onHome: () => void; onSearch
           <Icon name="mic" size={22} /><span>Search by sound</span>
         </button>
       </form>
+      <button type="button" className="wx-btn" onClick={onBrowse}><Icon name="book" size={22} /><span>Browse</span></button>
+      <button type="button" className="wx-btn" onClick={onLists}><Icon name="menu" size={22} /><span>Word Lists</span></button>
       <button type="button" className="wx-btn" onClick={onSettings}><Icon name="gear" size={22} /><span>Settings</span></button>
       {voiceMsg && <p className="wx-voice-msg" role="status">{voiceMsg}</p>}
     </header>
@@ -206,7 +224,7 @@ function Trail({ trail, current, onHome, onPick }: { trail: string[]; current: s
 
 // ---------- home ----------
 const INTRO = 'Look up a word. Hear it, see what it means, and find words like it. Tap a word once to hear it. Tap it again to open it.';
-function Home({ onSearch, settings, onOpen }: { onSearch: (q: string) => void; settings: WxSettings; onOpen: (w: string) => void }) {
+function Home({ onSearch, settings, onOpen, onBrowse, onLists }: { onSearch: (q: string) => void; settings: WxSettings; onOpen: (w: string) => void; onBrowse: (m: BrowseMode) => void; onLists: () => void }) {
   const recent = useMemo(readRecent, []);
   const mine = useSyncExternalStore(subscribeMyWords, myWords);
   return (
@@ -223,6 +241,15 @@ function Home({ onSearch, settings, onOpen }: { onSearch: (q: string) => void; s
         </form>
       </section>
       <WordOfDayCard settings={settings} onOpen={onOpen} />
+      <section className="wx-card">
+        <h2 className="wx-h2">Find a word</h2>
+        <div className="wx-topic-tiles">
+          <button type="button" className="wx-btn" onClick={() => onBrowse('az')}>A to Z</button>
+          <button type="button" className="wx-btn" onClick={() => onBrowse('pictures')}><Icon name="image" size={22} /><span>By picture</span></button>
+          <button type="button" className="wx-btn" onClick={() => onBrowse('sounds')}><Icon name="speaker" size={22} /><span>By sound</span></button>
+          <button type="button" className="wx-btn" onClick={onLists}><Icon name="menu" size={22} /><span>Make a word list</span></button>
+        </div>
+      </section>
       <section className="wx-card">
         <h2 className="wx-h2">Words to try</h2>
         <div className="wx-chips">{Object.keys(SEED_ENTRIES).map((w) => <TapWord key={w} word={w} />)}</div>

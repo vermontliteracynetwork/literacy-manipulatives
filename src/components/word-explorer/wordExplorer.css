@@ -380,3 +380,77 @@
 .wx-swap-options { margin-top: var(--s3); }
 .wx-swap-result { margin-top: var(--s3); }
 @media (max-width: 700px) { .wx-leaf { font-size: 0.8rem !important; padding: 0 var(--s2); } .wx-tree-branch { display: none; } }
+
+/* ---------- Phase 4: Word List Maker and Browse ---------- */
+.wx-listmaker { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: var(--s4); align-items: start; }
+.wx-lm-filters { display: flex; flex-direction: column; gap: var(--s3); }
+.wx-lm-list { position: sticky; top: 150px; max-height: calc(100vh - 170px); overflow-y: auto; background: var(--surface); border: var(--border-w) solid var(--line); border-radius: var(--r-card); padding: var(--s4); display: flex; flex-direction: column; gap: var(--s3); }
+.wx-lm-count { font-size: var(--text-h2); font-weight: 700; margin: 0; }
+.wx-lm-words { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s2); }
+.wx-lm-words li { display: inline-flex; align-items: center; gap: 2px; }
+.wx-lm-actions { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.wx-block { background: var(--surface); border: var(--border-w) solid var(--line); border-radius: var(--r-card); }
+.wx-block-head { display: flex; align-items: center; gap: var(--s2); padding: var(--s2) var(--s3); }
+.wx-block-toggle { flex: 1; display: flex; align-items: center; gap: var(--s3); min-height: var(--target); border: 0; background: none; font-size: var(--text-h2); font-weight: 700; color: var(--ink); text-align: left; cursor: pointer; }
+.wx-block-body { padding: 0 var(--s4) var(--s4); display: flex; flex-direction: column; gap: var(--s3); }
+.wx-mode { display: flex; flex-direction: column; gap: var(--s2); }
+.wx-hint { margin: 0; color: var(--ink-soft); font-size: var(--text-body); }
+.wx-small-head { font-weight: 700; margin: var(--s2) 0 0; }
+.wx-group summary, .wx-mylists summary, .wx-recipe summary { cursor: pointer; font-weight: 700; min-height: var(--target); display: flex; align-items: center; }
+.wx-group .wx-chips { padding: var(--s2) 0; }
+.wx-chips-scroll { max-height: 260px; overflow-y: auto; }
+.wx-mylists ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: var(--s2); }
+.wx-mylists li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
+.wx-recipe pre { font-size: var(--text-small); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow-y: auto; }
+@media (max-width: 960px) { .wx-listmaker { grid-template-columns: 1fr; } .wx-lm-list { position: static; max-height: none; } }
+
+.wx-browse-modes { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.wx-letters { display: grid; grid-template-columns: repeat(13, minmax(var(--target), 1fr)); gap: var(--s1); }
+.wx-letter { min-height: var(--target); min-width: var(--target); border-radius: var(--r-btn); border: var(--border-w) solid var(--line); background: var(--surface); color: var(--ink); font-size: var(--text-h2); font-weight: 700; cursor: pointer; }
+.wx-letter.on { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
+.wx-guide { font-weight: 700; display: flex; justify-content: space-between; gap: var(--s3); border-bottom: 2px solid var(--line); padding-bottom: var(--s2); }
+.wx-filters { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: flex-start; }
+.wx-dropdown { position: relative; }
+.wx-dropdown summary { list-style: none; }
+.wx-dropdown summary::-webkit-details-marker { display: none; }
+.wx-dropdown-panel { position: absolute; z-index: 25; top: calc(100% + 4px); left: 0; min-width: 240px; max-height: 340px; overflow-y: auto; background: var(--surface); border: var(--border-w) solid var(--line); border-radius: var(--r-btn); box-shadow: 0 8px 24px rgba(43, 35, 64, 0.18); padding: var(--s2); display: flex; flex-direction: column; gap: 2px; }
+.wx-dropdown-panel label { display: flex; align-items: center; gap: var(--s2); min-height: var(--target); padding: 0 var(--s2); border-radius: 10px; cursor: pointer; }
+.wx-dropdown-panel input { width: 22px; height: 22px; }
+.wx-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--s3); }
+.wx-wordcard { width: 100%; min-height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s2); border: var(--border-w) solid var(--line); border-radius: var(--r-tile); background: var(--surface); color: var(--ink); font-size: var(--text-body-lg); font-weight: 700; cursor: pointer; padding: var(--s3); }
+.wx-wordcard img { width: 72px; height: 72px; }
+.wx-wordcard.armed { background: var(--tint-lavender); border-color: var(--primary); }
+.wx-plain { columns: 4 180px; margin: 0; padding: 0; list-style: none; }
+.wx-plain li { break-inside: avoid; padding: 2px 0; }
+.wx-topic-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--s2); }
+.wx-topic-tiles .wx-btn { min-height: 64px; justify-content: flex-start; }
+
+/* Printables: only the print sheet prints. */
+.wxp { display: none; }
+@media print {
+  body > *:not(.wxp) { display: none !important; }
+  .wxp, .wxp * { visibility: visible !important; }
+  .wxp { display: block; font-family: "Inclusive Sans Variable", "Inclusive Sans", system-ui, sans-serif; color: #2B2340; }
+  .wxp h1 { font-size: 18pt; }
+  .wxp-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12pt; }
+  .wxp-flash { grid-template-columns: repeat(3, 1fr); }
+  .wxp-card { border: 2pt solid #554664; border-radius: 10pt; min-height: 150pt; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8pt; break-inside: avoid; }
+  .wxp-card img { width: 80pt; height: 80pt; }
+  .wxp-word { font-size: 30pt; font-weight: 700; display: inline-flex; align-items: center; gap: 8pt; }
+  .wxp-sym { width: 24pt; height: 24pt; object-fit: contain; }
+  html, body { background: #fff !important; }
+  .wxp-spelling { font-size: 18pt; line-height: 2; columns: 2; }
+  .wxp-sort { display: grid; grid-template-columns: 1fr 1fr; gap: 12pt; }
+  .wxp-col { border: 2pt solid #554664; min-height: 360pt; padding: 8pt; }
+  .wxp-cut { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8pt; }
+  .wxp-cutword { border: 1.5pt dashed #554664; padding: 8pt 14pt; font-size: 20pt; }
+  .wxp-frayer { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto 1fr; gap: 6pt; break-inside: avoid; page-break-after: always; min-height: 600pt; position: relative; }
+  .wxp-box { border: 2pt solid #554664; padding: 8pt; min-height: 240pt; }
+  .wxp-box img { width: 90pt; height: 90pt; }
+  .wxp-center { grid-column: 1 / -1; justify-self: center; font-size: 30pt; font-weight: 700; border: 2pt solid #554664; border-radius: 999px; padding: 8pt 24pt; display: inline-flex; align-items: center; gap: 8pt; }
+  .wxp-large .wxp-word, .wxp-large .wxp-center { font-size: 44pt; }
+  .wxp-large .wxp-spelling { font-size: 26pt; columns: 1; }
+  .wxp-large .wxp-cards { grid-template-columns: 1fr; }
+  .wxp-contrast, .wxp-contrast * { color: #000 !important; border-color: #000 !important; }
+  .wxp-contrast .wxp-card, .wxp-contrast .wxp-box, .wxp-contrast .wxp-col { border-width: 3pt; }
+}

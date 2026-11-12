@@ -10,3 +10,8 @@ export function pictureFor(word: string): Promise<{ file: string; name: string }
   pics ??= fetch('/word-explorer/pictures.json').then((r) => (r.ok ? r.json() : {})).catch(() => { pics = null; return {}; });
   return pics.then((p) => p[word]);
 }
+// Every picture at once (Browse and printables).
+export function allPictures(): Promise<Record<string, { file: string; name: string }>> {
+  pics ??= fetch('/word-explorer/pictures.json').then((r) => (r.ok ? r.json() : {})).catch(() => { pics = null; return {}; });
+  return pics;
+}
