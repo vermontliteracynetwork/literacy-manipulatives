@@ -4,6 +4,7 @@ import { ReferencePopover } from './components/ReferencePopover';
 import { SANDBOX_PIECES } from './lib/grammarContent';
 import { MORPHEME_GROUPS, KIND_LABEL, buildWord, canFollow, isCore, kindExplanation, madeUpMeaning, makeItReal, morphemeById, morphemeFor, BLANK_MORPHEMES, isBlankMorpheme, morphemeTags, tagsForGroup, pieceLabel, type Morpheme } from './lib/morphemes';
 import { lookupDefinition, peekDefinition } from './lib/dictionary';
+import { fitsType, loadWordTypes, typesOf } from './lib/wordTypes';
 import { MorphemePiece, pieceBodyWidth, pieceOuterSize } from './components/MorphemePiece';
 import { FloatingCard } from './components/FloatingCard';
 import { Icon } from './components/Icon';
@@ -1269,7 +1270,14 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
     const w = (word ?? '').trim();
     if (!w || w.includes(' ')) return null;
     const known = wordMismatch(w, cls);
-    if (known || isKnownWord(w) || cls === 'propernoun') return known;
+    if (cls === 'propernoun') return known;
+    // The real dictionary (src/lib/wordTypes.ts, WordNet) decides first, so a word the board lists for one job
+    // still fits another job the dictionary gives it ("light" can describe), and "happy" in a verb is caught.
+    const fit = fitsType(w, cls);
+    if (fit === 'yes') return null;
+    if (known) return known;
+    if (fit === 'no') { const t = typesOf(w)!; return (t.common[0] ?? t.all[0]) as MontessoriWordClass; }
+    if (isKnownWord(w)) return null;
     const parts = (peekDefinition(w)?.parts ?? []).map((pt) => DICT_PART[pt.toLowerCase()]).filter((c): c is MontessoriWordClass => !!c);
     if (!parts.length || parts.includes(cls) || (cls === 'article' && parts.includes('adjective'))) return null;
     return parts[0];
@@ -1278,6 +1286,7 @@ export default function LiteracyManipulatives({ startInWriter = false }: { start
   const checkWord = async (owner: string, idx: number, word: string, cls: MontessoriWordClass) => {
     const w = word.trim();
     if (!w) return clearWordAlert(owner, idx);
+    await loadWordTypes();
     if (!isKnownWord(w) && cls !== 'propernoun' && peekDefinition(w) === undefined) {
       await lookupDefinition(w);
       setDictTick((n) => n + 1);

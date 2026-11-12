@@ -706,3 +706,11 @@ whiteboard. Two cards for now: **Whiteboard** (`/whiteboard`) and **Word Process
 Write mode). Cards live in the `TOOLS` list in `src/components/ToolDashboard.tsx`; thumbnails are in
 `public/dashboard/`. `/join` and any `?welcome=` link (the Homeplot iframe) still open the board directly. The
 board's title and the Writer's "All tools" button lead back to the dashboard.
+
+---
+
+### 2026-11-11: a real dictionary behind the word types
+
+Her words: "i need a connection for a dictionary to truly reference what word types are (ex. part of speech) and really have a better engine behind the symbolic grammar function on the dashbaord and literacy manipulatives".
+
+`src/lib/wordTypes.ts` (the same file as the dashboard's) gives every word its types from the full small-word lists, WordNet (`public/writer/pos.json`), then a live dictionary (dictionaryapi.dev, then Datamuse) remembered on the device. Symbol bubbles check a typed word with it first (so "light" can describe, and "happy" in a verb bubble is caught), and Write mode looks up unknown finished words live so they get a symbol.
