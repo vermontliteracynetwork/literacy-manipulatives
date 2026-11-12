@@ -337,3 +337,46 @@
 .wx-useit .wx-input { max-width: 480px; }
 .wx-wotd-actions { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s4); }
 .wx-select-label { display: flex; flex-direction: column; gap: var(--s2); font-weight: 700; margin-bottom: var(--s4); }
+
+/* ---------- Phase 3: Thesaurus ---------- */
+.wx-filter { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
+.wx-filter-label { font-weight: 700; }
+.wx-frame { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s3); margin: 0 0 var(--s3); }
+.wx-frame-text { font-size: var(--text-body-lg); font-weight: 600; }
+.wx .lm-writer-formula-symbols { display: inline-flex; gap: 8px; align-items: flex-end; }
+.wx .lm-writer-formula-symbols img { width: 32px; height: 32px; object-fit: contain; }
+.wx .lm-formula-slot { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; }
+.wx .lm-formula-slot-label { font-size: var(--text-small); font-weight: 700; color: var(--ink) !important; }
+.wx-near { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s2); }
+.wx-near li { display: inline-flex; align-items: center; gap: var(--s1); }
+.wx-tier { font-size: var(--text-small); font-weight: 700; color: var(--ink-soft); }
+.wx-cluster-opp { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin: var(--s3) 0 0; }
+.wx-opp-group { margin-bottom: var(--s4); }
+.wx-wordline { display: flex; align-items: center; gap: var(--s2); margin-top: var(--s3); flex-wrap: wrap; }
+.wx-wordline ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0; }
+.wx-wordline-word { min-height: var(--target); padding: 0 var(--s3); border: var(--border-w) solid var(--line); background: var(--surface); color: var(--ink); font-weight: 600; cursor: pointer; }
+.wx-wordline li:first-child .wx-wordline-word { border-radius: 999px 0 0 999px; }
+.wx-wordline li:last-child .wx-wordline-word { border-radius: 0 999px 999px 0; }
+.wx-wordline-word.on { background: var(--tint-honey); font-weight: 700; }
+.wx-wordline-end { font-size: var(--text-small); font-weight: 700; color: var(--ink-soft); }
+.wx-seg { display: inline-flex; gap: var(--s2); }
+.wx-tree { position: relative; width: 100%; max-width: 960px; margin: 0 auto; }
+.wx-tree-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.wx-trunk { stroke: var(--ink-soft); stroke-width: 18; stroke-linecap: round; fill: none; }
+.wx-branch { stroke: var(--ink-soft); stroke-width: 7; fill: none; stroke-linecap: round; }
+.wx-twig { stroke: var(--line); stroke-width: 3; }
+.wx-root-line { stroke: var(--ink-soft); stroke-width: 5; fill: none; stroke-dasharray: 2 8; stroke-linecap: round; }
+.wx-tree-trunk, .wx-tree-branch, .wx-leaf { position: absolute; transform: translate(-50%, -50%); }
+.wx-tree-trunk { background: var(--ink); color: var(--surface); padding: var(--s2) var(--s4); border-radius: var(--r-tile); font-weight: 700; font-size: var(--text-h2); white-space: nowrap; }
+.wx-tree-branch { background: var(--tint-lavender); padding: 2px var(--s3); border-radius: 999px; font-size: var(--text-small); font-weight: 700; white-space: nowrap; max-width: 30%; overflow: hidden; text-overflow: ellipsis; }
+.wx-leaf { display: inline-flex; align-items: center; gap: 4px; min-height: var(--target); padding: 0 var(--s3); border-radius: 999px 999px 999px 4px; border: 3px solid; background: var(--surface); color: var(--ink); font-weight: 600; cursor: pointer; white-space: nowrap; }
+.wx-leaf.on { background: var(--tint-honey); }
+.wx-leaf-tier { font-size: 0.75rem; font-weight: 700; color: var(--ink-soft); }
+.wx-rootleaf { border: 3px dashed var(--ink-soft); border-radius: 4px 4px 999px 999px; }
+.wx-tree-picked { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-top: var(--s3); }
+.wx-treelist ul { list-style: none; padding-left: var(--s4); margin: var(--s2) 0; display: flex; flex-direction: column; gap: var(--s2); }
+.wx-treelist-meaning { font-weight: 700; }
+.wx-swap-label { font-weight: 700; display: block; margin-bottom: var(--s1); }
+.wx-swap-options { margin-top: var(--s3); }
+.wx-swap-result { margin-top: var(--s3); }
+@media (max-width: 700px) { .wx-leaf { font-size: 0.8rem !important; padding: 0 var(--s2); } .wx-tree-branch { display: none; } }

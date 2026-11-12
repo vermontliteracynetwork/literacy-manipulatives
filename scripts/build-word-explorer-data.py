@@ -103,12 +103,14 @@ with opener(src, 'rb') as f:
             el.clear()
         elif tag == 'Synset':
             sim = [r.get('target') for r in el.findall('SynsetRelation') if r.get('relType') == 'similar']
+            hyp = [r.get('target') for r in el.findall('SynsetRelation') if r.get('relType') == 'hyponym']
             d = el.find('Definition')
             synsets[el.get('id')] = {
                 'def': clean(d.text or '') if d is not None else '',
                 'ex': [clean(e.text or '') for e in el.findall('Example')],
                 'lex': el.get('lexfile', ''),
                 'sim': sim,
+                'hyp': hyp,
             }
             el.clear()
 
@@ -158,6 +160,14 @@ for word, ents in entries.items():
                 for m in synset_members.get(t, []):
                     if m != word and m not in syn and m not in sim and kid_word(m):
                         sim.append(m)
+            # More specific words (run: sprint, jog), for verbs and nouns, everyday words only.
+            hyp = []
+            if e['pos'] in ('verb', 'noun'):
+                for t in ss['hyp']:
+                    for m in synset_members.get(t, []):
+                        if m != word and m not in syn and m not in sim and m not in hyp and kid_word(m) and BAND.get(m, 5) <= 4:
+                            hyp.append(m)
+                hyp.sort(key=lambda m: (BAND.get(m, 5), m))
             ant = []
             for t in s['ant']:
                 w2 = sense_word.get(t, (None,))[0]
@@ -174,6 +184,7 @@ for word, ents in entries.items():
             if ex: sense['ex'] = ex
             if syn: sense['syn'] = syn
             if sim: sense['sim'] = sim[:MAX_SYN]
+            if hyp: sense['hyp'] = hyp[:16]
             if ant: sense['ant'] = ant
             if fam: sense['fam'] = fam
             senses.append(sense)

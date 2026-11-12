@@ -5,23 +5,25 @@ import { clearEntryCache, getEntry } from '../../lib/word-explorer/data';
 import { onReview } from '../../lib/word-explorer/review';
 import { ReviewButtons } from './ReviewButtons';
 import { PicturesTab, SoundsTab, WordPartsTab } from './StudyTabs';
+import { ThesaurusTab } from './ThesaurusTab';
 import { baseWords } from '../../lib/word-explorer/search';
 import { readSentenceWhy, onWordTypes, type WordType } from '../../lib/wordTypes';
 import { addMyWord, myWords, removeMyWord, subscribeMyWords } from '../../lib/writer/myWords';
 import { visibleTo, type Example, type PartOfSpeech, type Provenance, type Sense, type WordEntry } from '../../lib/word-explorer/types';
 
-type Tab = 'dictionary' | 'sounds' | 'parts' | 'pictures';
-const TABS: { id: Tab; label: string; icon: 'book' | 'speaker' | 'puzzle' | 'image' }[] = [
+type Tab = 'dictionary' | 'thesaurus' | 'sounds' | 'parts' | 'pictures';
+const TABS: { id: Tab; label: string; icon: 'book' | 'speaker' | 'puzzle' | 'image' | 'tree' }[] = [
   { id: 'dictionary', label: 'Dictionary', icon: 'book' },
+  { id: 'thesaurus', label: 'Thesaurus', icon: 'tree' },
   { id: 'sounds', label: 'Sounds', icon: 'speaker' },
   { id: 'parts', label: 'Word Parts', icon: 'puzzle' },
   { id: 'pictures', label: 'Pictures', icon: 'image' },
 ];
 
-export function WordPage({ word, teacher, note }: { word: string; teacher: boolean; note?: string }) {
+export function WordPage({ word, teacher, note, initialTab }: { word: string; teacher: boolean; note?: string; initialTab?: string }) {
   const [entry, setEntry] = useState<WordEntry | null | undefined>(undefined);
   const [version, setVersion] = useState(0);
-  const [tab, setTab] = useState<Tab>('dictionary');
+  const [tab, setTab] = useState<Tab>(() => (TABS.some((t) => t.id === initialTab) ? initialTab as Tab : 'dictionary'));
   useEffect(() => onReview(() => { clearEntryCache(); setVersion((v) => v + 1); }), []);
   useEffect(() => onWordTypes(() => setVersion((v) => v + 1)), []);
   useEffect(() => {
@@ -50,6 +52,7 @@ export function WordPage({ word, teacher, note }: { word: string; teacher: boole
         </nav>
         <div role="tabpanel" id={`wx-panel-${tab}`} aria-labelledby={`wx-tab-${tab}`} className="wx-panel">
           {tab === 'dictionary' && <DictionaryTab entry={entry} teacher={teacher} />}
+          {tab === 'thesaurus' && <ThesaurusTab entry={entry} teacher={teacher} />}
           {tab === 'sounds' && <SoundsTab entry={entry} teacher={teacher} />}
           {tab === 'parts' && <WordPartsTab entry={entry} teacher={teacher} />}
           {tab === 'pictures' && <PicturesTab entry={entry} teacher={teacher} />}

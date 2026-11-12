@@ -18,18 +18,18 @@ import { myWords, subscribeMyWords } from '../../lib/writer/myWords';
 // Word Explorer: the dictionary and thesaurus app (build spec, Phase 1). One view: the header, the word trail and
 // the center panel, which changes in place. Engines live in src/lib/word-explorer (UI-free).
 
-type Page = { kind: 'home' } | { kind: 'word'; word: string; note?: string } | { kind: 'results'; query: string };
+type Page = { kind: 'home' } | { kind: 'word'; word: string; note?: string; tab?: string } | { kind: 'results'; query: string };
 
 function pageFromUrl(): Page {
   const p = new URLSearchParams(window.location.search);
   const w = p.get('w');
-  if (w) return { kind: 'word', word: w.toLowerCase() };
+  if (w) return { kind: 'word', word: w.toLowerCase(), tab: p.get('tab') ?? undefined };
   const q = p.get('q');
   if (q) return { kind: 'results', query: q };
   return { kind: 'home' };
 }
 function urlFor(page: Page) {
-  if (page.kind === 'word') return `/words?w=${encodeURIComponent(page.word)}`;
+  if (page.kind === 'word') return `/words?w=${encodeURIComponent(page.word)}${page.tab ? `&tab=${page.tab}` : ''}`;
   if (page.kind === 'results') return `/words?q=${encodeURIComponent(page.query)}`;
   return '/words';
 }
@@ -68,7 +68,7 @@ export function WordExplorer() {
     if (next.kind === 'home') setTrail([]);
     window.requestAnimationFrame(() => { mainRef.current?.focus({ preventScroll: true }); window.scrollTo(0, 0); });
   }, []);
-  const openWord = useCallback((word: string) => go({ kind: 'word', word }), [go]);
+  const openWord = useCallback((word: string, tab?: string) => go({ kind: 'word', word, tab }), [go]);
 
   const runSearch = useCallback(async (raw: string) => {
     const q = raw.trim();
@@ -94,7 +94,7 @@ export function WordExplorer() {
               onPick={(w, i) => { setTrail((t) => t.slice(0, i + 1)); setPage({ kind: 'word', word: w }); window.history.pushState(null, '', urlFor({ kind: 'word', word: w })); }} />
             <main id="wx-main" ref={mainRef} tabIndex={-1} className="wx-main">
               {page.kind === 'home' && <Home onSearch={runSearch} settings={settings} onOpen={openWord} />}
-              {page.kind === 'word' && <WordPage key={page.word} word={page.word} note={page.note} teacher={settings.teacherView} />}
+              {page.kind === 'word' && <WordPage key={`${page.word}-${page.tab ?? ''}`} word={page.word} note={page.note} initialTab={page.tab} teacher={settings.teacherView} />}
               {page.kind === 'results' && <Results result={search(page.query)} />}
             </main>
             {showSettings && <SettingsDialog settings={settings} onChange={update} onClose={() => setShowSettings(false)} />}

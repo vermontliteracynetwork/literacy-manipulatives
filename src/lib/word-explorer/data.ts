@@ -57,9 +57,15 @@ export const indexReady = () => index.length > 0;
 export const allWords = () => index;
 export const indexWord = (w: string) => byWord.get(w.toLowerCase());
 export const irregularBase = (w: string) => forms[w.toLowerCase()];
+// A word's own irregular forms (run: ran, running), from the same list.
+let formsOfBase: Map<string, string[]> | null = null;
+export function irregularFormsOf(base: string): string[] {
+  if (!formsOfBase) { formsOfBase = new Map(); for (const [f, b] of Object.entries(forms)) formsOfBase.set(b, [...(formsOfBase.get(b) ?? []), f]); }
+  return formsOfBase.get(base) ?? [];
+}
 
 // ---------- one word's raw meanings ----------
-export interface RawSense { id: string; def: string; lex: string; ex?: string[]; syn?: string[]; sim?: string[]; ant?: string[]; fam?: [string, string][] }
+export interface RawSense { id: string; def: string; lex: string; ex?: string[]; syn?: string[]; sim?: string[]; hyp?: string[]; ant?: string[]; fam?: [string, string][] }
 export interface RawWord { ipa?: string; parts: { pos: 'noun' | 'verb' | 'adjective' | 'adverb'; forms?: string[]; senses: RawSense[] }[] }
 const shards = new Map<string, Promise<Record<string, RawWord>>>();
 const shardKey = (w: string) => (`${w}_`).slice(0, 2).replace(/[^a-z]/g, '_');
@@ -133,7 +139,8 @@ function seedSense(word: string, s: SeedSense, i: number): Sense {
 function oewnSense(word: string, pos: PartOfSpeech, s: RawSense): Sense {
   const status: ReviewStatus = statusOf(`${s.id}:sense`, 'draft');
   const examples: Example[] = (s.ex ?? []).filter((t) => !isBlockedText(t)).map((text) => ({ text, formulaCode: formulaFor(text), time: timeOf(text), provenance: [OEWN], status }));
-  const near = [...(s.syn ?? []), ...(s.sim ?? [])].filter((w) => !isBlockedTerm(w));
+  const near = [...(s.syn ?? []), ...(s.sim ?? []), ...(s.hyp ?? [])].filter((w) => !isBlockedTerm(w));
+  const nSyn = s.syn?.length ?? 0, nSim = s.sim?.length ?? 0;
   return {
     id: s.id, signpost: signpostFor(s), pos,
     definition: { value: s.def, provenance: [OEWN], status },
@@ -142,7 +149,8 @@ function oewnSense(word: string, pos: PartOfSpeech, s: RawSense): Sense {
     examples,
     synonyms: near.map((w, i) => {
       const band = indexWord(w)?.band ?? 5;
-      return { wordId: w, closeness: i < (s.syn?.length ?? 0) ? 1 : 0.7, tier: tierFor(band), frequencyBand: band };
+      // Same meaning 1, similar 0.7, a more specific word (sprint for run) 0.5.
+      return { wordId: w, closeness: i < nSyn ? 1 : i < nSyn + nSim ? 0.7 : 0.5, tier: tierFor(band), frequencyBand: band };
     }),
     antonyms: (s.ant ?? []).filter((w) => !isBlockedTerm(w)).map((w) => ({ wordId: w, type: /^(un|in|im|dis|non|ir|il)/.test(w) && w.endsWith(word.slice(-3)) ? 'prefix' as const : 'either-or' as const })),
     pictures: [], pictureable: pos === 'noun' && /noun\.(animal|plant|artifact|food|object|body)/.test(s.lex), safetyRating: 'ok',
@@ -181,6 +189,11 @@ async function buildEntry(word: string): Promise<WordEntry | null> {
       Object.assign(sense, { synonyms: o.synonyms, antonyms: o.antonyms, family: o.family, pictureable: o.pictureable });
       matched.add(m.id);
     }
+    // Her drafted thesaurus words come first.
+    const drafted = (s.synonyms ?? []).filter((w) => !isBlockedTerm(w)).map((w) => { const band = indexWord(w)?.band ?? 5; return { wordId: w, closeness: 1, tier: tierFor(band), frequencyBand: band }; });
+    sense.synonyms = [...drafted, ...sense.synonyms.filter((x) => !drafted.some((d) => d.wordId === x.wordId))];
+    const opp = (s.antonyms ?? []).filter((w) => !isBlockedTerm(w)).map((w) => ({ wordId: w, type: 'either-or' as const }));
+    sense.antonyms = [...opp, ...sense.antonyms.filter((x) => !opp.some((d) => d.wordId === x.wordId))];
     senses.push(sense);
   });
   for (const p of rw?.parts ?? []) for (const s of p.senses) if (!matched.has(s.id)) senses.push(oewnSense(word, p.pos, s));

@@ -47,9 +47,9 @@ export function SpeakButton({ id, text, label, size = 'md', rate }: { id: string
 }
 
 // ---------- tappable words: one tap says it, a second tap opens it ----------
-interface TapCtx { armed: string | null; arm: (w: string | null) => void; open: (w: string) => void }
-const TapContext = createContext<TapCtx>({ armed: null, arm: () => {}, open: () => {} });
-export function TapProvider({ open, children }: { open: (w: string) => void; children: React.ReactNode }) {
+interface TapCtx { armed: string | null; arm: (w: string | null) => void; open: (w: string, tab?: string) => void }
+export const TapContext = createContext<TapCtx>({ armed: null, arm: () => {}, open: () => {} });
+export function TapProvider({ open, children }: { open: (w: string, tab?: string) => void; children: React.ReactNode }) {
   const [armed, setArmed] = useState<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const arm = useCallback((w: string | null) => {

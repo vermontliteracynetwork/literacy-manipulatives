@@ -842,3 +842,22 @@ small,"), "My room is a tornado" (her S4.P.A puts P before A), the quoted senten
 the book, frogs swallow food whole" (whole read as an adjective). Formula Search now checks her whole list (showing
 code, breakdown, example, required words, levels and the card when there is one), and Word Explorer tags examples
 with codes from it.
+
+## 2026-11-12: Word Explorer, Phase 3 (Thesaurus)
+
+- **Thesaurus tab** (between Dictionary and Sounds): one cluster per meaning, headed by a sentence frame shown with her
+  symbols ("Someone can be..." noun + be + adjective; "Someone can..." for verbs; "This is a..." for nouns). The most
+  common word leads in bold; the rest sort by how common they are, each with its Tier. Tier filter chips (pick any).
+- **Opposites in three places:** beside each meaning's words, in the Opposites section (scale, either/or, direction and
+  prefix opposites; prefix opposites point to Word Parts), and as the roots of the word tree. Scale opposites show a
+  **word line** (miserable, sad, okay, happy, delighted, overjoyed) from 18 drafted word lines in
+  `src/lib/word-explorer/thesaurus.ts`, for her review.
+- **Word tree** with a **List view**: the word on the trunk, meanings as branches, words for each meaning as leaves
+  (closer in meaning grows nearer the branch, a more common word is a bigger leaf, the leaf's outline and symbol show
+  its part of speech, and each leaf shows its Tier). Tap a leaf to hear it, then **Grow from here** (a new tree from
+  that word) or **Open word page**. Leaves are spread so they never cover each other.
+- **Swap a word:** an example sentence (or the student's own) with the word swapped for another that keeps the same
+  form ("ran" offers "sprinted"), then the formula check runs again ("Formula check: still S1.A.PRP").
+- More words for each meaning: WordNet's more specific words for verbs and nouns (run: sprint, jog, scurry) are now
+  in the data, and the ten starter words have drafted thesaurus words and opposites (happy: glad, cheerful, joyful;
+  opposites sad, unhappy).
