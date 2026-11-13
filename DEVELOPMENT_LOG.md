@@ -1041,3 +1041,6 @@ re-export the installed package. Before every build, `npm run test:engine` runs 
 installed version (80 test sentences, 121 formulas, 118 cards, every shared fix), and `npm run engine:assets` copies its
 word lists and grammar symbols into `public/`. To update the engine: change the commit in `package.json` (the same one
 in every project), `npm install`, build.
+
+Update (same day): the independent work dashboard now uses the engine too (its Build Queue 638, on its preview branch
+until she approves main). Both projects pin engine 1.2.0, commit 7d59139.
