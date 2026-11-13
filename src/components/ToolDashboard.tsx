@@ -46,6 +46,13 @@ const TOOLS: Tool[] = [
     tags: ['Teacher tool', 'Formulas'],
   },
   {
+    title: 'Passage Builder',
+    description: 'Paste any passage, student writing or public domain. Each sentence is marked up with the grammar symbols and coded with its formula, in the list or new. Fix a symbol to make the grammar engine more accurate.',
+    href: '/passages',
+    image: '/dashboard/passage-builder.png',
+    tags: ['Teacher tool', 'Formulas'],
+  },
+  {
     title: 'Daily Procedure',
     description: 'A lesson as steps, one page each: Goal, Review symbols, each formula, Practice and Assessment. Edit it, then present it in Learn mode while you share your screen. Save it in folders.',
     href: '/procedure',

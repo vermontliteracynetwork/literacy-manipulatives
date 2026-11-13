@@ -917,3 +917,30 @@ app entirely", "add a home button to all apps that return to main dashboard scre
 - **Home button** on every tool (Whiteboard, Word Processor, Word Explorer, Word List Maker, Formula Search, Daily
   Procedure), back to the dashboard (`src/components/HomeButton.tsx`). In Word Explorer the word trail's first chip is
   now "Start" (Word Explorer's own start page), so "Home" always means the dashboard.
+
+## 2026-11-13: Passage Builder (new tool, `/passages`)
+
+Her request: "a tool that i can put any passage in and it will use it to build our formula base and also increase the
+accuracy of the logic behind our symbolic grammar program, hopefully creating more real world formulas for good
+practice", and "paste a passage (student written or public domain) and have the system mark it up like the word
+processor does with shapes but ... break down into sentences and note the formulas, whether we have them or we dont
+but code them in our code".
+
+- Paste a passage, choose **Student writing** or **Public domain**, add its source, and **Mark it up**. Each sentence
+  shows her grammar symbol over every word (misspelled words underlined, as in Write mode), its formula symbols, and
+  its code in her notation: **In the list** (with the breakdown, example and levels) or **New formula** (with the
+  closest formulas). Student writing also gets the Sentence Check (complete, capital, end mark, match, time).
+- **Building the formula base:** "Add to formula log" for a new pattern (or every new pattern at once); "Keep as a
+  practice sentence" saves a real sentence for its formula, and Formula Search now shows those under the formula as
+  "Real sentences for practice". A table lists every formula in the passage, how often it came up, and whether it is in
+  her list. Sentences with a word on the kid-safe list are not saved.
+- **Making the engine more accurate:** tap any word to fix its symbol. Each fix is kept with the words around it and
+  the engine uses it everywhere it reads sentences (Write mode, Formula Search, Word Explorer's formula codes, this
+  tool): the same sentence always; the same word next to the same word; and the same word everywhere once two fixes
+  agree. Every fix is also a test: the page shows how often the engine alone gets the fixed words right, and how often
+  it does with what it learned from the other fixes. Fixes can be undone.
+- **Download the formula base / Add a formula base file:** fixes, practice sentences and the formula log as one file,
+  to keep a copy or share with another teacher (all of it is kept in this browser otherwise).
+- Code: `src/components/PassageBuilder.tsx`, `src/lib/writer/corrections.ts` (fixes, learning and accuracy),
+  `src/lib/writer/practice.ts`, `src/lib/writer/formulaLookup.ts` (shared with Formula Search); `tagForCheck` now
+  applies the fixes and `tagEngine` is the engine alone.

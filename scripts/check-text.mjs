@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = path.dirname(path.dirname(new URL(import.meta.url).pathname));
-const TARGETS = ['src/components/word-explorer', 'src/lib/word-explorer', 'src/components/MainMenu.tsx', 'src/components/FormulaSearch.tsx', 'src/components/formulaSearch.css', 'public/word-explorer'];
+const TARGETS = ['src/components/word-explorer', 'src/lib/word-explorer', 'src/components/MainMenu.tsx', 'src/components/FormulaSearch.tsx', 'src/components/PassageBuilder.tsx', 'src/components/passageBuilder.css', 'src/lib/writer/corrections.ts', 'src/lib/writer/practice.ts', 'src/components/formulaSearch.css', 'public/word-explorer'];
 const BAD = [['—', 'em dash']];
 let problems = 0;
 function scan(file) {

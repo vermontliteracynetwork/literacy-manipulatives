@@ -27,6 +27,10 @@
     {
       "source": "/lists",
       "destination": "/index.html"
+    },
+    {
+      "source": "/passages",
+      "destination": "/index.html"
     }
   ]
 }

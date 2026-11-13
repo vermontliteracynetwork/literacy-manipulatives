@@ -6,61 +6,19 @@ import { Icon } from './Icon';
 import { MainMenu } from './MainMenu';
 import { HomeButton } from './HomeButton';
 import { FormulaSymbols } from './SentenceFormulas';
-import { SENTENCE_FORMULAS } from '../lib/writer/formulas';
-import { splitSentences, tagForCheck } from '../lib/writer/sentenceCheck';
-import { cardSlotsOf, formulaCode, sentenceSlots, slotDistance, type Slot } from '../lib/writer/formulaMatch';
-import { FORMULA_LIST, type ListedFormula } from '../lib/writer/formulaList';
+import { splitSentences } from '../lib/writer/sentenceCheck';
 import { loadWords } from '../lib/writer/spell';
 import { loadWordTypes } from '../lib/wordTypes';
 import { addIdea, readIdeas, removeIdea, type FormulaIdea } from '../lib/writer/formulaBook';
 import { speak } from '../lib/word-explorer/speech';
+import { readPractice } from '../lib/writer/practice';
 
 // Formula Search (her request 2026-11-12): one search bar, like a web search home page. Type any sentence and the
 // formulas from her Formula Master List that match it appear. When none match, "Add suggested formula" logs the
 // sentence's pattern (its formula code and symbols) in the formula log: every formula made this way that isn't in
 // the main list, so the list can grow. The log is the same list as the Write mode's "Formula ideas".
 
-// Her "All Sentence Formulas" list is the main list. Each formula's pattern is read from its own example sentence
-// by the same engine that reads the typed sentence, so they are compared the same way.
-interface Listed extends ListedFormula { slots: Slot[]; cardSlots: string[]; card?: string; uses?: Listed[] }
-let listed: Listed[] | null = null;
-function listedFormulas(): Listed[] {
-  listed ??= FORMULA_LIST.map((f) => {
-    const t = f.example.replace(/[“”]/g, '"');
-    const slots = sentenceSlots(tagForCheck(t), t);
-    return { ...f, slots, cardSlots: cardSlotsOf(slots), card: SENTENCE_FORMULAS.find((c) => c.sentence === f.example)?.card };
-  });
-  return listed;
-}
-
-interface Reading { sentence: string; slots: string[]; code: string; exact: Listed[]; close: Listed[] }
-
-function readSentence(sentence: string): Reading | null {
-  const mine = sentenceSlots(tagForCheck(sentence), sentence);
-  if (!mine.length) return null;
-  const code = formulaCode(mine, sentence);
-  const bare = (c: string) => c.replace(/\*$/, '');
-  // A contraction formula (You're: P'V) only matches a sentence with that contraction, and the other way round.
-  const sameShape = (f: Listed) => f.code.includes("'") === code.includes("'");
-  const ranked = listedFormulas().map((f) => ({ f, d: bare(f.code) === code ? 0 : slotDistance(f.cardSlots, mine) + (sameShape(f) ? 0 : 1) }))
-    .sort((x, y) => x.d - y.d);
-  // Each formula code shows once (her request 2026-11-12): rows of her list with the same code become one card that
-  // lists every way it is used. A code that matches is never shown again under Close formulas.
-  const merge = (list: Listed[]): Listed[] => {
-    const byCode = new Map<string, Listed[]>();
-    for (const f of list) byCode.set(bare(f.code), [...(byCode.get(bare(f.code)) ?? []), f]);
-    return [...byCode.values()].map((g) => ({ ...g[0], uses: listedFormulas().filter((x) => bare(x.code) === bare(g[0].code)) }));
-  };
-  const exact = merge(ranked.filter((r) => r.d === 0).map((r) => r.f));
-  const exactCodes = new Set(exact.map((f) => bare(f.code)));
-  return {
-    sentence,
-    slots: cardSlotsOf(mine),
-    code,
-    exact,
-    close: merge(ranked.filter((r) => r.d > 0 && r.d <= 1 && !exactCodes.has(bare(r.f.code))).map((r) => r.f)).slice(0, 3),
-  };
-}
+import { readFormula as readSentence, type Listed, type Reading } from '../lib/writer/formulaLookup';
 
 const today = () => new Date().toISOString().slice(0, 10);
 function downloadCsv(ideas: FormulaIdea[]) {
@@ -200,6 +158,9 @@ function FormulaCard({ f }: { f: Listed }) {
           </span>
         ))}
         <span className="wx-muted">Levels {levels.join(', ')}</span>
+        {(readPractice()[f.code.replace(/\*$/, '')] ?? []).length > 0 && (
+          <span className="fs-use"><strong>Real sentences for practice</strong>{readPractice()[f.code.replace(/\*$/, '')].slice(0, 5).map((p) => <span key={p.sentence}>{p.sentence} <span className="wx-muted">({p.source || (p.kind === 'student' ? 'student writing' : 'public domain')})</span></span>)}</span>
+        )}
       </div>
     </li>
   );

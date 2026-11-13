@@ -1,0 +1,27 @@
+/* Passage Builder: sentences marked up like Write mode, her symbols over each word. */
+.pb-text { min-height: 160px; padding: 12px 16px; line-height: 1.5; resize: vertical; }
+.pb-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+.pb-source { flex: 1 1 240px; }
+.pb-summary { display: flex; flex-wrap: wrap; gap: 8px; }
+.pb-sentences { display: flex; flex-direction: column; gap: 0; }
+.pb-sentence-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+.pb-n { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: var(--primary-ink); font-weight: 700; }
+.pb-tag { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: var(--text-small); border: 1px solid var(--line); }
+.pb-tag.in { background: var(--surface); }
+.pb-tag.new { background: var(--tint-honey); }
+.pb-tag.warn { background: var(--tint-blush); }
+.pb-marked { display: flex; flex-wrap: wrap; align-items: flex-end; row-gap: 10px; margin: 6px 0 10px; font-size: var(--text-body-lg); }
+.pb-gap { white-space: pre; padding-bottom: 6px; }
+.pb-word { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; min-height: var(--target); min-width: var(--target); padding: 2px 4px; border: 2px solid transparent; border-radius: 10px; background: none; color: var(--ink); font: inherit; cursor: pointer; }
+.pb-word:hover, .pb-word.on { border-color: var(--primary); background: var(--tint-lavender); }
+.pb-word.unsure .pb-text-word { text-decoration: underline dotted #C2410C; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.pb-syms { display: flex; gap: 2px; }
+.pb-syms img { width: 30px; height: 30px; object-fit: contain; }
+.pb-fix { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--r-tile); background: var(--ground); margin-bottom: 10px; }
+.pb-fix .wx-chip img { object-fit: contain; }
+.pb-formula { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 10px; }
+.pb-check { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.pb-check li { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; font-size: var(--text-small); font-weight: 700; border: 1px solid var(--line); }
+.pb-check li.no { background: var(--tint-blush); }
+.pb-acc { font-size: var(--text-body-lg); font-weight: 600; }
+.pb-fixes { display: flex; flex-direction: column; gap: 6px; padding-left: 1.2em; }

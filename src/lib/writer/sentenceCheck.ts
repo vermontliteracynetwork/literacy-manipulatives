@@ -1,5 +1,6 @@
 import { agreeWords, type PatternWord } from '../sentenceSearch';
 import { tagInContext, type TaggedWord } from './tagger';
+import { applyCorrections } from './corrections';
 import type { SymbolWordClass } from '../grammarSymbols';
 import type { SentenceFormula } from './formulas';
 import { cardSlotsOf, closestFormula, formulaCode, sentenceSlots } from './formulaMatch';
@@ -55,6 +56,10 @@ export function tagForCheck(text: string): TaggedWord[] {
   // Each word's job from the word itself and its place in the sentence (tagger.ts, which also makes sure a
   // sentence gets a verb when one of its words can be one); helping words (will, can, don't...) are verbs, as in
   // her formulas.
+  return applyCorrections(tagEngine(text), text);
+}
+// The engine alone, before teacher corrections (the Passage Builder measures it).
+export function tagEngine(text: string): TaggedWord[] {
   return tagInContext(text).map((w) => (MODALS.has(w.word.toLowerCase()) ? { ...w, wordClass: 'verb' as SymbolWordClass } : w));
 }
 
