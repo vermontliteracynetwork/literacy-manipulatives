@@ -62,7 +62,7 @@
 .as-qnav a.met { background: var(--as-secure); border-color: #9ccc95; }
 .as-qnav a.missed { background: var(--as-developing); border-color: #e3c56f; }
 
-.as-table-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--content-border); border-radius: 12px; }
+.as-table-wrap { overflow: auto; max-height: calc(100vh - 120px); max-height: calc(100dvh - 120px); background: #fff; border: 1px solid var(--content-border); border-radius: 12px; }
 .as-table { border-collapse: collapse; width: 100%; min-width: 1180px; font-size: 0.9rem; }
 .as-table th, .as-table td { border: 1px solid var(--as-line); padding: 3px 4px; text-align: center; }
 .as-table thead th { position: sticky; top: 0; z-index: 2; vertical-align: top; }
@@ -147,7 +147,7 @@
   .print-only { display: block; }
   .as-page { background: #fff; padding: 0; }
   .as-table { min-width: 0; font-size: 7.5pt; }
-  .as-table-wrap { overflow: visible; border: 0; }
+  .as-table-wrap { overflow: visible; border: 0; max-height: none; }
   .as-table thead th, .as-rowhead { position: static; }
   .as-num, .as-check { border: 0; background: transparent !important; width: auto; height: auto; padding: 0; }
   .as-summary { break-before: page; }
