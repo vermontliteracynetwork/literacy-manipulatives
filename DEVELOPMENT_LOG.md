@@ -1044,3 +1044,16 @@ in every project), `npm install`, build.
 
 Update (same day): the independent work dashboard now uses the engine too (its Build Queue 638, on its preview branch
 until she approves main). Both projects pin engine 1.2.0, commit 7d59139.
+
+## 2026-11-13: Assessment Scoring (`/scoring`)
+
+The Symbolic Grammar score sheets as an online tool, starting with the Unit 1 Score Sheet (Levels A, B and C). The
+teacher picks the level, enters each sentence's counts, ✓/✗ marks and correct / used tallies, and the Q totals, outlined
+target cells, TOTAL and PERCENT rows, the summary page (sentences, required words %, complete %, length, target total),
+the Priority / Developing / Secure ratings and a suggested lesson rating fill in live. Complete sentence turns ✗ by
+itself when Capital or End mark is ✗. Records save in the browser (no accounts yet); Saved lists every learner, exports a
+CSV, and shows growth across pretest, mid-check and posttest. Print gives the score sheet and summary.
+
+Every unit is data: `src/lib/assessments/unit1.ts` is the whole Unit 1 sheet (columns, rows per level, questions,
+required words, target column and number, teach-next lessons, the how-to-score guide). Add Unit 2 by writing
+`unit2.ts` in the same shape and listing it in `src/lib/assessments/index.ts`.

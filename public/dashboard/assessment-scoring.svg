@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">
+  <rect width="640" height="360" fill="#E8F4F8"/>
+  <rect x="40" y="36" width="560" height="288" rx="14" fill="#fff" stroke="#BCD7E2" stroke-width="2"/>
+  <rect x="40" y="36" width="560" height="44" rx="14" fill="#1E2A44"/>
+  <rect x="40" y="66" width="560" height="14" fill="#1E2A44"/>
+  <text x="62" y="65" font-family="system-ui, sans-serif" font-size="20" font-weight="700" fill="#fff">Unit 1 Score Sheet</text>
+  <g font-family="system-ui, sans-serif" font-size="14" fill="#0F2B45">
+    <rect x="60" y="96" width="70" height="28" fill="#FDF6D8"/><rect x="130" y="96" width="70" height="28" fill="#FDF6D8"/>
+    <rect x="200" y="96" width="60" height="28" fill="#E6F3E4"/><rect x="260" y="96" width="60" height="28" fill="#E6F3E4"/>
+    <rect x="320" y="96" width="260" height="28" fill="#E3EEF7"/>
+    <g stroke="#C9D3DC" fill="none">
+      <rect x="60" y="124" width="520" height="30"/><rect x="60" y="154" width="520" height="30"/><rect x="60" y="184" width="520" height="30"/>
+    </g>
+    <text x="214" y="145" font-size="18" font-weight="800" fill="#1E5A1A">✓</text>
+    <text x="274" y="145" font-size="18" font-weight="800" fill="#1E5A1A">✓</text>
+    <text x="214" y="175" font-size="18" font-weight="800" fill="#1E5A1A">✓</text>
+    <text x="274" y="175" font-size="18" font-weight="800" fill="#8A1F17">✗</text>
+    <text x="350" y="145">2 / 2</text><text x="430" y="145">1 / 1</text><text x="510" y="175">1 / 2</text>
+    <rect x="410" y="218" width="80" height="30" fill="#D9EFD6" stroke="#1E2A44" stroke-width="3"/>
+    <text x="432" y="239" font-weight="800">3 / 3</text>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="13" font-weight="700">
+    <rect x="60" y="268" width="150" height="36" rx="8" fill="#F6D5D3"/><text x="78" y="291" fill="#8A1F17">Priority</text>
+    <rect x="225" y="268" width="150" height="36" rx="8" fill="#FBEBC4"/><text x="243" y="291" fill="#6B4A00">Developing</text>
+    <rect x="390" y="268" width="150" height="36" rx="8" fill="#D9EFD6"/><text x="408" y="291" fill="#1E5A1A">Secure</text>
+  </g>
+</svg>

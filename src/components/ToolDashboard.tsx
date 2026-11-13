@@ -52,6 +52,13 @@ const TOOLS: Tool[] = [
     image: '/dashboard/daily-procedure.png',
     tags: ['Teacher tool', 'Lessons'],
   },
+  {
+    title: 'Assessment Scoring',
+    description: 'Score a Symbolic Grammar assessment online (Unit 1, Levels A, B and C). Totals, percents, target scores and what to teach fill in as you type. Track growth from pretest to posttest.',
+    href: '/scoring',
+    image: '/dashboard/assessment-scoring.svg',
+    tags: ['Teacher tool', 'Assessment'],
+  },
 ];
 
 export function ToolDashboard() {

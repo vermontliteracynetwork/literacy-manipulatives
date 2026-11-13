@@ -31,6 +31,10 @@
     {
       "source": "/passages",
       "destination": "/index.html"
+    },
+    {
+      "source": "/scoring",
+      "destination": "/index.html"
     }
   ]
 }

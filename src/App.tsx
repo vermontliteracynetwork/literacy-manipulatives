@@ -4,17 +4,19 @@ import { WordExplorer } from './components/word-explorer/WordExplorer';
 import { FormulaSearch } from './components/FormulaSearch';
 import { DailyProcedure } from './components/procedures/DailyProcedure';
 import { WordListsApp } from './components/WordListsApp';
+import { AssessmentScoring } from './components/assessment/AssessmentScoring';
 import { isJoinRoute } from './lib/share';
 
-// Routes: "/" is the tools dashboard; "/whiteboard", "/write" and "/words" (Word Explorer) "/formulas" (Formula Search) and "/procedure" (Daily Procedure) and "/lists" (Word List Maker) open; "/passages" opens Formula Search on its passage tab the tools themselves.
+// Routes: "/" is the tools dashboard; "/whiteboard", "/write" and "/words" (Word Explorer) "/formulas" (Formula Search) and "/procedure" (Daily Procedure) and "/lists" (Word List Maker) and "/scoring" (Assessment Scoring) open; "/passages" opens Formula Search on its passage tab the tools themselves.
 // "/join" and any page that embeds the board with "?welcome=0" (the Homeplot iframe) still go straight to the board.
-function route(): 'dashboard' | 'whiteboard' | 'write' | 'words' | 'formulas' | 'procedure' | 'lists' {
+function route(): 'dashboard' | 'whiteboard' | 'write' | 'words' | 'formulas' | 'procedure' | 'lists' | 'scoring' {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
   if (path === '/write') return 'write';
   if (path === '/words') return 'words';
   if (path === '/formulas') return 'formulas';
   if (path === '/procedure') return 'procedure';
   if (path === '/lists') return 'lists';
+  if (path === '/scoring') return 'scoring';
   if (path === '/passages') return 'formulas';
   if (path === '/whiteboard' || isJoinRoute()) return 'whiteboard';
   if (new URLSearchParams(window.location.search).has('welcome')) return 'whiteboard';
@@ -28,5 +30,6 @@ export default function App() {
   if (r === 'formulas') return <FormulaSearch />;
   if (r === 'procedure') return <DailyProcedure />;
   if (r === 'lists') return <WordListsApp />;
+  if (r === 'scoring') return <AssessmentScoring />;
   return <LiteracyManipulatives startInWriter={r === 'write'} />;
 }
