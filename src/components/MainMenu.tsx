@@ -8,7 +8,6 @@ const LINKS = [
   { href: '/words', label: 'Word Explorer' },
   { href: '/lists', label: 'Word List Maker' },
   { href: '/formulas', label: 'Formula Search' },
-  { href: '/passages', label: 'Passage Builder' },
   { href: '/procedure', label: 'Daily Procedure' },
   { href: '/write', label: 'Word Processor' },
   { href: '/whiteboard?welcome=0', label: 'Whiteboard' },

@@ -1,6 +1,6 @@
-// Real-world practice sentences for each formula code (Passage Builder, her request 2026-11-13): sentences from
+// Real-world practice sentences for each formula code (Formula Search's passage tab, her request 2026-11-13): sentences from
 // student writing or public domain passages that a teacher keeps as practice for that formula. Formula Search shows
-// them under the formula. Kept in this browser; the Passage Builder can download and open them as a file.
+// them under the formula. Kept in this browser; the passage tab can download and open them as a file.
 export interface PracticeSentence { sentence: string; source: string; kind: 'student' | 'public'; at: string }
 const KEY = 'lm-formula-practice-v1';
 export function readPractice(): Record<string, PracticeSentence[]> { try { return JSON.parse(localStorage.getItem(KEY) ?? '{}'); } catch { return {}; } }

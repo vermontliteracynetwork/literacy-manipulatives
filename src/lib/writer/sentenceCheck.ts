@@ -58,7 +58,7 @@ export function tagForCheck(text: string): TaggedWord[] {
   // her formulas.
   return applyCorrections(tagEngine(text), text);
 }
-// The engine alone, before teacher corrections (the Passage Builder measures it).
+// The engine alone, before teacher corrections (Formula Search's passage tab measures it).
 export function tagEngine(text: string): TaggedWord[] {
   return tagInContext(text).map((w) => (MODALS.has(w.word.toLowerCase()) ? { ...w, wordClass: 'verb' as SymbolWordClass } : w));
 }

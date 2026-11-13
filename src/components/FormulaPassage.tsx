@@ -1,10 +1,6 @@
-import '@fontsource-variable/inclusive-sans/wght.css';
-import './word-explorer/wordExplorer.css';
-import './passageBuilder.css';
+import './formulaPassage.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icon';
-import { HomeButton } from './HomeButton';
-import { MainMenu } from './MainMenu';
 import { FormulaSymbols } from './SentenceFormulas';
 import { GRAMMAR_SYMBOL_INFO, type SymbolWordClass } from '../lib/grammarSymbols';
 import { checkSentence, splitSentences, tagEngine, tagForCheck, type SentenceSpan } from '../lib/writer/sentenceCheck';
@@ -18,7 +14,7 @@ import { isBlockedText } from '../lib/word-explorer/safety';
 import { speak } from '../lib/word-explorer/speech';
 import type { TaggedWord } from '../lib/writer/tagger';
 
-// Passage Builder (her request 2026-11-13): paste any passage, student writing or public domain, and it is marked
+// Formula Search, "Mark up a passage" tab (her requests 2026-11-13; a tab of Formula Search, not its own tool): paste any passage, student writing or public domain, and it is marked
 // up like Write mode, with her grammar symbols over every word, broken into sentences, each with its formula code in
 // her notation and whether that formula is in her list. It builds the formula base: new patterns go to the formula
 // log, real sentences become practice sentences for their formula, and when the engine gets a word wrong, the
@@ -32,7 +28,7 @@ type Kind = 'student' | 'public';
 
 interface Row { span: SentenceSpan; words: TaggedWord[]; reading: ReturnType<typeof readFormula>; check?: ReturnType<typeof checkSentence>; blocked: boolean }
 
-export function PassageBuilder() {
+export function PassageTab() {
   const [text, setText] = useState('');
   const [passage, setPassage] = useState('');
   const [source, setSource] = useState('');
@@ -44,7 +40,7 @@ export function PassageBuilder() {
   const [practice, setPractice] = useState<Record<string, PracticeSentence[]>>(readPractice);
   const [message, setMessage] = useState('');
   const file = useRef<HTMLInputElement>(null);
-  useEffect(() => { document.title = 'Passage Builder'; Promise.all([loadWords(), loadWordTypes()]).then(() => setReady(true)); }, []);
+  useEffect(() => { Promise.all([loadWords(), loadWordTypes()]).then(() => setReady(true)); }, []);
 
   const rows = useMemo<Row[]>(() => {
     if (!ready || !passage.trim()) return [];
@@ -94,14 +90,7 @@ export function PassageBuilder() {
   };
 
   return (
-    <div className="wx pb" data-theme="light">
-      <header className="wx-header">
-        <HomeButton className="wx-btn" />
-        <span className="wx-appname" role="heading" aria-level={1}><Icon name="book" size={28} /><span>Passage Builder</span></span>
-        <span style={{ flex: 1 }} />
-        <a className="wx-btn" href="/formulas"><Icon name="search" size={22} /><span>Formula Search</span></a>
-      </header>
-      <main className="wx-main">
+    <div className="pb">
         <section className="wx-card">
           <form onSubmit={(e) => { e.preventDefault(); setPassage(text); setFix(null); }}>
             <label htmlFor="pb-text" className="wx-h2">Paste a passage</label>
@@ -233,8 +222,6 @@ export function PassageBuilder() {
           </div>
           {message && <p role="status">{message}</p>}
         </section>
-      </main>
-      <MainMenu />
     </div>
   );
 }

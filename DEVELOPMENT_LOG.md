@@ -944,3 +944,11 @@ but code them in our code".
 - Code: `src/components/PassageBuilder.tsx`, `src/lib/writer/corrections.ts` (fixes, learning and accuracy),
   `src/lib/writer/practice.ts`, `src/lib/writer/formulaLookup.ts` (shared with Formula Search); `tagForCheck` now
   applies the fixes and `tagEngine` is the engine alone.
+
+## 2026-11-13: The passage tool is a tab of Formula Search
+
+Her request: "I dont want it to be called passage builder but rather i want it to be a tab that can be accessed through
+the formula finder". The tool is now Formula Search's **Mark up a passage** tab, beside **Search a sentence**
+(`/formulas?tab=passage`; old `/passages` links open it). It has no dashboard card or menu entry of its own; the Formula
+Search card describes both tabs. The Formula log button shows on both tabs. Code: `src/components/FormulaPassage.tsx`
+(`PassageTab`), `formulaPassage.css`.

@@ -29,3 +29,5 @@
 .fs-use { display: flex; flex-direction: column; gap: 2px; padding-bottom: 6px; border-bottom: 1px dashed var(--line); }
 .fs-use:last-of-type { border-bottom: 0; }
 .fs-top { position: absolute; top: 12px; left: 16px; }
+.fs-main.wide { max-width: 1160px; }
+.fs-tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }

@@ -1,4 +1,7 @@
-/* Passage Builder: sentences marked up like Write mode, her symbols over each word. */
+/* Formula Search, Mark up a passage tab: sentences marked up like Write mode, her symbols over each word. */
+.pb { display: flex; flex-direction: column; gap: 16px; }
+.pb > .wx-card, .pb-sentences > .wx-card { margin-bottom: 0; }
+.pb-sentences { gap: 16px !important; }
 .pb-text { min-height: 160px; padding: 12px 16px; line-height: 1.5; resize: vertical; }
 .pb-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
 .pb-source { flex: 1 1 240px; }

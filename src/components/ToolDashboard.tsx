@@ -40,16 +40,9 @@ const TOOLS: Tool[] = [
   },
   {
     title: 'Formula Search',
-    description: 'Type any sentence to find its sentence formulas. No match? Add the suggested formula to the formula log.',
+    description: 'Type any sentence to find its formulas, or mark up a whole passage (student writing or public domain) with the grammar symbols and a formula code for every sentence. New formulas go to the formula log.',
     href: '/formulas',
     image: '/dashboard/formula-search.png',
-    tags: ['Teacher tool', 'Formulas'],
-  },
-  {
-    title: 'Passage Builder',
-    description: 'Paste any passage, student writing or public domain. Each sentence is marked up with the grammar symbols and coded with its formula, in the list or new. Fix a symbol to make the grammar engine more accurate.',
-    href: '/passages',
-    image: '/dashboard/passage-builder.png',
     tags: ['Teacher tool', 'Formulas'],
   },
   {

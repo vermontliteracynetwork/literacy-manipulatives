@@ -3,7 +3,7 @@ import { tagForCheck } from './sentenceCheck';
 import { cardSlotsOf, formulaCode, sentenceSlots, slotDistance, type Slot } from './formulaMatch';
 import { FORMULA_LIST, type ListedFormula } from './formulaList';
 
-// Looking a sentence up in her formula list (Formula Search and the Passage Builder share this).
+// Looking a sentence up in her formula list (Formula Search's sentence and passage tabs share this).
 // Her "All Sentence Formulas" list is the main list. Each formula's pattern is read from its own example sentence
 // by the same engine that reads the typed sentence, so they are compared the same way.
 export interface Listed extends ListedFormula { slots: Slot[]; cardSlots: string[]; card?: string; uses?: Listed[] }

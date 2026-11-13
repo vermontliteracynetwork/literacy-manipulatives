@@ -1,15 +1,15 @@
 import type { SymbolWordClass } from '../grammarSymbols';
 import type { TaggedWord } from './tagger';
 
-// Teacher corrections to the grammar engine (Passage Builder, her request 2026-11-13: "increase the accuracy of the
+// Teacher corrections to the grammar engine (Formula Search's passage tab, her request 2026-11-13: "increase the accuracy of the
 // logic behind our symbolic grammar program"). When the engine gives a word the wrong part of speech in a real
 // sentence, the teacher picks the right one. Each correction is kept with the words around it, and the engine uses
-// it from then on (sentenceCheck.tagForCheck, so Write mode, Formula Search, Word Explorer and the Passage Builder
+// it from then on (sentenceCheck.tagForCheck, so Write mode, Formula Search, Word Explorer and the passage tab
 // all improve):
 //   1. the same sentence: always;
 //   2. the same word with the same word before it, or the same word after it ("the run" / "a run");
 //   3. the same word everywhere, once at least two corrections agree and none disagree.
-// Every corrected sentence is also a test: the Passage Builder shows how often the engine gets them right.
+// Every corrected sentence is also a test: the passage tab shows how often the engine gets them right.
 
 export interface Correction { word: string; prev: string; next: string; to: SymbolWordClass; from: SymbolWordClass; sentence: string; at: string }
 const KEY = 'lm-pos-corrections-v1';
