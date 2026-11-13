@@ -28,3 +28,4 @@
 .pb-check li.no { background: var(--tint-blush); }
 .pb-acc { font-size: var(--text-body-lg); font-weight: 600; }
 .pb-fixes { display: flex; flex-direction: column; gap: 6px; padding-left: 1.2em; }
+.pb-engine { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 12px 0; }

@@ -952,3 +952,37 @@ the formula finder". The tool is now Formula Search's **Mark up a passage** tab,
 (`/formulas?tab=passage`; old `/passages` links open it). It has no dashboard card or menu entry of its own; the Formula
 Search card describes both tabs. The Formula log button shows on both tabs. Code: `src/components/FormulaPassage.tsx`
 (`PassageTab`), `formulaPassage.css`.
+
+## 2026-11-13: A stronger grammar engine (all 121 formulas coded right, 80 test sentences)
+
+Her requests: "fix the 10 formulas the engine codes wrong", and, showing "A dog sees the plant." marked noun, noun,
+article, verb: "this is wrong. make sure they are not wrong ... we need to have a strong logic behind our mark ups and
+grammar symbols that can run all programs".
+
+Symbol rules (`fixReadings` in `src/lib/writer/sentenceCheck.ts`, run by `tagEngine`, so Write mode, Formula Search,
+both of its tabs and Word Explorer's formula codes all use them):
+- A word right after an article, a possessive (my, our...), this/that or a number starts a noun phrase and is never a
+  verb: it describes when a noun follows ("the big dog"), otherwise it is the noun ("the plant").
+- A number describes the noun after it ("two birds").
+- A sentence must have a verb: the first word that can be one right after a whole noun phrase is the verb ("A dog
+  sees", "The cat sees", "The light turned green").
+- A first word ending in -s is never a command ("Ducks swim": Ducks is the noun).
+- After be or a linking verb (turn, become, look, feel, seem, grow, get, smell, sound, taste, stay), a describing
+  word describes the subject ("You're kind", "The light turned green").
+- The last word after a verb's object that tells how is an adverb ("frogs swallow food whole").
+
+Formula code rules (`src/lib/writer/formulaMatch.ts`), in her notation:
+- In/at + a place, or on/in + a day, month or holiday: R (her working code, "Luna lives in Texas" S1.PN.R).
+- A noun set off by commas right after the subject renames it: N ("Max, my dog, barked" S1.PN.P.N), but not a list
+  ("The cat, the dog, and the bird ran").
+- A who/which part: S1.A[1.P] ("The girl who won smiled"); with commas S1.A,[3.P], ("The cat, which was small, hid").
+- Quoted speech: S2.PN,"C1.V'P" ("Mia said, "Let's swim!""), with Let's as V'P.
+- S4 with a pronoun in the subject puts P before A ("My room is a tornado" S4.P.A). Her list also has S4.A.PN ("Max is
+  a dog", A before PN); the rule keeps both as she wrote them.
+
+Checks: every example in her All Sentence Formulas list now codes exactly as she wrote it (121 of 121, was 111);
+every formula card's model sentence matches its own card (118 of 118, was 117); and a new hand-checked set of 80
+everyday sentences, including 40 with words that can be a noun or a verb (play, cook, rock, light, park, plant,
+water...), is right word for word (80 of 80; `src/lib/writer/engineTests.ts`). **Check the engine** in Formula
+Search's passage tab runs all of this and lists anything wrong. When the engine gets a sentence wrong, add it to
+`engineTests.ts` with every word's symbol, then fix the rule.

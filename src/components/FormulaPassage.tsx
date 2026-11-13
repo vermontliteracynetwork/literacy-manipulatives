@@ -13,6 +13,7 @@ import { loadWordTypes } from '../lib/wordTypes';
 import { isBlockedText } from '../lib/word-explorer/safety';
 import { speak } from '../lib/word-explorer/speech';
 import type { TaggedWord } from '../lib/writer/tagger';
+import { checkEngine, type EngineCheck } from '../lib/writer/engineCheck';
 
 // Formula Search, "Mark up a passage" tab (her requests 2026-11-13; a tab of Formula Search, not its own tool): paste any passage, student writing or public domain, and it is marked
 // up like Write mode, with her grammar symbols over every word, broken into sentences, each with its formula code in
@@ -214,6 +215,7 @@ export function PassageTab() {
               ))}</ul>
             </details>
           )}
+          <EngineCheckPanel ready={ready} version={version} />
           <p className="wx-muted">Fixes, practice sentences and the formula log are kept in this browser. Download them to keep a copy or share them with another teacher.</p>
           <div className="wx-lm-actions">
             <button type="button" className="wx-btn wx-btn-secondary" onClick={exportBase}>Download the formula base</button>
@@ -247,4 +249,27 @@ function Marked({ words, text, onPick, picked }: { words: TaggedWord[]; text: st
   }
   if (last < text.length) out.push(<span key="end" className="pb-gap">{text.slice(last)}</span>);
   return <p className="pb-marked">{out}</p>;
+}
+
+// "Check the engine": the hand-checked test sentences (every word's symbol) and her whole formula list (every code).
+function EngineCheckPanel({ ready, version }: { ready: boolean; version: number }) {
+  const [result, setResult] = useState<EngineCheck | null>(null);
+  useEffect(() => setResult(null), [version]);
+  const name = (c: SymbolWordClass) => GRAMMAR_SYMBOL_INFO[c]?.name ?? c;
+  return (
+    <div className="pb-engine">
+      <button type="button" className="wx-btn wx-btn-primary" disabled={!ready} onClick={() => setResult(checkEngine())}>Check the engine</button>
+      {result && (
+        <>
+          <p className="pb-acc">Symbols: {result.tags.pass} of {result.tags.total} test sentences have every word right. Formula codes: {result.codes.pass} of {result.codes.total} examples in her list are coded right.</p>
+          {result.tags.misses.length > 0 && <ul className="pb-fixes">{result.tags.misses.map((m) => (
+            <li key={m.sentence}><strong>{m.sentence}</strong> <span className="wx-muted">engine: {m.got.map(name).join(', ')}; should be: {m.expect.map(name).join(', ')}</span></li>
+          ))}</ul>}
+          {result.codes.misses.length > 0 && <ul className="pb-fixes">{result.codes.misses.map((m) => (
+            <li key={m.sentence}><strong>{m.sentence}</strong> <span className="wx-muted">engine: {m.got}; her list: {m.expect}</span></li>
+          ))}</ul>}
+        </>
+      )}
+    </div>
+  );
 }

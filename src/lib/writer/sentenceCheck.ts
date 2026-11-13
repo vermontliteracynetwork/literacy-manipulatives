@@ -1,6 +1,8 @@
 import { agreeWords, type PatternWord } from '../sentenceSearch';
 import { tagInContext, type TaggedWord } from './tagger';
 import { applyCorrections } from './corrections';
+import { dictionaryJobs } from './spell';
+import { baseOf } from './tenses';
 import type { SymbolWordClass } from '../grammarSymbols';
 import type { SentenceFormula } from './formulas';
 import { cardSlotsOf, closestFormula, formulaCode, sentenceSlots } from './formulaMatch';
@@ -60,7 +62,60 @@ export function tagForCheck(text: string): TaggedWord[] {
 }
 // The engine alone, before teacher corrections (Formula Search's passage tab measures it).
 export function tagEngine(text: string): TaggedWord[] {
-  return tagInContext(text).map((w) => (MODALS.has(w.word.toLowerCase()) ? { ...w, wordClass: 'verb' as SymbolWordClass } : w));
+  return fixReadings(tagInContext(text).map((w) => (MODALS.has(w.word.toLowerCase()) ? { ...w, wordClass: 'verb' as SymbolWordClass } : w)));
+}
+
+// Rules from her formula list's example sentences (2026-11-13: "fix the 10 formulas the engine codes wrong"):
+const NUMBER_WORD = /^(\d+|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|hundred|many|several|few)$/;
+const DETERMINERS = /^(a|an|the|my|your|his|her|its|our|their|this|that|these|those|every|each|some|\d+|two|three|four|five|six|seven|eight|nine|ten)$/;
+// Verbs that link the subject to a describing word, like be: "The light turned green", "The soup smells good".
+const LINKING = /^(turn|turns|turned|become|becomes|became|look|looks|looked|feel|feels|felt|seem|seems|seemed|grow|grows|grew|get|gets|got|smell|smells|smelled|sound|sounds|sounded|taste|tastes|tasted|stay|stays|stayed|stays|remain|remains|remained)$/;
+const BE_WORDS = new Set(['am', 'is', 'are', 'was', 'were', 'be', 'been', 'being']);
+const can = (w: string, job: SymbolWordClass) => !!dictionaryJobs(w.toLowerCase())?.includes(job) || (job === 'verb' && !!dictionaryJobs(baseOf(w))?.includes('verb'));
+function fixReadings(words: TaggedWord[]): TaggedWord[] {
+  const out = words.map((w) => ({ ...w }));
+  const lower = out.map((w) => w.word.toLowerCase().replace(/’/g, "'"));
+  // 0. A word right after an article, a possessive (my, our...) or a number starts a noun phrase, so it is never a
+  // verb: it describes when a noun comes next ("the big dog"), otherwise it is the noun ("the plant", "my homework").
+  for (let i = 1; i < out.length; i++) {
+    if (!DETERMINERS.test(lower[i - 1]) || out[i].parts || out[i].wordClass !== 'verb') continue;
+    const nounNext = out[i + 1] && !out[i + 1].parts && can(lower[i + 1], 'noun') && out[i + 1].wordClass !== 'verb';
+    out[i].wordClass = nounNext && can(lower[i], 'adjective') ? 'adjective' : 'noun';
+  }
+  for (let i = 0; i < out.length; i++) {
+    // 1. A number names how many of the noun after it: "two birds" (two describes, birds is the noun).
+    if (NUMBER_WORD.test(lower[i]) && out[i + 1] && !out[i + 1].parts && can(lower[i + 1], 'noun') && out[i + 2]?.wordClass !== 'noun') { out[i].wordClass = 'adjective'; out[i + 1].wordClass = 'noun'; }
+  }
+  // 1b. A sentence never starts with a command in its -s form ("Ducks swim", not a command "Ducks!"): a first word
+  // ending in -s that can be a noun, with a word after it that can be a verb, is the plural noun subject.
+  if (out.length > 1 && out[0].wordClass === 'verb' && /[^s]s$/.test(lower[0]) && can(lower[0], 'noun') && !out[1].parts && can(lower[1], 'verb')) {
+    out[0].wordClass = 'noun'; out[1].wordClass = 'verb';
+  }
+  // 2. A sentence still needs a verb: the first word that can be one right after a whole noun phrase (a, the, my,
+  // describing words, then the noun): "The cat sees two birds", "The light turned green".
+  if (!out.some((w) => w.wordClass === 'verb' || w.parts?.includes('verb'))) {
+    const npBefore = (i: number) => {
+      const head = out[i - 1];
+      if (DETERMINERS.test(lower[i - 1]) || head.wordClass === 'article') return false; // "a dog": dog is the noun, not a verb
+      if (!(['noun', 'propernoun', 'pronoun'].includes(head.wordClass) || can(lower[i - 1], 'noun'))) return false;
+      return out.slice(0, i - 1).every((w, k) => DETERMINERS.test(lower[k]) || w.wordClass === 'adjective' || can(lower[k], 'adjective'));
+    };
+    const i = out.findIndex((w, k) => k > 0 && !w.parts && can(lower[k], 'verb') && npBefore(k));
+    if (i > 0) {
+      out[i].wordClass = 'verb';
+      if (out[i - 1].wordClass !== 'pronoun' && out[i - 1].wordClass !== 'propernoun') out[i - 1].wordClass = 'noun';
+    }
+  }
+  for (let i = 1; i < out.length; i++) {
+    const prev = out[i - 1];
+    const afterBe = BE_WORDS.has(lower[i - 1]) || LINKING.test(lower[i - 1]) || (prev.parts?.includes('verb') && /'(re|s|m)$/.test(lower[i - 1]));
+    // 3. Right after be, a describing word describes the subject ("You're kind"), unless a noun follows it.
+    if (afterBe && out[i].wordClass === 'noun' && can(lower[i], 'adjective') && !(out[i + 1] && ['noun', 'propernoun'].includes(out[i + 1].wordClass))) out[i].wordClass = 'adjective';
+  }
+  // 4. The last word, after a verb's object, that tells how ("frogs swallow food whole"): an adverb.
+  const last = out.length - 1;
+  if (last > 1 && out[last].wordClass === 'adjective' && out[last - 1].wordClass === 'noun' && out.slice(0, last - 1).some((w) => w.wordClass === 'verb') && !lower.some((w) => BE_WORDS.has(w)) && can(lower[last], 'adverb')) out[last].wordClass = 'adverb';
+  return out;
 }
 
 export interface CheckResult {

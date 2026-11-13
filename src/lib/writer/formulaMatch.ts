@@ -7,7 +7,8 @@ import type { SymbolWordClass } from '../grammarSymbols';
 // and required words (be, will, do, not, feel, and, because...) named on the card itself. Contractions are two
 // cards ("We're": pronoun, be).
 
-export interface Slot { slot: string; word: string; key?: string; comma: boolean; semi?: boolean; contracted?: 'not' | 'pronoun'; from?: number; to?: number }
+// place: an in/at/on phrase that names a place or a day, month or holiday (her working code R, "Luna lives in Texas").
+export interface Slot { slot: string; word: string; key?: string; comma: boolean; semi?: boolean; contracted?: 'not' | 'pronoun' | 'us'; from?: number; to?: number; place?: boolean }
 
 const BE = new Set(['am', 'is', 'are', 'was', 'were', 'be', 'been', 'being']);
 const DO = new Set(['do', 'does', 'did']);
@@ -16,6 +17,7 @@ const JOINERS = new Set(['so that', 'and', 'but', 'or', 'so', 'yet', 'nor', 'bec
 const KEYED = new Set(['will', 'not', 'said', 'could', 'please']);
 const CONTRACTED_VERB: Record<string, string> = { "'m": 'be', "'re": 'be', "'s": 'be', "'ve": 'have', "'ll": 'will', "'d": 'would' };
 const NOUNISH = new Set<string>(['noun', 'propernoun', 'pronoun']);
+const DAYS = /^(monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december|christmas|hanukkah|halloween|thanksgiving|easter|ramadan|diwali|kwanzaa)$/;
 
 const keyOf = (w: string): string | undefined => {
   if (BE.has(w)) return 'be';
@@ -42,7 +44,7 @@ export function sentenceSlots(words: TaggedWord[], text: string): Slot[] {
         const v = nt[1] === 'ca' ? 'can' : nt[1] === 'wo' ? 'will' : nt[1];
         out.push({ slot: 'verb', word: v, key: keyOf(v) ?? v, comma, contracted: 'not' }, { slot: 'adverb', word: 'not', key: 'not', comma: false });
       } else if (lower === "let's") {
-        out.push({ slot: 'verb', word: 'let', comma }, { slot: 'pronoun', word: 'us', comma: false });
+        out.push({ slot: 'verb', word: 'let', comma, contracted: 'us' }, { slot: 'pronoun', word: 'us', comma: false, contracted: 'us' });
       } else {
         const m = lower.match(/^(.+?)('m|'re|'s|'ve|'ll|'d)$/);
         out.push({ slot: w.parts[0], word: m?.[1] ?? lower, comma, contracted: 'pronoun' }, { slot: 'verb', word: m?.[2] ?? '', key: m ? CONTRACTED_VERB[m[2]] : undefined, comma: false });
@@ -64,7 +66,8 @@ export function sentenceSlots(words: TaggedWord[], text: string): Slot[] {
       if (j < words.length && (NOUNISH.has(words[j].wordClass) || (words[j].wordClass === 'pronoun'))) {
         while (j + 1 < words.length && words[j + 1].wordClass === 'noun' && !/[,;]/.test(gap(j + 1))) j++;
         const from = words[i - 1]?.word.toLowerCase() === 'according' && lower === 'to' ? i - 1 : i;
-        out.push({ slot: 'phrase', word: words.slice(i, j + 1).map((x) => x.word.toLowerCase()).join(' '), comma, semi, from, to: j });
+        const place = j === i + 1 && /^(in|at|on)$/.test(lower) && (words[j].wordClass === 'propernoun' || DAYS.test(words[j].word.toLowerCase()));
+        out.push({ slot: 'phrase', word: words.slice(i, j + 1).map((x) => x.word.toLowerCase()).join(' '), comma, semi, from, to: j, place });
         i = j;
         continue;
       }
@@ -136,6 +139,11 @@ const AUX = new Set(['be', 'do', 'will', 'can', 'could', 'would', 'should', 'may
 const auxOf = (s: Slot) => s.key ?? s.word;
 
 function clauseCode(c: Slot[], end: string, first: boolean, opts: { exclaim?: boolean; objectClause?: boolean } = {}): string {
+  // "Let's" is one contraction of a verb and a pronoun: V'P (her "C1.V'P", "Let's swim!").
+  if (c.some((s) => s.contracted === 'us')) {
+    const rest = c.filter((s) => s.contracted !== 'us');
+    return `${rest.some((s) => s.slot === 'verb') ? clauseCode(rest, end, first, opts) : 'C1'}.V'P`;
+  }
   const verbs = c.map((s, i) => (s.slot === 'verb' ? i : -1)).filter((i) => i >= 0);
   const v = verbs[0] ?? -1;
   const before = c.slice(0, Math.max(0, v));
@@ -177,10 +185,17 @@ function clauseCode(c: Slot[], end: string, first: boolean, opts: { exclaim?: bo
   const own = c.filter((_, i) => i !== complement);
   const count = (test: (s: Slot) => boolean, letter: string) => Array(own.filter(test).length).fill(letter);
   const owns = (s: Slot) => /'s$/.test(s.word);
+  // A noun set off by commas right after the subject renames it ("Max, my dog, barked"): N.
+  const appositive = (s: Slot) => {
+    const j = c.indexOf(s);
+    if (s.slot !== 'noun' || !c[j + 1]?.comma || c[j + 1].slot !== 'verb') return false; // not a list (the cat, the dog, and...)
+    for (let k = j; k > 0; k--) { if (c[k].slot === 'verb') return false; if (c[k].comma) return NOUNISH.has(c[k - 1].slot); }
+    return false;
+  };
   let parts = [
     ...count((s) => s.slot === 'article', 'A'), ...count((s) => s.slot === 'propernoun' && !owns(s), 'PN'), ...count((s) => s.slot === 'propernoun' && owns(s), "PN's"),
-    ...count((s) => s.slot === 'pronoun', 'P'), ...count((s) => s.slot === 'noun' && owns(s), "N's"), ...Array(Math.max(0, verbs.length - 1)).fill('V'),
-    ...count((s) => s.slot === 'adjective', 'J'), ...count((s) => s.slot === 'adverb', 'B'), ...count((s) => s.slot === 'phrase', 'PRP'),
+    ...count((s) => s.slot === 'pronoun', 'P'), ...count((s) => s.slot === 'noun' && owns(s), "N's"), ...count(appositive, 'N'), ...Array(Math.max(0, verbs.length - 1)).fill('V'),
+    ...count((s) => s.slot === 'adjective', 'J'), ...count((s) => s.slot === 'adverb', 'B'), ...count((s) => s.slot === 'phrase' && !s.place, 'PRP'), ...count((s) => !!s.place, 'R'),
     ...count((s) => s.slot === 'conjunction', 'C'), ...count((s) => s.slot === 'interjection', 'I'),
   ];
   // A contraction joins its two parts with an apostrophe: "We're" P'V, "isn't" V'B.
@@ -190,6 +205,8 @@ function clauseCode(c: Slot[], end: string, first: boolean, opts: { exclaim?: bo
     if (vi >= 0) parts.splice(vi, 1);
     parts = parts.map((p, i) => (i === parts.indexOf('B') ? "V'B" : p));
   }
+  // Her S4.P.A ("My room is a tornado"): with a pronoun in the subject of a be + noun sentence, P comes before A.
+  if (/^S4/.test(type) && before.some((s) => s.slot === 'pronoun')) parts = [...parts.filter((p) => p === 'P'), ...parts.filter((p) => p !== 'P')];
   return [type, ...parts].join('.').replace(/\.'/g, "'");
 }
 
@@ -202,6 +219,26 @@ export function formulaCode(mine: Slot[], text: string): string {
   if (!mine.length) return '';
   // A one-word exclamation ("Wow!", "Crash!") is an interjection on its own.
   if (mine.length === 1 && end === '!') return 'I';
+  // Someone said a quoted sentence: S2.PN,"C1.V'P" ("Mia said, "Let's swim!""). The quote is coded on its own.
+  const quote = text.match(/^[^"“]*?["“](.+?)["”]\W*$/);
+  const saidAt = mine.findIndex((s) => s.key === 'said');
+  if (quote && saidAt > 0) {
+    const q = mine.findIndex((s, k) => k > saidAt && s.comma);
+    if (q > 0) return `${clauseCode(mine.slice(0, q), '.', true, { objectClause: true })},"${formulaCode([{ ...mine[q], comma: false }, ...mine.slice(q + 1)], quote[1])}"`;
+  }
+  // A who or which part about the subject: S1.A[1.P] ("The girl who won smiled"), with commas S1.A,[3.P], ("The cat,
+  // which was small, hid"). The part is coded by its own type (1, 3...) without the S.
+  const r = mine.findIndex((s, k) => k > 0 && s.slot === 'pronoun' && /^(who|which)$/.test(s.word) && NOUNISH.has(mine[k - 1].slot) && !mine.slice(0, k).some((x) => x.slot === 'verb'));
+  if (r > 0) {
+    const commas = mine[r].comma;
+    const verbsAfter = mine.map((s, k) => (k > r && s.slot === 'verb' ? k : -1)).filter((k) => k > 0);
+    const e = commas ? mine.findIndex((s, k) => k > r + 1 && s.comma) : verbsAfter[verbsAfter.length - 1];
+    if (e > r + 1 && verbsAfter.length >= 2 && mine.slice(e).some((s) => s.slot === 'verb')) {
+      const rel = clauseCode(mine.slice(r, e), end, false).replace(/^S/, '');
+      const main = clauseCode([...mine.slice(0, r), { ...mine[e], comma: false }, ...mine.slice(e + 1)], end, true, { exclaim: mine.some((x) => x.slot === 'interjection') || /!/.test(text) });
+      return commas ? `${main},[${rel}],` : `${main}[${rel}]`;
+    }
+  }
   const exclaim = mine.some((s) => s.slot === 'interjection') || /!/.test(text);
   const verbIn = (part: Slot[]) => part.some((x) => x.slot === 'verb');
   // An opener and a comma: "Quickly, ...", "After lunch, ...", and a name before a command: "Sam, close...".
