@@ -25,4 +25,4 @@ export const GRAMMAR_WORD_CLASS_TEXT_COLORS: Record<GrammarWordClass, string> = 
 // mechanic checks, a noun and a verb only click together when these
 // match (subject-verb agreement), the one grammar rule the sandbox
 // quietly enforces while everything else stays completely free.
-export type { GrammarPiece } from '../packages/symbolic-grammar-engine/src/types';
+export type { GrammarPiece } from 'symbolic-grammar-engine/src/types';

@@ -1031,3 +1031,13 @@ independent work dashboard and the curriculum research with Beth; "do all four s
 
 Still to do (needs her GitHub): move the package into its own repository (`symbolic-grammar-engine`), install it here
 and in the independent work dashboard at a pinned version.
+
+## 2026-11-13: The engine has its own repository
+
+The Symbolic Grammar Engine now lives at https://github.com/vermontliteracynetwork/symbolic-grammar-engine (version
+1.1.0, with its own checks on GitHub). This site installs it pinned to one commit (`package.json`,
+`symbolic-grammar-engine`); the copy that was in `packages/` is gone, so there is one engine. The old `src/lib` paths
+re-export the installed package. Before every build, `npm run test:engine` runs the engine's checks against the
+installed version (80 test sentences, 121 formulas, 118 cards, every shared fix), and `npm run engine:assets` copies its
+word lists and grammar symbols into `public/`. To update the engine: change the commit in `package.json` (the same one
+in every project), `npm install`, build.

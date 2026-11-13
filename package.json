@@ -9,10 +9,10 @@
     "lint": "oxlint && node scripts/check-text.mjs",
     "preview": "vite preview",
     "check-text": "node scripts/check-text.mjs",
-    "engine:assets": "node packages/symbolic-grammar-engine/scripts/copy-assets.mjs public",
+    "engine:assets": "node node_modules/symbolic-grammar-engine/scripts/copy-assets.mjs public",
     "predev": "npm run engine:assets",
     "prebuild": "npm run engine:assets && npm run test:engine",
-    "test:engine": "npm --prefix packages/symbolic-grammar-engine test"
+    "test:engine": "node scripts/engine-check.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inclusive-sans": "^5.3.0",
@@ -22,6 +22,7 @@
     "@supabase/supabase-js": "^2.118.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "symbolic-grammar-engine": "https://codeload.github.com/vermontliteracynetwork/symbolic-grammar-engine/tar.gz/47b8a49f3408d4e818734b33f57cfead552a0595",
     "yjs": "^13.6.33"
   },
   "devDependencies": {

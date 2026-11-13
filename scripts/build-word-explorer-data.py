@@ -49,12 +49,12 @@ def clean(t):
     return re.sub(r'\s+', ' ', t).strip().strip(';').strip()
 
 
-ranks = json.load(open(os.path.join(ROOT, 'packages', 'symbolic-grammar-engine', 'data', 'words.json')))
+ranks = json.load(open(os.path.join(ROOT, 'node_modules', 'symbolic-grammar-engine', 'data', 'words.json')))
 BAND = {}
 for r, lst in enumerate(ranks):
     for w in lst:
         BAND.setdefault(w.lower(), r + 1)  # SCOWL size level 0..3 -> band 1..4 (5 = not in the list)
-pos_json = json.load(open(os.path.join(ROOT, 'packages', 'symbolic-grammar-engine', 'data', 'pos.json')))
+pos_json = json.load(open(os.path.join(ROOT, 'node_modules', 'symbolic-grammar-engine', 'data', 'pos.json')))
 POS_ORDER = {}
 for code, lst in pos_json.items():
     for w in lst.split(' '):
@@ -231,7 +231,7 @@ with open(os.path.join(OUT, 'OEWN-LICENSE.txt'), 'w') as f:
             'Open English WordNet (2024 edition), https://github.com/globalwordnet/english-wordnet\n'
             'Licensed under the Creative Commons Attribution 4.0 International License (CC BY 4.0),\n'
             'https://creativecommons.org/licenses/by/4.0/\n'
-            'Open English WordNet is based on Princeton WordNet 3.0 (see packages/symbolic-grammar-engine/data/WORDNET-LICENSE.txt).\n'
+            'Open English WordNet is based on Princeton WordNet 3.0 (see node_modules/symbolic-grammar-engine/data/WORDNET-LICENSE.txt).\n'
             'Changes: filtered to everyday words, kid-safe filtered, trimmed to the most common meanings.\n')
 
 print(len(out), 'entries,', len(shards), 'files,', total_bytes // 1024, 'KB;', len(index), 'index words;', len(forms), 'forms')
