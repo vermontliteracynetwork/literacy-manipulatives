@@ -1,0 +1,19 @@
+{
+  "name": "symbolic-grammar-engine",
+  "version": "1.0.0",
+  "description": "One grammar engine for every Symbolic Grammar and Literacy Manipulatives project: grammar symbols for every word, sentence formulas and her formula codes.",
+  "type": "module",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": { ".": "./src/index.ts", "./data/*": "./data/*", "./assets/*": "./assets/*" },
+  "files": ["src", "data", "assets", "scripts", "RULES.md", "README.md"],
+  "scripts": {
+    "test": "rolldown test/run.ts --platform node --format esm --file .test-build/run.mjs --log-level warn && node .test-build/run.mjs",
+    "copy-assets": "node scripts/copy-assets.mjs",
+    "add-fixes": "node scripts/add-fixes.mjs"
+  },
+  "devDependencies": {
+    "rolldown": "1.2.11"
+  }
+}

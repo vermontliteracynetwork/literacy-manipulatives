@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Copied from the Symbolic Grammar Engine package at dev/build time (npm run engine:assets); the package is the source.
+public/writer/words.json
+public/writer/pos.json
+public/writer/teacher-fixes.json
+public/writer/WORDLIST-COPYRIGHT.txt
+public/writer/WORDNET-LICENSE.txt
+public/literacy/grammar-symbols/

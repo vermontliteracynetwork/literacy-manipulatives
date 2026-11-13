@@ -8,7 +8,11 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint && node scripts/check-text.mjs",
     "preview": "vite preview",
-    "check-text": "node scripts/check-text.mjs"
+    "check-text": "node scripts/check-text.mjs",
+    "engine:assets": "node packages/symbolic-grammar-engine/scripts/copy-assets.mjs public",
+    "predev": "npm run engine:assets",
+    "prebuild": "npm run engine:assets && npm run test:engine",
+    "test:engine": "npm --prefix packages/symbolic-grammar-engine test"
   },
   "dependencies": {
     "@fontsource-variable/inclusive-sans": "^5.3.0",

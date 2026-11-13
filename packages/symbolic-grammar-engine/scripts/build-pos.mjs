@@ -5,14 +5,14 @@
 // orders noun, verb, adjective and adverb. Word forms WordNet doesn't list (dogs, ran, taller) take the jobs
 // of their base word.
 //
-// Usage: node scripts/build-pos.mjs <path to WordNet dict folder>   (e.g. from the npm package wordnet-db)
+// Usage (in the engine package): node scripts/build-pos.mjs <path to WordNet dict folder>   (e.g. from the npm package wordnet-db)
 import fs from 'node:fs';
 import path from 'node:path';
 
 const dict = process.argv[2];
-if (!dict) { console.error('Usage: node scripts/build-pos.mjs <wordnet dict folder>'); process.exit(1); }
-const root = path.dirname(path.dirname(new URL(import.meta.url).pathname));
-const words = JSON.parse(fs.readFileSync(path.join(root, 'public/writer/words.json'), 'utf8')).flat();
+if (!dict) { console.error('Usage (in the engine package): node scripts/build-pos.mjs <wordnet dict folder>'); process.exit(1); }
+const root = path.dirname(path.dirname(new URL(import.meta.url).pathname)) // the engine package;
+const words = JSON.parse(fs.readFileSync(path.join(root, 'data/words.json'), 'utf8')).flat();
 
 // lemma -> { n, v, a, r } summed tag counts (+1 per sense so untagged senses still count a little)
 const TYPE = { 1: 'n', 2: 'v', 3: 'a', 4: 'r', 5: 'a' };
@@ -68,6 +68,6 @@ for (const w of new Set(words.map((x) => x.toLowerCase()))) {
   n++;
 }
 const json = Object.fromEntries(Object.entries(out).map(([k, list]) => [k, list.join(' ')]));
-fs.writeFileSync(path.join(root, 'public/writer/pos.json'), JSON.stringify(json));
-fs.copyFileSync(path.join(dict, '..', 'LICENSE'), path.join(root, 'public/writer/WORDNET-LICENSE.txt'));
+fs.writeFileSync(path.join(root, 'data/pos.json'), JSON.stringify(json));
+fs.copyFileSync(path.join(dict, '..', 'LICENSE'), path.join(root, 'data/WORDNET-LICENSE.txt'));
 console.log(`${n} words with dictionary jobs`);

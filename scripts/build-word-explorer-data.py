@@ -11,7 +11,7 @@ Writes (all generated, edit this script, not the output):
                                          sharded by the word's first two letters so a word page loads one small file
   public/word-explorer/OEWN-LICENSE.txt  the CC BY 4.0 credit line
 
-Only words in the Write mode word list (public/writer/words.json) are kept, so every word is an everyday word.
+Only words in the Write mode word list (the engine's data/words.json) are kept, so every word is an everyday word.
 The kid-safe filter (src/lib/word-explorer/blocklist.json) drops blocked words, and drops any meaning, example or
 synonym whose text uses a blocked term. Em dashes are replaced (her rule: no em dashes anywhere).
 Share-alike data is not mixed in here: OEWN is CC BY 4.0 (attribution only).
@@ -49,12 +49,12 @@ def clean(t):
     return re.sub(r'\s+', ' ', t).strip().strip(';').strip()
 
 
-ranks = json.load(open(os.path.join(ROOT, 'public', 'writer', 'words.json')))
+ranks = json.load(open(os.path.join(ROOT, 'packages', 'symbolic-grammar-engine', 'data', 'words.json')))
 BAND = {}
 for r, lst in enumerate(ranks):
     for w in lst:
         BAND.setdefault(w.lower(), r + 1)  # SCOWL size level 0..3 -> band 1..4 (5 = not in the list)
-pos_json = json.load(open(os.path.join(ROOT, 'public', 'writer', 'pos.json')))
+pos_json = json.load(open(os.path.join(ROOT, 'packages', 'symbolic-grammar-engine', 'data', 'pos.json')))
 POS_ORDER = {}
 for code, lst in pos_json.items():
     for w in lst.split(' '):
@@ -231,7 +231,7 @@ with open(os.path.join(OUT, 'OEWN-LICENSE.txt'), 'w') as f:
             'Open English WordNet (2024 edition), https://github.com/globalwordnet/english-wordnet\n'
             'Licensed under the Creative Commons Attribution 4.0 International License (CC BY 4.0),\n'
             'https://creativecommons.org/licenses/by/4.0/\n'
-            'Open English WordNet is based on Princeton WordNet 3.0 (see public/writer/WORDNET-LICENSE.txt).\n'
+            'Open English WordNet is based on Princeton WordNet 3.0 (see packages/symbolic-grammar-engine/data/WORDNET-LICENSE.txt).\n'
             'Changes: filtered to everyday words, kid-safe filtered, trimmed to the most common meanings.\n')
 
 print(len(out), 'entries,', len(shards), 'files,', total_bytes // 1024, 'KB;', len(index), 'index words;', len(forms), 'forms')

@@ -1007,3 +1007,27 @@ the closed word groups).
   subject-verb agreement for random words.
 - Checks after the move: 80 of 80 test sentences, 121 of 121 formula list codes, 118 of 118 formula cards, and the
   Word List Maker's spec checks are unchanged.
+
+## 2026-11-13: The Symbolic Grammar Engine package (one engine for every project)
+
+Her request: use the same grammar engine for every Symbolic Grammar and Literacy Manipulatives project, including the
+independent work dashboard and the curriculum research with Beth; "do all four steps, own repo for the engine".
+
+1. **One engine, never copied.** The engine now lives in `packages/symbolic-grammar-engine/` (version 1.0.0), ready to
+   become its own repository: its source (`src/`: grammarEngine, grammarSymbols, the tagger and its rules, formula
+   codes, her formula list and cards, fixes, tests), its word lists (`data/`) and her grammar symbol pictures
+   (`assets/`). This site imports it; the old file paths in `src/lib` are one-line pointers to the package, so nothing
+   else changed. `npm run engine:assets` (run before dev and build) copies the word lists and symbols into `public/`;
+   those copies are no longer kept in git.
+2. **Tests block bad changes.** `npm run test:engine` (the package's `npm test`, which runs in Node without a browser)
+   checks 80 test sentences word for word, her 121 formulas, her 118 formula cards and every shared fix. It runs before
+   every build (so a broken engine cannot deploy) and on GitHub for every change (`.github/workflows/grammar-engine.yml`).
+3. **One written rulebook.** `packages/symbolic-grammar-engine/RULES.md`: every symbol convention, how a word gets its
+   symbol, every formula code rule in her notation, what is tested, and how a rule from the curriculum becomes a test
+   and then a rule.
+4. **Shared fixes.** `data/teacher-fixes.json` is loaded by every project with the engine and applied under each
+   browser's own fixes; each one is also a test. In Formula Search's passage tab, **Send my fixes to the engine**
+   downloads them; `npm run add-fixes <file>` (in the package) adds them.
+
+Still to do (needs her GitHub): move the package into its own repository (`symbolic-grammar-engine`), install it here
+and in the independent work dashboard at a pinned version.

@@ -5,7 +5,7 @@ import { FormulaSymbols } from './SentenceFormulas';
 import { GRAMMAR_SYMBOL_INFO, type SymbolWordClass } from '../lib/grammarSymbols';
 import { checkSentence, splitSentences, tagEngine, tagForCheck, type SentenceSpan } from '../lib/writer/sentenceCheck';
 import { readFormula, resetListed } from '../lib/writer/formulaLookup';
-import { addCorrection, accuracy, corrections, removeCorrection, replaceCorrections, type Correction } from '../lib/writer/corrections';
+import { addCorrection, accuracy, corrections, sharedCorrections, removeCorrection, replaceCorrections, type Correction } from '../lib/writer/corrections';
 import { addIdea, readIdeas, type FormulaIdea } from '../lib/writer/formulaBook';
 import { addPractice, readPractice, writePractice, type PracticeSentence } from '../lib/writer/practice';
 import { loadWords } from '../lib/writer/spell';
@@ -216,8 +216,14 @@ export function PassageTab() {
             </details>
           )}
           <EngineCheckPanel ready={ready} version={version} />
-          <p className="wx-muted">Fixes, practice sentences and the formula log are kept in this browser. Download them to keep a copy or share them with another teacher.</p>
+          <p className="wx-muted">Your fixes work right away in this browser. To make them work in every project (this site, the independent work dashboard and anything else on the grammar engine), download them and send the file to be added to the engine's shared fixes. Shared fixes already in the engine: {sharedCorrections().length}.</p>
           <div className="wx-lm-actions">
+            <button type="button" className="wx-btn wx-btn-primary" disabled={!corrections().length} onClick={() => {
+              const a = document.createElement('a');
+              a.href = URL.createObjectURL(new Blob([JSON.stringify({ kind: 'grammar-engine-fixes', at: today(), corrections: corrections() }, null, 1)], { type: 'application/json' }));
+              a.download = `fixes-for-the-grammar-engine-${today()}.json`;
+              a.click();
+            }}>Send my fixes to the engine (download)</button>
             <button type="button" className="wx-btn wx-btn-secondary" onClick={exportBase}>Download the formula base</button>
             <button type="button" className="wx-btn" onClick={() => file.current?.click()}>Add a formula base file</button>
             <input ref={file} type="file" accept=".json,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void importBase(f); e.target.value = ''; }} />
@@ -261,7 +267,7 @@ function EngineCheckPanel({ ready, version }: { ready: boolean; version: number 
       <button type="button" className="wx-btn wx-btn-primary" disabled={!ready} onClick={() => setResult(checkEngine())}>Check the engine</button>
       {result && (
         <>
-          <p className="pb-acc">Symbols: {result.tags.pass} of {result.tags.total} test sentences have every word right. Formula codes: {result.codes.pass} of {result.codes.total} examples in her list are coded right.</p>
+          <p className="pb-acc">Symbols: {result.tags.pass} of {result.tags.total} test sentences have every word right. Formula codes: {result.codes.pass} of {result.codes.total} examples in her list are coded right. Formula cards: {result.cards.pass} of {result.cards.total} model sentences match their card.</p>
           {result.tags.misses.length > 0 && <ul className="pb-fixes">{result.tags.misses.map((m) => (
             <li key={m.sentence}><strong>{m.sentence}</strong> <span className="wx-muted">engine: {m.got.map(name).join(', ')}; should be: {m.expect.map(name).join(', ')}</span></li>
           ))}</ul>}

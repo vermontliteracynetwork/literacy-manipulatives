@@ -1,0 +1,18 @@
+# Checks the Symbolic Grammar Engine on every change: 80 test sentences, her 121 formulas, her 118 formula cards and
+# every shared teacher fix. A change that breaks any of them is marked failed.
+name: Grammar engine checks
+on:
+  push:
+  pull_request:
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:engine
+      - run: npm run build
