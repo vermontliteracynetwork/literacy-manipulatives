@@ -986,3 +986,24 @@ everyday sentences, including 40 with words that can be a noun or a verb (play, 
 water...), is right word for word (80 of 80; `src/lib/writer/engineTests.ts`). **Check the engine** in Formula
 Search's passage tab runs all of this and lists anything wrong. When the engine gets a sentence wrong, add it to
 `engineTests.ts` with every word's symbol, then fix the rule.
+
+## 2026-11-13: One grammar engine for every tool
+
+Her request: "yes, move everything onto the same engine." Every tool now gives words their grammar symbols through
+`src/lib/grammarEngine.ts`, built on the tagger and its rules (`writer/tagger.ts`, `writer/sentenceCheck.ts`), her
+fixes (`writer/corrections.ts`) and one word list (WordNet parts of speech, most common first; the board's word lists;
+the closed word groups).
+
+- **Sentences, read in context** (`readText`, `symbolsFor`, `readWithWhy`): Write mode and Formula Search (as before),
+  the whiteboard (text box to symbols, the Symbol Sentences search, the Sentence Check on the board, Grammar Symbols
+  search), and Word Explorer (why lines, past/present/future tags, formula codes).
+- **One word** (`fitsJob`, `jobsOfWord`): the whiteboard's word bubbles ("happy" in a verb bubble is caught, "light"
+  fits an adjective, "jump" fits a noun as "a jump", "cat" in a verb bubble is caught), Word Explorer's part of speech
+  symbols on a word page, and the Word List Maker's part of speech filter.
+- **Removed**, so nothing can disagree again: the second sentence reader in `wordTypes.ts` (`readSentence`,
+  `readSentenceWhy`, `fitsType`) and the board's own word-by-word guesser in `sentenceSearch.ts` (`tagWord`,
+  `ensureVerb`, `symbolsForWords`, `wordMismatch`, `tagSentence`). `wordTypes.ts` now only loads WordNet and does live
+  lookups when a teacher allows them; `sentenceSearch.ts` keeps the board's word lists, Symbol Sentence data and
+  subject-verb agreement for random words.
+- Checks after the move: 80 of 80 test sentences, 121 of 121 formula list codes, 118 of 118 formula cards, and the
+  Word List Maker's spec checks are unchanged.

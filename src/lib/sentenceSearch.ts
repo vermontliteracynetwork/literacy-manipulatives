@@ -76,49 +76,23 @@ for (const v of VERB_BASES.split(/\s+/)) {
   const stem = v.endsWith('e') ? v.slice(0, -1) : v;
   VERBS.add(`${stem}ed`); VERBS.add(`${stem}ing`); VERBS.add(`${v}ed`); VERBS.add(`${v}ing`);
 }
-const FUNCTION_CLASSES: SymbolWordClass[] = ['article', 'pronoun', 'preposition', 'conjunction', 'interjection', 'adjective', 'adverb'];
 
-// Best guess for a word the board hasn't seen: a known verb is a verb; a capital in the middle of a sentence
-// is a proper noun; -ly an adverb; -ed / -ing a verb; anything else a noun.
-function tagWord(raw: string, first: boolean): SymbolWordClass {
-  const key = raw.toLowerCase();
-  const known = LEXICON.get(key);
-  if (known && known !== 'noun' && known !== 'propernoun') return known;
-  if (VERBS.has(key)) return 'verb';
-  if (known) return known === 'propernoun' && !/^[A-Z]/.test(raw) && !first ? 'noun' : known;
-  if (/^[A-Z]/.test(raw) && (!first || raw !== raw.toUpperCase()) && !first) return 'propernoun';
-  if (first && /^[A-Z][a-z]+$/.test(raw) && !LEXICON.has(key) && !/(s|ed|ing|ly)$/.test(key)) return 'propernoun';
-  if (/ly$/.test(key)) return 'adverb';
-  if (/(ed|ing)$/.test(key)) return 'verb';
-  return 'noun';
-}
-
-// A sentence needs a verb. If none was found, the first word after the subject (a pronoun or noun) that
-// isn't a small joining word is read as the action.
-function ensureVerb(words: PatternWord[]): PatternWord[] {
-  if (words.some((w) => w.wordClass === 'verb')) return words;
-  const subj = words.findIndex((w) => w.wordClass === 'pronoun' || w.wordClass === 'noun' || w.wordClass === 'propernoun');
-  if (subj < 0) return words;
-  const i = words.findIndex((w, idx) => idx > subj && !FUNCTION_CLASSES.includes(w.wordClass));
-  if (i < 0) return words;
-  return words.map((w, idx) => (idx === i ? { ...w, wordClass: 'verb' } : w));
-}
-
-export function patternFor(query: string): { words: PatternWord[]; fromNames: boolean } | null {
+// A typed query as symbols: part of speech names ("noun verb") as they are, or a sentence read by the grammar
+// engine (src/lib/grammarEngine.ts, passed in as `read` so every tool reads words the same way).
+export function patternFor(query: string, read: (text: string) => PatternWord[]): { words: PatternWord[]; fromNames: boolean } | null {
   const q = query.trim();
   if (!q) return null;
   const names = parseClassNames(q);
   if (names) return { words: names.map((c) => ({ wordClass: c, word: '' })), fromNames: true };
-  const raw = q.match(/[A-Za-z']+/g) ?? [];
-  if (!raw.length) return null;
-  return { words: ensureVerb(raw.map((w, i) => ({ wordClass: tagWord(w, i === 0), word: w }))), fromNames: false };
+  const words = read(q);
+  return words.length ? { words, fromNames: false } : null;
 }
 
 const key = (classes: SymbolWordClass[]) => classes.join(' ');
 
 // Sentences with exactly this pattern first, then ones whose text contains what was typed.
-export function searchSymbolSentences(query: string): { pattern: PatternWord[] | null; matches: SymbolSentence[] } {
-  const parsed = patternFor(query);
+export function searchSymbolSentences(query: string, read: (text: string) => PatternWord[]): { pattern: PatternWord[] | null; matches: SymbolSentence[] } {
+  const parsed = patternFor(query, read);
   const want = parsed ? key(parsed.words.map((w) => w.wordClass)) : '';
   const same = parsed ? ALL_SYMBOL_SENTENCES.filter((s) => key(s.words.map((w) => w.wordClass)) === want) : [];
   const q = query.trim().toLowerCase();
@@ -126,40 +100,9 @@ export function searchSymbolSentences(query: string): { pattern: PatternWord[] |
   return { pattern: parsed?.words ?? null, matches: [...same, ...text] };
 }
 
-// Grammar Symbols search (her request 2026-10-15): type a word ("jump", "Sam", "quickly") to get its symbol.
-// Each typed word is tagged on its own, so "big dog" gives an adjective and a noun.
-export function symbolsForWords(query: string): PatternWord[] {
-  const raw = query.trim().match(/[A-Za-z']+/g) ?? [];
-  return raw.map((w) => ({ wordClass: tagWord(w, false), word: w }));
-}
 
 
-// Checking a typed word against its symbol (her request 2026-10-15): "cat" typed into a verb bubble gets
-// flagged. Only words the board knows are checked, so a new or unusual word is never marked wrong. Returns the
-// job the word looks like it does when that isn't the symbol's job, or null when it fits or is unknown.
 const BASE_VERBS = new Set(VERB_BASES.split(/\s+/));
-export function isKnownWord(raw: string | undefined): boolean {
-  const key = (raw ?? '').toLowerCase().replace(/[^a-z' ]/g, '').trim();
-  return !!key && (JOBS.has(key) || VERBS.has(key));
-}
-export function wordMismatch(raw: string | undefined, cls: SymbolWordClass): SymbolWordClass | null {
-  const word = (raw ?? '').trim();
-  const key = word.toLowerCase().replace(/[^a-z' ]/g, '').trim();
-  if (!key || key.includes(' ')) return null;
-  const jobs = new Set(JOBS.get(key) ?? []);
-  if (VERBS.has(key)) jobs.add('verb');
-  if (cls === 'propernoun') {
-    if (/^[A-Z]/.test(word)) return null;
-    return jobs.size ? (jobs.has('noun') ? 'noun' : [...jobs][0]) : null;
-  }
-  if (!jobs.size || jobs.has(cls)) return null;
-  // Names are nouns too, and an action word can name a thing ("a jump", "a swim").
-  if (cls === 'noun' && (jobs.has('propernoun') || BASE_VERBS.has(key))) return null;
-  for (const pref of ['noun', 'verb', 'adjective', 'adverb', 'pronoun', 'article', 'preposition', 'conjunction', 'interjection', 'propernoun'] as SymbolWordClass[]) {
-    if (jobs.has(pref)) return pref;
-  }
-  return null;
-}
 
 // Subject-verb agreement for random words (her request 2026-10-15): "The dog run" becomes "The dog runs" and
 // "They runs" becomes "They run". Past-tense verbs fit any subject; forms of "be" follow the subject too.
@@ -207,16 +150,7 @@ export function agreeWords(words: { word: string; cls: SymbolWordClass }[]): str
   });
 }
 
-// For the Writer (2026-10-27): tag a typed sentence word by word (no part-of-speech-name parsing), making sure it
-// has a verb, and list every job a word can do.
-export function tagSentence(text: string): PatternWord[] {
-  const raw = text.match(/[A-Za-z']+/g) ?? [];
-  return ensureVerb(raw.map((w, i) => ({ wordClass: tagWord(w, i === 0), word: w })));
-}
-export function tagWordsPlain(text: string): PatternWord[] {
-  const raw = text.match(/[A-Za-z']+/g) ?? [];
-  return raw.map((w, i) => ({ wordClass: tagWord(w, i === 0), word: w }));
-}
+// Every job a word can do in the board's own word lists (part of the grammar engine's word list).
 export function wordJobs(raw: string): Set<SymbolWordClass> {
   const key = raw.toLowerCase().replace(/[^a-z']/g, '');
   const jobs = new Set(JOBS.get(key) ?? []);

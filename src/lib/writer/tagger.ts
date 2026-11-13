@@ -65,7 +65,7 @@ const CLOSED = (w: string) => PREPOSITION.has(w) || SUBORDINATE_OR_PREP.has(w) |
   || OBJECT.has(w) || POSSESSIVE.has(w) || WH_PRONOUN.has(w) || ARTICLE.has(w) || w === 'so' || BE.has(w) || DO.has(w) || HAVE.has(w) || HELPERS.has(w) || DETERMINER.has(w) || NUMBER.test(w);
 
 // The jobs a word could do: the board's word lists, closed word groups, and word endings for new words.
-function jobsOf(lower: string): Set<C> {
+export function jobsOf(lower: string): Set<C> {
   // Step 1: the dictionary's jobs first (most common first), then the board's word lists.
   const j = new Set<C>(dictionaryJobs(lower) ?? []);
   for (const c of wordJobs(lower)) j.add(c);

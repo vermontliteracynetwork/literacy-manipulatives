@@ -1,7 +1,9 @@
 import type { Example, FrequencyBand, PartOfSpeech, Provenance, ReviewStatus, Sense, Tier, WordEntry, WordForms } from './types';
 import { isBlockedTerm, isBlockedText } from './safety';
 import { soundOutFromIpa } from './soundOut';
-import { loadWordTypes, typesOf, type WordType } from '../wordTypes';
+import { loadWordTypes } from '../wordTypes';
+import { jobsOfWord } from '../grammarEngine';
+import type { SymbolWordClass } from '../grammarSymbols';
 import { pastOf, third } from '../writer/tenses';
 import { SEED_ENTRIES, type SeedSense } from './seed';
 import { statusOf } from './review';
@@ -78,7 +80,7 @@ export function rawWord(w: string): Promise<RawWord | undefined> {
 }
 
 // ---------- building an entry ----------
-const WORDTYPE_POS: Partial<Record<WordType, PartOfSpeech>> = {
+const WORDTYPE_POS: Partial<Record<SymbolWordClass, PartOfSpeech>> = {
   noun: 'noun', propernoun: 'noun', verb: 'verb', adjective: 'adjective', adverb: 'adverb', pronoun: 'pronoun',
   preposition: 'preposition', conjunction: 'conjunction', interjection: 'interjection', article: 'article',
 };
@@ -173,8 +175,9 @@ async function buildEntry(word: string): Promise<WordEntry | null> {
   const rw = await rawWord(word);
   const seed = SEED_ENTRIES[word];
   const iw = indexWord(word);
-  const types = typesOf(word);
-  if (!rw && !seed && !iw && !types) return null;
+  // What the word can be, from the grammar engine every tool uses (most common first).
+  const jobs = jobsOfWord(word);
+  if (!rw && !seed && !iw && !jobs.length) return null;
 
   const band: FrequencyBand = iw?.band ?? 5;
   const senses: Sense[] = [];
@@ -205,7 +208,7 @@ async function buildEntry(word: string): Promise<WordEntry | null> {
   }
 
   const parts: PartOfSpeech[] = [];
-  for (const t of [...(types?.common ?? []), ...(types?.all ?? [])]) { const p = WORDTYPE_POS[t]; if (p && !parts.includes(p)) parts.push(p); }
+  for (const t of jobs) { const p = WORDTYPE_POS[t]; if (p && !parts.includes(p)) parts.push(p); }
   for (const s of senses) if (!parts.includes(s.pos)) parts.push(s.pos);
 
   const main = senses[0]?.pos ?? parts[0];
@@ -216,7 +219,7 @@ async function buildEntry(word: string): Promise<WordEntry | null> {
 
   return {
     id: word, headword: word, lemma: word, soundOut, ipa: rw?.ipa,
-    capitalLetter: !!types && types.common[0] === 'propernoun',
+    capitalLetter: jobs[0] === 'propernoun',
     variants: [],
     forms: { value: formsValue, provenance: irregular.length ? [OEWN, ESTIMATE] : [ESTIMATE], status: entryStatus },
     senses,

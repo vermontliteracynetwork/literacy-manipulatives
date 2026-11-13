@@ -4,7 +4,7 @@ import { ReferencePopover } from './components/ReferencePopover';
 import { SANDBOX_PIECES } from './lib/grammarContent';
 import { MORPHEME_GROUPS, KIND_LABEL, buildWord, canFollow, isCore, kindExplanation, madeUpMeaning, makeItReal, morphemeById, morphemeFor, BLANK_MORPHEMES, isBlankMorpheme, morphemeTags, tagsForGroup, pieceLabel, type Morpheme } from './lib/morphemes';
 import { lookupDefinition, peekDefinition } from './lib/dictionary';
-import { fitsType, loadWordTypes, typesOf } from './lib/wordTypes';
+import { loadWordTypes } from './lib/wordTypes';
 import { MorphemePiece, pieceBodyWidth, pieceOuterSize } from './components/MorphemePiece';
 import { FloatingCard } from './components/FloatingCard';
 import { Icon } from './components/Icon';
@@ -23,7 +23,8 @@ import { GRAMMAR_SYMBOL_INFO, TENSE_SYMBOLS, type SymbolWordClass } from './lib/
 import { verbInTense, type Tense } from './lib/tenseSymbols';
 import { loadWords } from './lib/writer/spell';
 import { SYMBOL_SENTENCE_PAGES, ALL_SYMBOL_SENTENCES, type SymbolSentence } from './lib/symbolSentences';
-import { agreeWords, isKnownWord, patternFor, searchSymbolSentences, symbolsForWords, wordMismatch, type PatternWord } from './lib/sentenceSearch';
+import { agreeWords, searchSymbolSentences, type PatternWord } from './lib/sentenceSearch';
+import { fitsJob, isKnown, mainJob, symbolsFor } from './lib/grammarEngine';
 import { PUNCTUATION_MARKS } from './lib/punctuationContent';
 import { BUBBLE_BLACK, BUBBLE_WHITE, nextPunct, randomWordInSentence, sentenceTokens, stripPunctuation, textOn, type BubbleStyle } from './lib/wordBubbles';
 import {
@@ -1285,15 +1286,12 @@ export default function LiteracyManipulatives({ startInWriter = false, embed }: 
   const wordProblem = (word: string | undefined, cls: SymbolWordClass): SymbolWordClass | null => {
     const w = (word ?? '').trim();
     if (!w || w.includes(' ')) return null;
-    const known = wordMismatch(w, cls);
-    if (cls === 'propernoun') return known;
-    // The real dictionary (src/lib/wordTypes.ts, WordNet) decides first, so a word the board lists for one job
-    // still fits another job the dictionary gives it ("light" can describe), and "happy" in a verb is caught.
-    const fit = fitsType(w, cls);
+    // The grammar engine decides (src/lib/grammarEngine.ts, the same one every tool uses): "light" can describe,
+    // and "happy" in a verb bubble is caught.
+    const fit = fitsJob(w, cls);
     if (fit === 'yes') return null;
-    if (known) return known;
-    if (fit === 'no') { const t = typesOf(w)!; return (t.common[0] ?? t.all[0]) as SymbolWordClass; }
-    if (isKnownWord(w)) return null;
+    if (fit === 'no') return mainJob(w) ?? null;
+    if (cls === 'propernoun') return null;
     const parts = (peekDefinition(w)?.parts ?? []).map((pt) => DICT_PART[pt.toLowerCase()]).filter((c): c is SymbolWordClass => !!c);
     if (!parts.length || parts.includes(cls) || (cls === 'article' && parts.includes('adjective'))) return null;
     return parts[0];
@@ -1303,7 +1301,7 @@ export default function LiteracyManipulatives({ startInWriter = false, embed }: 
     const w = word.trim();
     if (!w) return clearWordAlert(owner, idx);
     await loadWordTypes();
-    if (!isKnownWord(w) && cls !== 'propernoun' && peekDefinition(w) === undefined) {
+    if (!isKnown(w) && cls !== 'propernoun' && peekDefinition(w) === undefined) {
       await lookupDefinition(w);
       setDictTick((n) => n + 1);
     }
@@ -1438,7 +1436,9 @@ export default function LiteracyManipulatives({ startInWriter = false, embed }: 
     const capital = /^[A-Z]/.test(words[0]?.word ?? '');
     const last = parts[parts.length - 1];
     const punctuation = !!last && 'punct' in last && /[.?!]/.test(last.punct);
-    const classes = words.map((w) => w.cls ?? symbolsForWords(w.word)[0]?.wordClass ?? 'noun');
+    // Words without a symbol are read in context by the grammar engine, like Write mode.
+    const read = symbolsFor(words.map((w) => w.word).join(' '));
+    const classes = words.map((w, i) => w.cls ?? read[i]?.wordClass ?? 'noun');
     const filled = words.length > 0 && words.every((w) => w.word);
     const fits = words.every((w) => !w.cls || !wordProblem(w.word, w.cls));
     const hasVerb = classes.includes('verb');
@@ -1478,7 +1478,7 @@ export default function LiteracyManipulatives({ startInWriter = false, embed }: 
     pushHistory();
     const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const words = tokens.filter((t) => !/^[.,!?;:]$/.test(t));
-    const tagged = patternFor(words.join(' '))?.words ?? [];
+    const tagged = symbolsFor(words.join(' '));
     // Word classes from the symbols the box was made from, when the words still line up with them.
     const fromSource = (box.sourcePieces ?? []).flatMap((pp): SymbolWordClass[] => {
       if (pp.kind === 'shape') return [pp.wordClass ?? 'noun'];
@@ -2640,7 +2640,7 @@ export default function LiteracyManipulatives({ startInWriter = false, embed }: 
               const byName = (Object.keys(GRAMMAR_SYMBOL_INFO) as SymbolWordClass[]).filter((cls) => matches('shapes', GRAMMAR_SYMBOL_INFO[cls].name, GRAMMAR_SYMBOL_INFO[cls].label));
               // Typing a word (not a part of speech name) shows that word's symbol, ready to drag out with the
               // word already in its bubble.
-              const byWord = byName.length ? [] : symbolsForWords(searchFor('shapes'));
+              const byWord = byName.length ? [] : symbolsFor(searchFor('shapes'));
               return (
                 <div className="row-wrap" style={{ gap: 8 }}>
                   {byName.map((cls) => {
@@ -2706,7 +2706,7 @@ export default function LiteracyManipulatives({ startInWriter = false, embed }: 
               // Her request 2026-10-15: type an example sentence ("the big dog jumped" finds "the small cat
               // ran") or the parts of speech ("proper noun verb adjective"); matching cards show, and the typed
               // pattern itself can be dragged out as a row of symbols.
-              const { pattern, matches: found } = searchSymbolSentences(searchFor('sentences'));
+              const { pattern, matches: found } = searchSymbolSentences(searchFor('sentences'), symbolsFor);
               return (
                 <div className="stack" style={{ gap: 8 }}>
                   {pattern && (

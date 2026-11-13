@@ -1,6 +1,6 @@
 import type { FrequencyBand, PartOfSpeech, Tier } from './types';
 import { tierFor } from './data';
-import { typesOf } from '../wordTypes';
+import { jobsOfWord } from '../grammarEngine';
 import { PREFIXES, SUFFIXES } from './morphology';
 import { ROOTS } from './roots';
 import { isBlockedTerm } from './safety';
@@ -49,7 +49,7 @@ const POS_CODE: Record<string, PartOfSpeech> = { n: 'noun', v: 'verb', a: 'adjec
 // The part of speech of every meaning (so "run" is a verb and a noun).
 export function partsOf(w: ListWord): PartOfSpeech[] {
   const out = new Set<PartOfSpeech>([...w.posCode.toLowerCase()].map((c) => POS_CODE[c]).filter(Boolean));
-  for (const t of typesOf(w.word)?.all ?? []) out.add(t === 'propernoun' ? 'noun' : t as PartOfSpeech);
+  for (const t of jobsOfWord(w.word)) out.add(t === 'propernoun' ? 'noun' : t as PartOfSpeech);
   return [...out];
 }
 // Prefixes, suffixes and roots in the word, by spelling with a real base word left over (spec block 3).

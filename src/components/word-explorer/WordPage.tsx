@@ -9,7 +9,8 @@ import type { Preset } from '../../lib/word-explorer/settings';
 import { ListsTab, PicturesTab, SoundsTab, WordPartsTab } from './StudyTabs';
 import { ThesaurusTab } from './ThesaurusTab';
 import { baseWords } from '../../lib/word-explorer/search';
-import { readSentenceWhy, onWordTypes, type WordType } from '../../lib/wordTypes';
+import { onWordTypes } from '../../lib/wordTypes';
+import { readWithWhy } from '../../lib/grammarEngine';
 import { addMyWord, myWords, removeMyWord, subscribeMyWords } from '../../lib/writer/myWords';
 import { visibleTo, type Example, type PartOfSpeech, type Provenance, type Sense, type WordEntry } from '../../lib/word-explorer/types';
 
@@ -192,17 +193,14 @@ function Forms({ entry }: { entry: WordEntry }) {
   );
 }
 
-const WT_POS: Partial<Record<WordType, PartOfSpeech>> = { propernoun: 'noun' };
 // The "why" line: where the headword sits in the example, and what the word type engine says about it.
+// The reason comes from the grammar engine every tool uses (src/lib/grammarEngine.ts).
 function whyLine(example: string, entry: WordEntry, pos: PartOfSpeech): string | null {
-  const words = example.split(/\s+/).filter(Boolean);
-  const bare = words.map((w) => w.toLowerCase().replace(/^[^a-z']+|[^a-z']+$/g, ''));
+  const read = readWithWhy(example);
   const formsOf = new Set([entry.headword, ...Object.values(entry.forms.value).flat().filter((x): x is string => typeof x === 'string')]);
-  const at = bare.findIndex((w) => formsOf.has(w) || baseWords(w).includes(entry.headword));
-  if (at < 0) return null;
-  const r = readSentenceWhy(words)[at];
+  const r = read.find((x) => { const w = x.word.toLowerCase(); return formsOf.has(w) || baseWords(w).includes(entry.headword); });
   if (!r) return null;
-  const got = WT_POS[r.type] ?? (r.type as PartOfSpeech);
+  const got = r.type === 'propernoun' ? 'noun' : (r.type as PartOfSpeech);
   // Only show it when the engine agrees with this meaning's part of speech; otherwise it would confuse.
   return got === pos ? r.why : null;
 }
