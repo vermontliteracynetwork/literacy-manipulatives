@@ -39,6 +39,9 @@ export function WordPage({ word, teacher, note, initialTab, preset = 'full' }: {
   const [entry, setEntry] = useState<WordEntry | null | undefined>(undefined);
   const [version, setVersion] = useState(0);
   const [tab, setTab] = useState<Tab>(() => (tabs.some((t) => t.id === initialTab) ? initialTab as Tab : 'dictionary'));
+  // Tap a part of speech under the word to see only the word as that part of speech (her request 2026-11-17).
+  const [posPick, setPosPick] = useState<PartOfSpeech | null>(null);
+  useEffect(() => { setPosPick(null); }, [word]);
   useEffect(() => onReview(() => { clearEntryCache(); setVersion((v) => v + 1); }), []);
   useEffect(() => onWordTypes(() => setVersion((v) => v + 1)), []);
   useEffect(() => {
@@ -50,10 +53,17 @@ export function WordPage({ word, teacher, note, initialTab, preset = 'full' }: {
 
   if (entry === undefined) return <p className="wx-loading" role="status">Finding {word}...</p>;
   if (entry === null) return <p className="wx-empty">Word Explorer does not have the word "{word}".</p>;
+  const shown: WordEntry = posPick ? { ...entry, senses: entry.senses.filter((s) => s.pos === posPick) } : entry;
 
   return (
     <article className="wx-word" aria-labelledby="wx-headword">
-      <WordHeader entry={entry} teacher={teacher} />
+      <WordHeader entry={entry} teacher={teacher} posPick={posPick} onPos={(p) => setPosPick((cur) => (cur === p ? null : p))} />
+      {posPick && (
+        <p className="wx-pos-only" role="status">
+          Showing <strong>{entry.headword}</strong> as {/^[aeiou]/.test(posPick) ? 'an' : 'a'} <strong>{posPick}</strong> only.
+          <button type="button" className="wx-btn wx-btn-small" onClick={() => setPosPick(null)}>Show every part of speech</button>
+        </p>
+      )}
       {note && <p className="wx-note" role="status"><Spoken id="note" text={note} /> <SpeakButton id="note" text={note} label="Read this note" /></p>}
       <div className="wx-word-body">
         <nav className="wx-sidemenu" aria-label="Word page sections">
@@ -66,19 +76,19 @@ export function WordPage({ word, teacher, note, initialTab, preset = 'full' }: {
           </div>
         </nav>
         <div role="tabpanel" id={`wx-panel-${tab}`} aria-labelledby={`wx-tab-${tab}`} className="wx-panel">
-          {tab === 'dictionary' && <DictionaryTab entry={entry} teacher={teacher} simple={simple} />}
-          {tab === 'thesaurus' && <ThesaurusTab entry={entry} teacher={teacher} />}
-          {tab === 'sounds' && <SoundsTab entry={entry} teacher={teacher} />}
-          {tab === 'parts' && <WordPartsTab entry={entry} teacher={teacher} />}
-          {tab === 'pictures' && <PicturesTab entry={entry} teacher={teacher} />}
-          {tab === 'lists' && <ListsTab entry={entry} />}
+          {tab === 'dictionary' && <DictionaryTab entry={shown} teacher={teacher} simple={simple} />}
+          {tab === 'thesaurus' && <ThesaurusTab entry={shown} teacher={teacher} />}
+          {tab === 'sounds' && <SoundsTab entry={shown} teacher={teacher} />}
+          {tab === 'parts' && <WordPartsTab entry={shown} teacher={teacher} />}
+          {tab === 'pictures' && <PicturesTab entry={shown} teacher={teacher} />}
+          {tab === 'lists' && <ListsTab entry={shown} />}
         </div>
       </div>
     </article>
   );
 }
 
-function WordHeader({ entry, teacher }: { entry: WordEntry; teacher: boolean }) {
+function WordHeader({ entry, teacher, posPick, onPos }: { entry: WordEntry; teacher: boolean; posPick: PartOfSpeech | null; onPos: (p: PartOfSpeech) => void }) {
   const saved = useSyncExternalStore(subscribeMyWords, () => myWords().some((w) => w.word.toLowerCase() === entry.headword));
   const showFacts = visibleTo(entry.status, teacher);
   const main = entry.partsOfSpeech[0];
@@ -87,6 +97,11 @@ function WordHeader({ entry, teacher }: { entry: WordEntry; teacher: boolean }) 
       <div className="wx-word-title">
         <h1 id="wx-headword" className="wx-headword">{entry.headword}</h1>
         <SpeakButton id="headword" text={entry.headword} label={`Say ${entry.headword}`} size="lg" />
+        <button type="button" className={`wx-save-icon${saved ? ' on' : ''}`} aria-pressed={saved} title={saved ? 'Saved to My Words (tap to remove)' : 'Save to My Words'}
+          aria-label={saved ? `${entry.headword} is saved to My Words. Tap to remove it.` : `Save ${entry.headword} to My Words`}
+          onClick={() => (saved ? removeMyWord(entry.headword) : addMyWord(entry.headword, main ?? 'noun'))}>
+          <Icon name={saved ? 'starFilled' : 'star'} size={26} />
+        </button>
         {showFacts && entry.soundOut && (
           <span className="wx-soundout">
             <span className="wx-soundout-text">{entry.soundOut}</span>
@@ -97,16 +112,18 @@ function WordHeader({ entry, teacher }: { entry: WordEntry; teacher: boolean }) 
       <div className="wx-word-facts">
         {entry.partsOfSpeech.length > 0 && (
           <ul className="wx-pos-list" aria-label="Parts of speech">
-            {entry.partsOfSpeech.slice(0, 4).map((p) => <li key={p}><PosTag pos={p} /></li>)}
+            {entry.partsOfSpeech.slice(0, 4).map((p) => (
+              <li key={p}>
+                <button type="button" className={`wx-pos-btn${posPick === p ? ' on' : ''}`} aria-pressed={posPick === p} onClick={() => onPos(p)} title={posPick === p ? 'Show every part of speech' : `Show ${entry.headword} as ${/^[aeiou]/.test(p) ? 'an' : 'a'} ${p} only`}>
+                  <PosTag pos={p} />
+                </button>
+              </li>
+            ))}
           </ul>
         )}
         {showFacts && <span className="wx-fact">Tier {entry.tier.value}</span>}
         {showFacts && <span className="wx-fact">{BAND_NAMES[entry.frequencyBand.value]}</span>}
         {teacher && <StatusTag status={entry.status} />}
-        <button type="button" className={`wx-btn ${saved ? 'wx-btn-quiet' : 'wx-btn-secondary'}`} aria-pressed={saved}
-          onClick={() => (saved ? removeMyWord(entry.headword) : addMyWord(entry.headword, main ?? 'noun'))}>
-          <Icon name={saved ? 'starFilled' : 'star'} size={22} /><span>{saved ? 'Saved to My Words' : 'Save to My Words'}</span>
-        </button>
       </div>
       {teacher && <ReviewButtons statusKey={`${entry.id}:entry`} status={entry.status} what="the word facts (forms, Tier, frequency, sound-out)" />}
       {teacher && <ReportProblem word={entry.headword} />}

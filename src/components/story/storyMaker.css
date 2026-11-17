@@ -252,3 +252,5 @@
 .sm-fcard .sm-fbody { padding-right: 22px; }
 .sm-fcard .sm-plus { position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; font-size: 1rem; border-radius: 6px; padding: 0; line-height: 1; }
 @media (max-width: 820px) { .sm-vsplit { display: none; } .sm-sidebar { width: 100% !important; flex: none !important; } }
+
+.sm-meaning { margin: 0; min-height: 2.6em; font-size: 0.95rem; color: #3b4f63; background: #fff; border: 1.5px dashed #e6dcc4; border-radius: 10px; padding: 6px 10px; }

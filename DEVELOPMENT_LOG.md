@@ -1177,3 +1177,25 @@ already its live lookup; adding wordset's word list to the engine is the next st
   "Open the word book" in Grammar Symbols adds a word to the current sentence.
 - No dice anywhere; the + sits small in each formula card's top right corner; the menu's width drags (remembered);
   name tags are gone from the video.
+
+## 2026-11-17: Part of speech first; Word Jobs; Word Explorer pictures, cards and word page
+
+- **Engine 1.3.1 to 1.3.3** (pinned here): `multiJobWords()` (about 2,100 common words that can do more than one job)
+  and `JOB_RULES` (a rule card for each pair of jobs, in student words, with example pairs `npm test` reads both ways:
+  14 of 16 read right, noun or adverb is still to teach); closed word groups come first in a word's jobs, so "that" is a
+  pointing word, a pronoun and a joining word, and "a" is an article first; her Prepositional Phrases list
+  (`PREPOSITION_LIST`, and amid, atop, concerning, regarding, throughout, underneath are prepositions now).
+- **Word Jobs** (`/word-jobs`, new dashboard card): the list view of words with more than one part of speech, by pair
+  of jobs with counts, each pair's rule card with its examples read by the engine, a sentence checker that shows each
+  word's job and why (the engine's `readWithWhy`), search, and a CSV download for curriculum work.
+- **Word Explorer** parts of speech now come from the engine's common jobs (no guesses from word endings, closed word
+  groups first). Pictures: 1,024 Mulberry Symbols (CC BY-SA 4.0, commercial use allowed, made for AAC) added by
+  `scripts/build-word-explorer-mulberry.py`, one per part of speech (the verb picture for "cook", the noun for
+  "apple"); 1,401 words have a picture (Twemoji CC BY 4.0 plus Mulberry), credited on the Sources page. Card face: one
+  tile per part of speech, its picture or else its grammar symbol, in a grid when there are two or more. Word page:
+  Save is a small star beside the read-aloud button; tapping noun, verb... under the word shows only that part of
+  speech, with "Show every part of speech" to go back.
+- **Story Maker word book** shows a word's meaning (Word Explorer's Open English WordNet dictionary, the same one
+  every tool uses) when you point to it.
+- Not used: the verachell word lists (their author says they are not accurate enough for teaching); the Cambridge
+  word families PDF is copyrighted dictionary content, kept as her reference, not copied into the data.

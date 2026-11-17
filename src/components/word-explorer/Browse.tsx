@@ -1,7 +1,7 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { PosSymbol, TapContext, TapWord, useReader, BAND_NAMES } from './parts';
 import { listWords, loadLists, partsOf, TOPICS, wordPartsOf, type ListWord } from '../../lib/word-explorer/lists';
-import { allPictures } from '../../lib/word-explorer/pictures';
+import { allPictures, type WordPicture } from '../../lib/word-explorer/pictures';
 import { PREFIXES, SUFFIXES } from '../../lib/word-explorer/morphology';
 import { SOUNDS, soundLabel, spellingsOfSound } from '../../lib/word-explorer/phonics';
 import type { PartOfSpeech } from '../../lib/word-explorer/types';
@@ -29,15 +29,27 @@ function Dropdown({ label, options, value, onChange }: { label: string; options:
   );
 }
 
-function WordCard({ w, pic }: { w: ListWord; pic?: string }) {
+// The card face (her request 2026-11-17): one tile for each part of speech the word can be, a picture when there is
+// one for that part of speech and its grammar symbol when there isn't; two or more tiles sit in a grid.
+function WordCard({ w, pic }: { w: ListWord; pic?: WordPicture }) {
   const { armed, arm, open } = useContext(TapContext);
   const { read } = useReader();
   const on = armed === w.word;
-  const pos = partsOf(w)[0];
+  const parts = partsOf(w);
+  const tiles = (parts.length ? parts : []).map((p) => ({ pos: p, file: pic?.by?.[p] ?? (p === 'noun' && !pic?.by ? pic?.file : undefined) }));
+  if (pic && !tiles.some((x) => x.file)) tiles.unshift({ pos: parts[0] ?? 'noun', file: pic.file });
   return (
     <button type="button" data-nosay className={`wx-wordcard${on ? ' armed' : ''}`} aria-label={on ? `${w.word}. Tap again to open its word page.` : `${w.word}. Tap to hear it, tap twice to open it.`}
       onClick={() => { if (on) { arm(null); open(w.word); } else { read(`card:${w.word}`, w.word); arm(w.word); } }}>
-      {pic ? <img src={pic} alt="" /> : pos ? <PosSymbol pos={pos} size={56} decorative /> : null}
+      {tiles.length > 0 && (
+        <span className={`wx-card-face${tiles.length > 1 ? ' grid' : ''}`}>
+          {tiles.map((x, i) => (
+            <span key={`${x.pos}${i}`} className="wx-card-tile" title={x.pos}>
+              {x.file ? <img src={x.file} alt="" /> : <PosSymbol pos={x.pos} size={tiles.length > 1 ? 34 : 56} decorative />}
+            </span>
+          ))}
+        </span>
+      )}
       <span>{w.word}</span>
       {on && <span className="wx-tap-hint">Tap again to open</span>}
     </button>
@@ -46,7 +58,7 @@ function WordCard({ w, pic }: { w: ListWord; pic?: string }) {
 
 export function Browse({ view, onView, initialMode = 'az' }: { view: 'cards' | 'list'; onView: (v: 'cards' | 'list') => void; initialMode?: Mode }) {
   const [ready, setReady] = useState(listWords().length > 0);
-  const [pics, setPics] = useState<Record<string, { file: string }>>({});
+  const [pics, setPics] = useState<Record<string, WordPicture>>({});
   const [mode, setMode] = useState<Mode>(initialMode);
   const [letter, setLetter] = useState('a');
   const [sound, setSound] = useState<string | null>(null);
@@ -67,7 +79,7 @@ export function Browse({ view, onView, initialMode = 'az' }: { view: 'cards' | '
     const soundIds = sound ? new Set(spellingsOfSound(sound).map((p) => p.id)) : null;
     return listWords().filter((w) => {
       if (mode === 'az' && !w.word.startsWith(letter)) return false;
-      if ((mode === 'pictures' || picOnly) && !w.picture) return false;
+      if ((mode === 'pictures' || picOnly) && !w.picture && !pics[w.word]) return false;
       if (mode === 'sounds' && (!soundIds || !w.patterns.some((p) => soundIds.has(p)))) return false;
       if (mode === 'topics' && (!topicPick || w.topic !== topicPick)) return false;
       if (pos.length && !partsOf(w).some((p) => pos.includes(p))) return false;
@@ -136,7 +148,7 @@ export function Browse({ view, onView, initialMode = 'az' }: { view: 'cards' | '
             <p className="wx-lm-count">{results.length} {results.length === 1 ? 'word' : 'words'}</p>
             {mode === 'az' && shown.length > 0 && <p className="wx-guide" aria-label={`Guide words: ${shown[0].word} to ${shown[shown.length - 1].word}`}><span>{shown[0].word}</span><span>{shown[shown.length - 1].word}</span></p>}
             {view === 'cards'
-              ? <ul className="wx-cards">{shown.map((w) => <li key={w.word}><WordCard w={w} pic={pics[w.word]?.file} /></li>)}</ul>
+              ? <ul className="wx-cards">{shown.map((w) => <li key={w.word}><WordCard w={w} pic={pics[w.word]} /></li>)}</ul>
               : <ul className="wx-plain">{shown.map((w) => <li key={w.word}><TapWord word={w.word} /></li>)}</ul>}
             {pages > 1 && (
               <div className="wx-lm-actions">

@@ -1,6 +1,6 @@
 import type { FrequencyBand, PartOfSpeech, Tier } from './types';
 import { tierFor } from './data';
-import { jobsOfWord } from '../grammarEngine';
+import { engineReady, jobsDetail } from '../grammarEngine';
 import { PREFIXES, SUFFIXES } from './morphology';
 import { ROOTS } from './roots';
 import { isBlockedTerm } from './safety';
@@ -47,10 +47,13 @@ export const TOPICS = [...new Set(Object.values(TOPIC))].sort();
 // ---------- the items each block checks (spec section 6) ----------
 const POS_CODE: Record<string, PartOfSpeech> = { n: 'noun', v: 'verb', a: 'adjective', r: 'adverb' };
 // The part of speech of every meaning (so "run" is a verb and a noun).
+// Part of speech is the heart of Symbolic Grammar (her request 2026-11-17), so this is the engine's own list: the word's
+// common jobs, closed word groups first ("a" is an article). Until the engine's word lists load, only the dictionary's
+// common uses (lowercase in the code) are listed, never a guess from the word's ending.
 export function partsOf(w: ListWord): PartOfSpeech[] {
-  const out = new Set<PartOfSpeech>([...w.posCode.toLowerCase()].map((c) => POS_CODE[c]).filter(Boolean));
-  for (const t of jobsOfWord(w.word)) out.add(t === 'propernoun' ? 'noun' : t as PartOfSpeech);
-  return [...out];
+  const d = engineReady() ? jobsDetail(w.word) : null;
+  if (d) return [...new Set(d.common.map((t) => (t === 'propernoun' ? 'noun' : t) as PartOfSpeech))];
+  return [...new Set([...w.posCode].filter((c) => c === c.toLowerCase()).map((c) => POS_CODE[c]).filter(Boolean))];
 }
 // Prefixes, suffixes and roots in the word, by spelling with a real base word left over (spec block 3).
 const partCache = new Map<string, string[]>();

@@ -6,11 +6,12 @@ import { DailyProcedure } from './components/procedures/DailyProcedure';
 import { WordListsApp } from './components/WordListsApp';
 import { AssessmentScoring } from './components/assessment/AssessmentScoring';
 import { StoryMaker } from './components/story/StoryMaker';
+import { WordJobs } from './components/word-jobs/WordJobs';
 import { isJoinRoute } from './lib/share';
 
 // Routes: "/" is the tools dashboard; "/whiteboard", "/write" and "/words" (Word Explorer) "/formulas" (Formula Search) and "/procedure" (Daily Procedure) and "/lists" (Word List Maker) and "/scoring" (Assessment Scoring) and "/story" (Story Maker) open; "/passages" opens Formula Search on its passage tab the tools themselves.
 // "/join" and any page that embeds the board with "?welcome=0" (the Homeplot iframe) still go straight to the board.
-function route(): 'dashboard' | 'whiteboard' | 'write' | 'words' | 'formulas' | 'procedure' | 'lists' | 'scoring' | 'story' {
+function route(): 'dashboard' | 'whiteboard' | 'write' | 'words' | 'formulas' | 'procedure' | 'lists' | 'scoring' | 'story' | 'wordjobs' {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
   if (path === '/write') return 'write';
   if (path === '/words') return 'words';
@@ -19,6 +20,7 @@ function route(): 'dashboard' | 'whiteboard' | 'write' | 'words' | 'formulas' | 
   if (path === '/lists') return 'lists';
   if (path === '/scoring') return 'scoring';
   if (path === '/story') return 'story';
+  if (path === '/word-jobs') return 'wordjobs';
   if (path === '/passages') return 'formulas';
   if (path === '/whiteboard' || isJoinRoute()) return 'whiteboard';
   if (new URLSearchParams(window.location.search).has('welcome')) return 'whiteboard';
@@ -34,5 +36,6 @@ export default function App() {
   if (r === 'lists') return <WordListsApp />;
   if (r === 'scoring') return <AssessmentScoring />;
   if (r === 'story') return <StoryMaker />;
+  if (r === 'wordjobs') return <WordJobs />;
   return <LiteracyManipulatives startInWriter={r === 'write'} />;
 }

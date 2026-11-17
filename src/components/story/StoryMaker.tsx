@@ -9,6 +9,7 @@ import {
   type Analysis, type BookWord, type Kind, type SentenceState, type StoryContext, type StoryFormula, type Token, type WordHit,
 } from '../../lib/story/grammar';
 import { jobsOfWord, loadEngine } from '../../lib/grammarEngine';
+import { lookupDefinition } from '../../lib/dictionary';
 import { drawExportFrame, drawScene, EXPORT_H, EXPORT_W, HI, makeClip, SH, SW, WIDE, wordAt, type Assets, type Clip } from '../../lib/story/render';
 import type { Tense } from '../../lib/story/words';
 import './storyMaker.css';
@@ -148,6 +149,13 @@ function WordBook({ slot, onPick, onRemove, onClose }: {
   const dictSize = dictWords('noun').length;
   const [q, setQ] = useState('');
   const [page, setPage] = useState(0);
+  // The meaning of the word under the finger or mouse (Word Explorer's dictionary: Open English WordNet).
+  const [peek, setPeek] = useState<{ word: string; text: string | null } | null>(null);
+  const showMeaning = (label: string) => {
+    const word = label.replace(/^(\S+ the )/, '').replace(/ \(many\)$/, '').toLowerCase();
+    setPeek({ word, text: null });
+    void lookupDefinition(word).then((d) => setPeek((p) => (p && p.word === word ? { word, text: d.text } : p)));
+  };
   const needle = q.trim().toLowerCase();
   const view: Tab = needle ? 'all' : tab;
   const items = useMemo((): BookWord[] => {
@@ -209,7 +217,7 @@ function WordBook({ slot, onPick, onRemove, onClose }: {
               const cls = KIND_CLASS[w.kind];
               return (
                 <li key={`${w.kind}|${w.value}|${w.place ?? ''}`}>
-                  <button type="button" className={`${isCurrent(w) ? 'on' : ''}${drawn(w) ? ' live' : ''}`} onClick={() => onPick(w)} style={{ ['--c' as string]: GRAMMAR_SYMBOL_INFO[cls].color }} title={GRAMMAR_SYMBOL_INFO[cls].name}>
+                  <button type="button" className={`${isCurrent(w) ? 'on' : ''}${drawn(w) ? ' live' : ''}`} onClick={() => onPick(w)} onMouseEnter={() => showMeaning(w.label)} onFocus={() => showMeaning(w.label)} style={{ ['--c' as string]: GRAMMAR_SYMBOL_INFO[cls].color }} title={GRAMMAR_SYMBOL_INFO[cls].name}>
                     {view === 'all' && <img src={symbolUrl(cls)} alt="" draggable={false} />}
                     {w.label}
                   </button>
@@ -226,6 +234,7 @@ function WordBook({ slot, onPick, onRemove, onClose }: {
           </ul>
           <button type="button" className="sm-turn" onClick={() => setPage(Math.min(pages - 1, pg + 1))} disabled={pg >= pages - 1} aria-label="Next page">›</button>
         </div>
+        <p className="sm-meaning" aria-live="polite">{peek ? <><strong>{peek.word}</strong>{peek.text ? `: ${peek.text}` : ''}</> : 'Point to a word to see what it means.'}</p>
         <footer className="sm-book-foot">
           <span>Page {pg + 1} of {pages}</span>
           <span className="sm-legend"><i /> moves in the video; other words show on a sign</span>

@@ -419,6 +419,10 @@
 .wx-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--s3); }
 .wx-wordcard { width: 100%; min-height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s2); border: var(--border-w) solid var(--line); border-radius: var(--r-tile); background: var(--surface); color: var(--ink); font-size: var(--text-body-lg); font-weight: 700; cursor: pointer; padding: var(--s3); }
 .wx-wordcard img { width: 72px; height: 72px; }
+.wx-card-face { display: flex; align-items: center; justify-content: center; }
+.wx-card-face.grid { display: grid; grid-template-columns: repeat(2, 48px); gap: 6px; }
+.wx-card-face.grid img { width: 48px; height: 48px; }
+.wx-card-tile { display: grid; place-items: center; }
 .wx-wordcard.armed { background: var(--tint-lavender); border-color: var(--primary); }
 .wx-plain { columns: 4 180px; margin: 0; padding: 0; list-style: none; }
 .wx-plain li { break-inside: avoid; padding: 2px 0; }
@@ -480,3 +484,16 @@
 .wx-reports { list-style: none; padding: 0; display: flex; flex-direction: column; gap: var(--s3); }
 .wx-reports li.fixed { opacity: 0.7; }
 .wx-reports a { display: inline-flex; min-height: var(--target); align-items: center; }
+
+/* Save is a small star beside the read-aloud button; tapping a part of speech shows the word as only that part. */
+.wx-save-icon {
+  width: 48px; height: 48px; display: inline-grid; place-items: center; border-radius: 50%; border: var(--border-w) solid var(--line);
+  background: var(--surface); color: var(--ink-2, #4A5D70); cursor: pointer; align-self: center;
+}
+.wx-save-icon:hover { border-color: var(--primary); color: var(--primary); }
+.wx-save-icon.on { background: #FFF4C2; border-color: #E0B93B; color: #B08900; }
+.wx-pos-btn { font: inherit; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 999px; }
+.wx-pos-btn .wx-pos { cursor: pointer; }
+.wx-pos-btn:hover .wx-pos { border-color: var(--primary); }
+.wx-pos-btn.on .wx-pos { background: var(--tint-lavender); border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary); }
+.wx-pos-only { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s2); margin: var(--s2) 0; padding: var(--s2) var(--s3); background: var(--tint-lavender); border-radius: var(--r-tile); }

@@ -39,6 +39,10 @@
     {
       "source": "/story",
       "destination": "/index.html"
+    },
+    {
+      "source": "/word-jobs",
+      "destination": "/index.html"
     }
   ]
 }

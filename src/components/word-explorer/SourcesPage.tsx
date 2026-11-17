@@ -11,6 +11,7 @@ const SOURCES: { what: string; source: string; license: string; url?: string; no
   { what: 'Letter-sound tiles, syllables, sound search', source: 'CMU Pronouncing Dictionary', license: 'BSD-style (CMU), commercial use allowed', url: 'https://github.com/cmusphinx/cmudict', note: 'public/word-explorer/CMUDICT-LICENSE.txt' },
   { what: 'Word list and frequency bands (stand-in until frequency counts are added)', source: 'SCOWL word lists (Kevin Atkinson)', license: 'SCOWL copyright notice', url: 'http://wordlist.aspell.net/', note: 'public/writer/WORDLIST-COPYRIGHT.txt' },
   { what: 'Pictures', source: 'Twemoji graphics', license: 'CC BY 4.0', url: 'https://github.com/jdecked/twemoji', note: 'public/word-explorer/TWEMOJI-LICENSE.txt' },
+  { what: 'Pictures (more words, and action pictures for verbs)', source: 'Mulberry Symbols by Steve Lee', license: 'CC BY-SA 4.0, commercial use allowed', url: 'https://mulberrysymbols.org', note: 'public/word-explorer/MULBERRY-LICENSE.txt' },
   { what: 'Font', source: 'Inclusive Sans by Olivia King', license: 'SIL Open Font License 1.1', url: 'https://github.com/LivKing/Inclusive-Sans' },
   { what: 'Font (personal preference)', source: 'OpenDyslexic', license: 'SIL Open Font License 1.1', url: 'https://opendyslexic.org/' },
   { what: 'Grammar symbols, formulas, formula cards, morpheme decks, starter definitions', source: 'Her Symbolic Grammar materials', license: 'Owned' },

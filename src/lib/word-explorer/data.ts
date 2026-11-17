@@ -10,7 +10,7 @@ import { statusOf } from './review';
 import { timeOf } from './time';
 import { formulaFor } from './formula';
 import { phonicsOf } from './phonics';
-import { pictureFor, TWEMOJI } from './pictures';
+import { pictureFor, provenanceOf } from './pictures';
 import { loadWords } from '../writer/spell';
 
 // Loads the dictionary data built by scripts/build-word-explorer-data.py and turns it into WordEntry records.
@@ -203,8 +203,13 @@ async function buildEntry(word: string): Promise<WordEntry | null> {
 
   const [ph, pic] = await Promise.all([phonicsOf(word), pictureFor(word)]);
   if (pic) {
-    const target = senses.find((x) => x.pos === 'noun' && x.pictureable) ?? senses.find((x) => x.pos === 'noun') ?? senses[0];
-    if (target) { target.pictures = [{ assetId: pic.file, provenance: [TWEMOJI] }]; target.pictureable = true; }
+    // One picture for each part of speech it has a picture for (the noun picture on a noun meaning, the verb on a verb).
+    const by = Object.entries(pic.by ?? { noun: pic.file });
+    for (const [pos, file] of by) {
+      if (!file) continue;
+      const target = senses.find((x) => x.pos === pos && x.pictureable) ?? senses.find((x) => x.pos === pos) ?? (by.length === 1 ? senses[0] : undefined);
+      if (target) { target.pictures = [{ assetId: file, provenance: [provenanceOf(file)] }]; target.pictureable = true; }
+    }
   }
 
   const parts: PartOfSpeech[] = [];
