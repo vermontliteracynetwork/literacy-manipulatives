@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { GRAMMAR_SYMBOL_INFO, TENSE_SYMBOLS, type SymbolWordClass } from '../lib/grammarSymbols';
 import { SENTENCE_FORMULAS, type SentenceFormula } from '../lib/writer/formulas';
 import { tagForCheck } from '../lib/writer/sentenceCheck';
-import { cardSlotsOf, formulaCode, formulasLike, sentenceSlots, slotClass, slotLabel } from '../lib/writer/formulaMatch';
+import { cardSlotsOf, formulaCode, sentenceSlots, slotClass, slotDistance, slotLabel } from '../lib/writer/formulaMatch';
 import { tenseVersions } from '../lib/writer/tenses';
 import { removeFromBook, clearIdeas, type BookEntry, type FormulaIdea } from '../lib/writer/formulaBook';
 
@@ -97,7 +97,7 @@ export function SentenceFormulas({ level, book, onBook, ideas, onIdeas, showIdea
   const typedSentence = q.split(/\s+/).length >= 2 && /[a-z]/.test(q) && !/^[a-z' ]*(noun|verb|article|adjective|adverb|pronoun|phrase)[a-z' ]*$/.test(q);
   const mine = useMemo(() => (typedSentence ? slotsOf(query) : null), [typedSentence, query]);
   const pattern = mine && mine.length ? { slots: cardSlotsOf(mine), code: formulaCode(mine, query) } : null;
-  const near = useMemo(() => (mine && mine.length ? new Map(formulasLike(mine, SENTENCE_FORMULAS.length).map(({ f, d }) => [f, d])) : null), [mine]);
+  const near = useMemo(() => (mine && mine.length ? new Map(SENTENCE_FORMULAS.map((f) => [f, slotDistance(f.slots, mine)] as const)) : null), [mine]);
   const formulas = SENTENCE_FORMULAS.map((f, i) => ({ f, i })).filter(({ f }) => {
     if (tab !== 'all' && tab !== f.unit) return false;
     if (!q) return true;
@@ -168,9 +168,13 @@ export function SentenceFormulas({ level, book, onBook, ideas, onIdeas, showIdea
                 <strong>{f.lesson}</strong> · {f.unit.replace(/^\d+\s*/, '')}{showCode && <span className="lm-formula-code">{f.code}</span>}
                 {near && near.get(f) === 0 && <span className="lm-formula-same">Same as your sentence</span>}
               </span>
-              <button type="button" className="lm-formula-card" onClick={() => setSentenceCards((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; })} title={sentenceCards.has(i) ? 'Show the formula card' : 'Show the sentence card'}>
-                <img src={sentenceCards.has(i) ? f.sentenceCard : f.card} alt={sentenceCards.has(i) ? f.sentence : f.formula} loading="lazy" />
-              </button>
+              {f.card ? (
+                <button type="button" className="lm-formula-card" onClick={() => setSentenceCards((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; })} title={sentenceCards.has(i) ? 'Show the formula card' : 'Show the sentence card'}>
+                  <img src={sentenceCards.has(i) ? f.sentenceCard : f.card} alt={sentenceCards.has(i) ? f.sentence : f.formula} loading="lazy" />
+                </button>
+              ) : (
+                <FormulaSymbols slots={f.slots} labels />
+              )}
               <span>{f.formula}</span>
               <span className="muted">Model: {f.sentence}</span>
               <span className="lm-writer-fixes">

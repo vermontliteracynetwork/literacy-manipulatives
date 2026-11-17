@@ -134,10 +134,12 @@ export const ADVERBS: AdvDef[] = [
   { id: 'very', kind: 'intensifier' }, { id: 'so', kind: 'intensifier' }, { id: 'too', kind: 'intensifier' }, { id: 'really', kind: 'intensifier' },
 ];
 
-export type PrepId = 'in' | 'into' | 'to' | 'on' | 'under' | 'near' | 'behind' | 'over' | 'across' | 'through' | 'up';
-export const PREPS: PrepId[] = ['to', 'in', 'into', 'on', 'under', 'near', 'behind', 'over', 'across', 'through', 'up'];
+export type PrepId = 'in' | 'into' | 'to' | 'on' | 'under' | 'near' | 'behind' | 'over' | 'across' | 'through' | 'up' | 'from' | 'with';
+export const PREPS: PrepId[] = ['to', 'in', 'into', 'on', 'under', 'near', 'behind', 'over', 'across', 'through', 'up', 'from', 'with'];
 /** Prepositions that move someone from one place to another. */
-export const MOVING_PREPS: PrepId[] = ['to', 'into', 'over', 'across', 'through', 'up'];
+export const MOVING_PREPS: PrepId[] = ['to', 'into', 'over', 'across', 'through', 'up', 'from'];
+/** Prepositions that can go before a person, animal or thing ("from the cat", "with the dog"). */
+export const NOUN_PREPS: PrepId[] = ['from', 'to', 'with', 'near', 'behind', 'over'];
 
 export interface PlaceDef { id: string; preps: PrepId[]; water?: boolean }
 export const PLACES: PlaceDef[] = [

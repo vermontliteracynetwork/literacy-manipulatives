@@ -1099,3 +1099,27 @@ handle drags lines into a new order. A sentence the video can't play gets a red 
 Formula cards: big symbols on top, the example sentence under them, then the code with the formula written out
 (article + noun + verb), and a + on the left to add it. Every formula now arrives filled in with its example sentence
 (words the video doesn't know, like Boston, are swapped for ones it does).
+
+## 2026-11-17: Her master formula list everywhere; Story Maker word book and word search
+
+**Her master list is the one formula list.** Her "All Formulas" PDF (129 formulas by unit: skill, shorthand name, model
+sentence, required words, formula, formula code, purpose) is imported by `scripts/import-master-list.py` (pdfplumber)
+into `src/lib/writer/masterList.ts`. `src/lib/writer/formulaList.ts` (Formula Search, Word Explorer's formula codes)
+and `src/lib/writer/formulas.ts` (the Writer's Sentence Formulas panel, Daily Procedure, Word Explorer units) now read
+it; a formula with a printed formula card keeps its card picture, the rest show their symbols. Formula codes follow
+her list: a phrase naming a place, day or month is PRP (the engine's old working code R is mapped to PRP in
+`src/lib/writer/formulaMatch.ts`). The engine codes 120 of her 129 model sentences her way; the 9 others and two
+places where her list differs from her own code rules are listed in `docs/engine-1.3.0-master-list.patch`, which is
+the same change for the Symbolic Grammar Engine repository (version 1.3.0), ready to apply there (this session could
+not push to that repository).
+
+**Story Maker.** Formulas come from her master list (55 the video can act out, in her order). The menu has only
+Sentence Formulas and Grammar Symbols (will, be, do and not sit under the symbols; time stays on each sentence). The
+formula list has a search (code, words, formula or model sentence), symbol buttons to show only formulas with a
+name, pronoun, adjective, adverb, phrase, and/but, not, will, is/was or an interjection, and a sort (teaching order,
+shortest, longest, by code). Clicking a word opens a word book: every word that fits, A to Z, 12 to a page, with
+letter tabs, a search, Surprise me and Remove word. The Grammar Symbols search finds any word: words the video knows
+are added straight into the sentence with their symbol (a typed verb sets the time, so "jumped" is past); any other
+word is looked up in the engine's dictionary ("giraffe is a noun") with a button to add that kind of blank.
+Prepositional phrases can now name a person, animal or thing: from, to, with, near, behind and over ("The dog runs
+from the cat." The cat chases it).

@@ -4,10 +4,11 @@ import { ReferencePopover } from '../ReferencePopover';
 import { GRAMMAR_SYMBOL_INFO, TENSE_SYMBOLS, type SymbolWordClass } from '../../lib/grammarSymbols';
 import { buildUtterance } from '../../lib/tts';
 import {
-  analyze, baseChoices, choicesFor, EMPTY_CONTEXT, exampleFill, formulaWords, KIND_CLASS, KIND_LABEL, needsPick, nextContext, placeChoices, prepChoices,
-  rollAll, rollToken, storyFormulas, uid,
-  type Analysis, type Kind, type SentenceState, type StoryContext, type StoryFormula, type Token,
+  analyze, baseChoices, choicesFor, EMPTY_CONTEXT, exampleFill, findWords, formulaWords, KIND_CLASS, KIND_LABEL, needsPick, nextContext,
+  phraseChoices, rollAll, rollToken, storyFormulas, uid,
+  type Analysis, type Kind, type SentenceState, type StoryContext, type StoryFormula, type Token, type WordHit,
 } from '../../lib/story/grammar';
+import { jobsOfWord, loadEngine } from '../../lib/grammarEngine';
 import { drawExportFrame, drawScene, EXPORT_H, EXPORT_W, HI, makeClip, SH, SW, WIDE, wordAt, type Assets, type Clip } from '../../lib/story/render';
 import type { Tense } from '../../lib/story/words';
 import './storyMaker.css';
@@ -101,7 +102,101 @@ function Category({ label, color, open, onToggle, children }: { label: string; c
   );
 }
 
-type Ch = { preps: string[]; places: string[] } | { list: { value: string; label: string }[] } | null;
+// Symbol filters for the formula list: show only formulas that have these parts.
+const FILTERS: { kind: Kind; cls: SymbolWordClass; name: string; short: string }[] = [
+  { kind: 'propernoun', cls: 'propernoun', name: 'Proper noun', short: 'name' },
+  { kind: 'pronoun', cls: 'pronoun', name: 'Pronoun', short: 'pronoun' },
+  { kind: 'adjective', cls: 'adjective', name: 'Adjective', short: 'adjective' },
+  { kind: 'adverb', cls: 'adverb', name: 'Adverb', short: 'adverb' },
+  { kind: 'phrase', cls: 'preposition', name: 'Prepositional phrase', short: 'phrase' },
+  { kind: 'conj', cls: 'conjunction', name: 'Conjunction', short: 'and, but' },
+  { kind: 'not', cls: 'adverb', name: 'Not', short: 'not' },
+  { kind: 'will', cls: 'verb', name: 'Will', short: 'will' },
+  { kind: 'be', cls: 'verb', name: 'Be', short: 'is, was' },
+  { kind: 'interjection', cls: 'interjection', name: 'Interjection', short: 'Wow!' },
+];
+
+const CLASS_KIND: Partial<Record<SymbolWordClass, Kind>> = {
+  noun: 'noun', propernoun: 'propernoun', pronoun: 'pronoun', verb: 'verb', adjective: 'adjective', adverb: 'adverb',
+  article: 'article', preposition: 'phrase', conjunction: 'conj', interjection: 'interjection',
+};
+
+const PER_PAGE = 12;
+
+// The word book: every word that fits a blank, in ABC order, a page at a time.
+function WordBook({ st, idx, ctx, onPick, onRoll, onRemove, onClose }: {
+  st: SentenceState; idx: number; ctx: StoryContext; onPick: (patch: Partial<Token>) => void; onRoll: () => void; onRemove: () => void; onClose: () => void;
+}) {
+  const tok = st.tokens[idx];
+  const cls = KIND_CLASS[tok.kind];
+  const [q, setQ] = useState('');
+  const [page, setPage] = useState(0);
+  const items = useMemo(() => {
+    const list = tok.kind === 'phrase'
+      ? phraseChoices(st, idx, ctx).map((c) => ({ key: `${c.value}|${c.place}`, label: `${c.value} the ${c.place}`, patch: { value: c.value, place: c.place } as Partial<Token> }))
+      : (tok.kind === 'conj' ? baseChoices('conj') : choicesFor(st, idx, ctx)).map((c) => ({ key: c.value, label: c.label, patch: { value: c.value } as Partial<Token> }));
+    return list.sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
+  }, [st, idx, ctx, tok.kind]);
+  const needle = q.trim().toLowerCase();
+  const shown = needle ? items.filter((i) => i.label.toLowerCase().includes(needle)) : items;
+  const pages = Math.max(1, Math.ceil(shown.length / PER_PAGE));
+  const pg = Math.min(page, pages - 1);
+  const current = tok.kind === 'phrase' ? `${tok.value}|${tok.place}` : tok.value;
+  const firstOf = (letter: string) => shown.findIndex((i) => i.label.toLowerCase().startsWith(letter));
+  const typeName = tok.kind === 'phrase' ? 'prepositional phrase' : GRAMMAR_SYMBOL_INFO[cls].name.toLowerCase();
+  const dict = needle && !shown.length ? jobsOfWord(needle) : [];
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowRight' && !(e.target instanceof HTMLInputElement)) setPage((p) => Math.min(p + 1, pages - 1));
+      if (e.key === 'ArrowLeft' && !(e.target instanceof HTMLInputElement)) setPage((p) => Math.max(p - 1, 0));
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [onClose, pages]);
+  return (
+    <div className="sm-modal" role="dialog" aria-modal="true" aria-labelledby="sm-book-title" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="sm-book">
+        <header className="sm-book-head">
+          <img src={symbolUrl(cls)} alt="" />
+          <h2 id="sm-book-title">Pick {/^[aeiou]/.test(typeName) ? 'an' : 'a'} {typeName}</h2>
+          <button type="button" className="sm-mini" onClick={onClose} aria-label="Close">×</button>
+        </header>
+        <input className="sm-book-search" type="search" value={q} autoFocus onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder={`Search the ${typeName}s`} aria-label={`Search the ${typeName}s`} />
+        <nav className="sm-letters" aria-label="Jump to a letter">
+          {'abcdefghijklmnopqrstuvwxyz'.split('').map((l) => {
+            const at = firstOf(l);
+            return <button key={l} type="button" disabled={at < 0} onClick={() => setPage(Math.floor(at / PER_PAGE))}>{l.toUpperCase()}</button>;
+          })}
+        </nav>
+        <div className="sm-pages">
+          <button type="button" className="sm-turn" onClick={() => setPage(Math.max(0, pg - 1))} disabled={pg === 0} aria-label="Previous page">‹</button>
+          <ul className="sm-page-words">
+            {shown.slice(pg * PER_PAGE, pg * PER_PAGE + PER_PAGE).map((i) => (
+              <li key={i.key}>
+                <button type="button" className={i.key === current ? 'on' : ''} onClick={() => onPick(i.patch)} style={{ ['--c' as string]: GRAMMAR_SYMBOL_INFO[cls].color }}>{i.label}</button>
+              </li>
+            ))}
+            {!shown.length && (
+              <li className="sm-book-none">
+                {dict.length
+                  ? <>&ldquo;{q.trim()}&rdquo; is {dict.map((c) => `${/^[aeiou]/i.test(GRAMMAR_SYMBOL_INFO[c].name) ? 'an' : 'a'} ${GRAMMAR_SYMBOL_INFO[c].name.toLowerCase()}`).join(' or ')}{dict.includes(cls) ? ', but the video can\'t draw it yet. Pick a word like it.' : `, not ${/^[aeiou]/.test(typeName) ? 'an' : 'a'} ${typeName}.`}</>
+                  : 'No words here match that.'}
+              </li>
+            )}
+          </ul>
+          <button type="button" className="sm-turn" onClick={() => setPage(Math.min(pages - 1, pg + 1))} disabled={pg >= pages - 1} aria-label="Next page">›</button>
+        </div>
+        <footer className="sm-book-foot">
+          <span>Page {pg + 1} of {pages}</span>
+          <span className="sm-grow" />
+          <button type="button" className="btn btn-sm" onClick={onRoll}><Die /> Surprise me</button>
+          <button type="button" className="btn btn-sm" onClick={onRemove}>Remove word</button>
+        </footer>
+      </div>
+    </div>
+  );
+}
 
 export function StoryMaker() {
   const assets = useAssets();
@@ -109,8 +204,14 @@ export function StoryMaker() {
   const [rows, setRows] = useState<Row[]>(() => [newRow()]);
   const [active, setActive] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [open, setOpen] = useState({ formulas: true, symbols: true, helpers: false, tense: true });
-  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState({ formulas: true, symbols: true });
+  const [fq, setFq] = useState('');
+  const [need, setNeed] = useState<Kind[]>([]);
+  const [sortBy, setSortBy] = useState<'order' | 'short' | 'long' | 'code'>('order');
+  const [wq, setWq] = useState('');
+  const [picker, setPicker] = useState<{ row: number; index: number } | null>(null);
+  const [engineOk, setEngineOk] = useState(false);
+  useEffect(() => { void loadEngine().then(() => setEngineOk(true)).catch(() => undefined); }, []);
   const [playing, setPlaying] = useState(false);
   const [rec, setRec] = useState<{ progress: number } | null>(null);
   const [recError, setRecError] = useState('');
@@ -388,20 +489,20 @@ export function StoryMaker() {
     window.addEventListener('pointerup', up);
   };
 
-  /* ---- Dropdown choices for every blank, in every row ---- */
-  const choices = useMemo(() => data.map((d) => d.row.s.tokens.map((tok, i): Ch => {
-    const s = d.row.s;
-    if (tok.kind === 'phrase') return { preps: prepChoices(s, i, d.before), places: placeChoices(s, i, d.before) };
-    if (tok.kind === 'conj') return { list: baseChoices('conj') };
-    if (!needsPick(tok.kind)) return null;
-    const list = choicesFor(s, i, d.before);
-    if (tok.value && !list.some((c) => c.value === tok.value)) list.unshift(baseChoices(tok.kind).find((c) => c.value === tok.value) ?? { value: tok.value, label: tok.value });
-    return { list };
-  })), [data]);
-
-  const q = query.trim().toLowerCase();
-  const shownFormulas = formulas.filter((f) => !q || f.code.toLowerCase().includes(q) || f.formula.includes(q));
-  const symbolMatch = (name: string, note: string) => !q || name.toLowerCase().includes(q) || note.toLowerCase().includes(q);
+  const fneedle = fq.trim().toLowerCase();
+  const shownFormulas = formulas
+    .map((f, order) => ({ f, order }))
+    .filter(({ f }) => !fneedle || [f.code, f.formula, formulaWords(f), f.example, f.name].some((x) => x.toLowerCase().includes(fneedle)))
+    .filter(({ f }) => need.every((k) => f.kinds.includes(k)))
+    .sort((a, b) => (sortBy === 'short' ? a.f.kinds.length - b.f.kinds.length : sortBy === 'long' ? b.f.kinds.length - a.f.kinds.length : sortBy === 'code' ? a.f.code.localeCompare(b.f.code) : 0) || a.order - b.order)
+    .map(({ f }) => f);
+  const hits = useMemo(() => findWords(wq), [wq]);
+  const dictTypes = engineOk && wq.trim() && !hits.length ? jobsOfWord(wq.trim()) : [];
+  const addHit = (h: WordHit) => updateRow(act, (s) => {
+    const blank = s.tokens.findIndex((x) => x.kind === h.kind && !x.value);
+    const tokens = blank >= 0 ? s.tokens.map((x, j) => (j === blank ? { ...x, value: h.value } : x)) : [...s.tokens, { id: uid(), kind: h.kind, value: h.value }];
+    return { ...s, tokens, tense: h.tense ?? s.tense };
+  });
 
   const tile = (p: { kind: Kind; cls: SymbolWordClass; name: string; note: string }, word?: boolean) => (
     <div key={p.kind} className="sm-tile-wrap">
@@ -440,12 +541,38 @@ export function StoryMaker() {
       <div className="sm-shell">
         {sidebarOpen && (
           <aside className="lm-sidebar sm-sidebar" aria-label="Materials">
-            <input className="lm-tray-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a formula or symbol" aria-label="Find a formula or symbol" />
-
             <Category label="Sentence Formulas" color="#C0D6F5" open={open.formulas} onToggle={() => setOpen((o) => ({ ...o, formulas: !o.formulas }))}>
+              <input className="lm-tray-search" type="search" value={fq} onChange={(e) => setFq(e.target.value)} placeholder="Search a code, word or sentence" aria-label="Search formulas" />
+              <div className="sm-filter" role="group" aria-label="Show formulas that have">
+                {FILTERS.map((p) => (
+                  <button
+                    key={p.kind}
+                    type="button"
+                    className={`sm-chip${need.includes(p.kind) ? ' on' : ''}`}
+                    aria-pressed={need.includes(p.kind)}
+                    onClick={() => setNeed((n) => (n.includes(p.kind) ? n.filter((k) => k !== p.kind) : [...n, p.kind]))}
+                    title={`Only formulas with ${p.name.toLowerCase()}`}
+                  >
+                    <img src={symbolUrl(p.cls)} alt="" draggable={false} />{p.short}
+                  </button>
+                ))}
+              </div>
+              <div className="sm-sortrow">
+                <span>{shownFormulas.length} {shownFormulas.length === 1 ? 'formula' : 'formulas'}</span>
+                <label>
+                  <span className="sm-sr">Sort formulas</span>
+                  <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+                    <option value="order">In teaching order</option>
+                    <option value="short">Shortest first</option>
+                    <option value="long">Longest first</option>
+                    <option value="code">By code, A to Z</option>
+                  </select>
+                </label>
+                {(fq || need.length > 0) && <button type="button" className="sm-linkbtn" onClick={() => { setFq(''); setNeed([]); }}>Clear</button>}
+              </div>
               <div className="sm-formula-list">
                 {shownFormulas.map((f) => (
-                  <div key={`${f.code}|${f.kinds.join(' ')}`} className="sm-fcard">
+                  <div key={`${f.code}|${f.kinds.join(' ')}|${f.fixed.join(' ')}`} className="sm-fcard">
                     <button type="button" className="sm-plus" onClick={() => tapFormula(f)} aria-label={`Add ${f.code}: ${f.example}`} title="Add">+</button>
                     <div
                       role="button"
@@ -467,32 +594,34 @@ export function StoryMaker() {
             </Category>
 
             <Category label="Grammar Symbols" color="#E5B9E0" open={open.symbols} onToggle={() => setOpen((o) => ({ ...o, symbols: !o.symbols }))}>
-              <div className="row-wrap sm-tiles">{SYMBOLS.filter((p) => symbolMatch(p.name, p.note)).map((p) => tile(p))}</div>
-            </Category>
-
-            <Category label="Helper Words" color="#FDE68A" open={open.helpers} onToggle={() => setOpen((o) => ({ ...o, helpers: !o.helpers }))}>
-              <div className="row-wrap sm-tiles">{HELPERS.filter((p) => symbolMatch(p.name, p.note)).map((p) => tile(p, true))}</div>
-            </Category>
-
-            <Category label="Additional Symbols" color="#E2E8F0" open={open.tense} onToggle={() => setOpen((o) => ({ ...o, tense: !o.tense }))}>
-              <div className="row-wrap sm-tiles">
-                {TENSES.map((tn) => (
-                  <div key={tn} className="lm-tense-tray">
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      className="sm-tile"
-                      aria-label={`${TENSE_SYMBOLS[tn].name}: drag onto a sentence, or press Enter for the selected sentence`}
-                      onPointerDown={startDrag({ type: 'tense', tense: tn }, TENSE_SYMBOLS[tn].name, TENSE_SYMBOLS[tn].imageUrl)}
-                      onClick={tap(() => updateRow(act, (s) => ({ ...s, tense: tn })))}
-                      onKeyDown={keyTap(() => updateRow(act, (s) => ({ ...s, tense: tn })))}
-                    >
-                      <img src={TENSE_SYMBOLS[tn].imageUrl} alt="" draggable={false} />
+              <input className="lm-tray-search" type="search" value={wq} onChange={(e) => setWq(e.target.value)} placeholder="Type a word to find its symbol" aria-label="Find a word" />
+              {wq.trim() ? (
+                <div className="sm-hits">
+                  {hits.map((h, k) => (
+                    <button key={`${h.kind}|${h.value}|${h.label}|${k}`} type="button" className="sm-hit" onClick={() => addHit(h)} title={`Add ${h.label} to sentence ${act + 1}`}>
+                      <img src={symbolUrl(KIND_CLASS[h.kind])} alt="" draggable={false} />
+                      <strong>{h.label}</strong>
+                      <small>{KIND_LABEL[h.kind].split(' (')[0]}</small>
+                    </button>
+                  ))}
+                  {!hits.length && dictTypes.length > 0 && (
+                    <div className="sm-dict">
+                      <p><strong>{wq.trim()}</strong> is {dictTypes.map((c) => `${/^[aeiou]/i.test(GRAMMAR_SYMBOL_INFO[c].name) ? 'an' : 'a'} ${GRAMMAR_SYMBOL_INFO[c].name.toLowerCase()}`).join(' or ')}. The video can't draw it yet, so add a blank and pick a word like it.</p>
+                      {dictTypes.map((c) => CLASS_KIND[c] && (
+                        <button key={c} type="button" className="sm-hit" onClick={() => tapKind(CLASS_KIND[c]!)}>
+                          <img src={symbolUrl(c)} alt="" draggable={false} /><strong>Add {/^[aeiou]/i.test(GRAMMAR_SYMBOL_INFO[c].name) ? 'an' : 'a'} {GRAMMAR_SYMBOL_INFO[c].name.toLowerCase()}</strong>
+                        </button>
+                      ))}
                     </div>
-                    <span>{TENSE_SYMBOLS[tn].name}</span>
-                  </div>
-                ))}
-              </div>
+                  )}
+                  {!hits.length && !dictTypes.length && <p className="sm-tray-note">{engineOk ? `No word "${wq.trim()}" in the dictionary.` : 'Loading the dictionary...'}</p>}
+                </div>
+              ) : (
+                <>
+                  <div className="row-wrap sm-tiles">{SYMBOLS.map((p) => tile(p))}</div>
+                  <div className="row-wrap sm-tiles sm-helpers">{HELPERS.map((p) => tile(p, true))}</div>
+                </>
+              )}
             </Category>
           </aside>
         )}
@@ -560,13 +689,12 @@ export function StoryMaker() {
                         const cls = KIND_CLASS[tok.kind];
                         const ws = a.words.filter((w) => w.idx === i);
                         const wordTense = ws.find((w) => w.tense)?.tense;
-                        const ch = choices[r]?.[i] ?? null;
                         const label = `Sentence ${r + 1}, ${KIND_LABEL[tok.kind]} ${i + 1}`;
                         const color = GRAMMAR_SYMBOL_INFO[cls].color;
                         const punct = ws.length ? (ws[ws.length - 1].text.match(/[.,!]$/)?.[0] ?? '') : '';
                         const capFirst = ws[0]?.text && /^[A-Z]/.test(ws[0].text);
-                        // Each dropdown is as wide as its word, so the line reads like normal text.
-                        const fit = (t: string | undefined) => ({ width: `${Math.max(2.2, (t ?? '___').replace(/[.,!]$/, '').length * 0.62 + 0.9)}em` });
+                        const unfilled = needsPick(tok.kind) && (!tok.value || (tok.kind === 'phrase' && !tok.place));
+                        const shown = unfilled ? '' : ws.filter((w) => w.text).map((w) => w.text.replace(/[.,!]$/, '')).join(' ');
                         return (
                           <span key={tok.id} className="sm-wwrap">
                             {over && over.at === i && drag?.item.type !== 'formula' && drag?.item.type !== 'tense' && <span className="sm-caret" aria-hidden="true" />}
@@ -582,25 +710,12 @@ export function StoryMaker() {
                                 {wordTense && <img className="sm-tense-mark" src={TENSE_SYMBOLS[wordTense].imageUrl} alt="" draggable={false} />}
                               </span>
                               <span className="sm-wtext">
-                                {tok.kind === 'phrase' && ch && 'preps' in ch ? (
-                                  <>
-                                    <select style={fit(ws[0]?.text)} className={capFirst ? 'cap' : ''} aria-label={`${label}: preposition`} value={tok.value ?? ''} onChange={(e) => setToken(r, i, { value: e.target.value || undefined })} disabled={!tok.place}>
-                                      <option value="">___</option>
-                                      {ch.preps.map((p) => <option key={p} value={p}>{p}</option>)}
-                                    </select>
-                                    <span className="sm-fixedw">the</span>
-                                    <select style={fit(ws[2]?.text)} aria-label={`${label}: place`} value={tok.place ?? ''} onChange={(e) => setToken(r, i, { place: e.target.value || undefined, value: undefined })}>
-                                      <option value="">___</option>
-                                      {ch.places.map((p) => <option key={p} value={p}>{p}</option>)}
-                                    </select>
-                                  </>
-                                ) : ch && 'list' in ch ? (
-                                  <select style={fit(ws.map((w) => w.text).join(' '))} className={capFirst ? 'cap' : ''} aria-label={label} value={tok.value ?? ''} onChange={(e) => setToken(r, i, { value: e.target.value || undefined })}>
-                                    <option value="">___</option>
-                                    {ch.list.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                                  </select>
+                                {needsPick(tok.kind) ? (
+                                  <button type="button" className={`sm-wbtn${capFirst ? ' cap' : ''}`} onClick={() => { setActive(r); setPicker({ row: r, index: i }); }} aria-label={`${label}: ${shown || 'blank'}. Choose a word.`} aria-haspopup="dialog">
+                                    {shown || '___'}
+                                  </button>
                                 ) : (
-                                  <span className="sm-fixedw">{ws.map((w) => w.text.replace(/[.,!]$/, '')).join(' ')}</span>
+                                  <span className="sm-fixedw">{shown}</span>
                                 )}
                                 {punct && <span className="sm-punct">{punct}</span>}
                               </span>
@@ -652,13 +767,25 @@ export function StoryMaker() {
         </main>
       </div>
 
+      {picker && rows[picker.row]?.s.tokens[picker.index] && (
+        <WordBook
+          st={rows[picker.row].s}
+          idx={picker.index}
+          ctx={data[picker.row]?.before ?? EMPTY_CONTEXT}
+          onPick={(patch) => { setToken(picker.row, picker.index, patch); setPicker(null); }}
+          onRoll={() => { const p = picker; updateRow(p.row, (st) => rollToken(st, p.index, data[p.row]?.before ?? EMPTY_CONTEXT)); setPicker(null); }}
+          onRemove={() => { const p = picker; updateRow(p.row, (st) => ({ ...st, tokens: st.tokens.filter((_, j) => j !== p.index) })); setPicker(null); }}
+          onClose={() => setPicker(null)}
+        />
+      )}
+
       {showHelp && (
         <div className="sm-modal" role="dialog" aria-modal="true" aria-labelledby="sm-help-title" onClick={(e) => { if (e.target === e.currentTarget) setShowHelp(false); }} onKeyDown={(e) => { if (e.key === 'Escape') setShowHelp(false); }}>
           <div className="sm-modal-card sm-help-card">
             <h2 id="sm-help-title">How Story Maker works</h2>
             <ol className="sm-steps">
-              <li><span>1</span><div><strong>Pick a formula.</strong> Drag a formula card from the left onto the page, or click its <strong>+</strong>. It comes filled in with its example sentence. You can also drag single grammar symbols in and snap them together.</div></li>
-              <li><span>2</span><div><strong>Fill each blank.</strong> Click any word to pick a different one, or roll the dice. The dice only pick words the video can act out.</div></li>
+              <li><span>1</span><div><strong>Pick a formula.</strong> Find a formula with the search, the symbol buttons or the sort, then drag it onto the page or click its <strong>+</strong>. It comes filled in with its example sentence. You can also drag single grammar symbols in and snap them together.</div></li>
+              <li><span>2</span><div><strong>Change any word.</strong> Click a word to open its word book: every word that fits, in ABC order, a page at a time. Or type a word in Grammar Symbols to find its symbol, even if you don't know its part of speech. The dice only pick words the video can act out.</div></li>
               <li><span>3</span><div><strong>Watch the meaning.</strong> Every word changes the video: <em>quickly</em> runs fast, <em>slowly</em> creeps, <em>big</em> grows, <em>sad</em> brings a rain cloud.</div></li>
               <li><span>4</span><div><strong>Choose the time.</strong> Past, Present or Future changes the verb and the look of the video. Drop a tense symbol on a sentence, or click one beside it.</div></li>
               <li><span>5</span><div><strong>Make a story.</strong> Each sentence is its own line; drag ⠿ to put them in a new order. He, she, it and they keep talking about the same characters. Click 🔈 to hear a sentence, Play to watch the story, and Save video to download it.</div></li>

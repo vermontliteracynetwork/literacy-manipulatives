@@ -1,10 +1,10 @@
 // Story Maker grammar: reads a row of grammar-symbol slots (the same slot names as her formula cards), decides
 // whether it is a sentence the video can act out, writes the words in the right forms (tense, one or many, a/an,
 // contractions), and turns it into the actors and actions the renderer plays.
-import { SENTENCE_FORMULAS } from '../writer/formulas';
+import { FORMULA_LIST } from '../writer/formulaList';
 import type { SymbolWordClass } from '../grammarSymbols';
 import {
-  ABILITIES, ADJECTIVES, ADVERBS, CONJUNCTIONS, INTERJECTIONS, LIVING, MOVING_PREPS, NAMES, NOUNS, PLACES, PRONOUNS, VERBS,
+  ABILITIES, ADJECTIVES, ADVERBS, CONJUNCTIONS, INTERJECTIONS, LIVING, MOVING_PREPS, NAMES, NOUN_PREPS, NOUNS, PLACES, PRONOUNS, VERBS,
   advById, nameById, placeById, pronounById, readNoun, verbById,
   type LookId, type PrepId, type Pron3, type Tense, type VerbDef, type VerbId,
 } from './words';
@@ -233,6 +233,8 @@ const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 export interface GroupModel {
   kind: VPType; actors: ActorSpec[]; verbs: VerbId[]; object: ActorSpec[]; advs: string[]; prep?: PrepId; place?: string;
+  /** The person, animal or thing in a phrase like "from the cat" (empty for a place). */
+  prepObj: ActorSpec[];
   negated: boolean; progressive: boolean; adjs: { id: string; intensity: number }[]; ident: ActorSpec[];
 }
 
@@ -409,6 +411,8 @@ export function analyze(st: SentenceState, ctx: StoryContext = EMPTY_CONTEXT): A
   };
   const checkNP = (n: NP) => {
     const head = t[n.head];
+    const adjVals = n.mods.map((m) => t[m.adj].value).filter(Boolean);
+    if (new Set(adjVals).size < adjVals.length) fail('Use two different describing words.');
     for (const m of n.mods) {
       if (m.adv === undefined) continue;
       const a = advById(t[m.adv].value ?? '');
@@ -510,9 +514,19 @@ export function analyze(st: SentenceState, ctx: StoryContext = EMPTY_CONTEXT): A
 
     // Places.
     const fishy = [...actors].some((a) => a.look === 'fish');
-    if (pl && prep) {
-      const pd = placeById(pl);
-      if (pd && !pd.preps.includes(prep)) fail(`Try another preposition with ${pl}.`);
+    const pd = pl ? placeById(pl) : undefined;
+    const pn = pl && !pd ? readNoun(pl) : null;
+    const prepObj: ActorSpec[] = pn ? [plain(pn.def.look)] : [];
+    if (pl && prep && pn) {
+      if (!NOUN_PREPS.includes(prep)) fail(`Try ${NOUN_PREPS.join(', ')} before the ${pl}.`);
+      if (MOVING_PREPS.includes(prep) && (vp.type !== 'action' || verbs.some((v) => verbById(v)?.motion !== 'loco'))) fail(`${prep} the ${pl} needs a moving verb, like ran ${prep} the ${pl}.`);
+      if (prep === 'with' && !negated) {
+        for (const v of verbs) if (!ABILITIES[pn.def.look].includes(v)) fail(`${cap(lookName(pn.def.look))} can't ${verbById(v)?.base} in this video. Try another word.`);
+      }
+      if (actors.some((a) => a.look === pn.def.look && !a.name) && actors.length === 1) fail(`Use a different noun after ${prep}.`);
+    }
+    if (pl && prep && pd) {
+      if (!pd.preps.includes(prep)) fail(`Try another preposition with ${pl}.`);
       const isMoving = MOVING_PREPS.includes(prep);
       if (isMoving && (vp.type !== 'action' || verbs.some((v) => { const m = verbById(v)?.motion; return m !== 'loco'; }))) {
         fail(`${prep} the ${pl} needs a moving verb. Try ${STATIC_VERB_PREPS.filter((p) => pd?.preps.includes(p)).join(' or ') || 'another place'}.`);
@@ -520,8 +534,8 @@ export function analyze(st: SentenceState, ctx: StoryContext = EMPTY_CONTEXT): A
       if (verbs.includes('swim') && !pd?.water && !negated) fail('Swimming needs water: try the pond or the beach.');
       if (fishy && !pd?.water) fail('A fish needs water: try the pond.');
     }
-    if (ci === 0 && pl) place = pl;
-    if (ci > 0 && !place && pl) place = pl;
+    if (pd && ci === 0 && pl) place = pl;
+    if (pd && ci > 0 && !place && pl) place = pl;
 
     if (vp.type === 'identity' && [...actors, ...ident].some((x) => !LIVING.includes(x.look))) fail('Use a person or an animal on both sides, like Max is a dog.');
     if (vp.type === 'identity' && actors.length && ident.length) {
@@ -531,7 +545,8 @@ export function analyze(st: SentenceState, ctx: StoryContext = EMPTY_CONTEXT): A
     }
 
     groupsOut.push({
-      kind: vp.type, actors, verbs, object, advs, prep, place: pl, negated, progressive: vp.be !== undefined && vp.type === 'action',
+      kind: vp.type, actors: prep === 'with' ? [...actors, ...prepObj] : actors, verbs, object, advs, prep, place: pd ? pl : undefined,
+      prepObj: prep === 'with' ? [] : prepObj, negated, progressive: vp.be !== undefined && vp.type === 'action',
       adjs: vp.adjs.map((m) => ({ id: t[m.adj].value ?? '', intensity: m.adv !== undefined && t[m.adv].value ? 1.6 : 1 })).filter((a) => a.id),
       ident,
     });
@@ -611,9 +626,7 @@ function rollOne(st: SentenceState, idx: number, ctx: StoryContext): SentenceSta
   if (!needsPick(tok.kind)) return st;
   if (tok.kind === 'conj' && tok.value) return st;
   if (tok.kind === 'phrase') {
-    const pairs = PLACES.flatMap((p) => p.preps.map((prep) => ({ place: p.id, value: prep })))
-      .filter((pr) => analyze(withValue(st, idx, pr), ctx).status !== 'error');
-    const pr = pick(pairs);
+    const pr = pick(phraseChoices(st, idx, ctx));
     return pr ? withValue(st, idx, pr) : st;
   }
   let list = choicesFor(st, idx, ctx, true);
@@ -653,31 +666,76 @@ function rank(k: Kind): number {
 
 /* ---------------- Her formulas ---------------- */
 
-export interface StoryFormula { code: string; kinds: Kind[]; fixed: (string | undefined)[]; formula: string; contract: boolean; exclaim: boolean; example: string }
+export interface StoryFormula {
+  code: string; kinds: Kind[]; fixed: (string | undefined)[]; formula: string; contract: boolean; exclaim: boolean; example: string;
+  name: string; purpose: string;
+}
 
-const SLOT_KIND: Record<string, Kind> = {
-  article: 'article', noun: 'noun', propernoun: 'propernoun', pronoun: 'pronoun', adjective: 'adjective', verb: 'verb', adverb: 'adverb',
-  phrase: 'phrase', interjection: 'interjection', will: 'will', be: 'be', do: 'do', not: 'not', and: 'conj', but: 'conj', so: 'conj', because: 'conj',
-};
+/** Reads one row of her master list (formula symbols plus its model sentence) into Story Maker slots. A helping
+ *  verb in the sentence (will, is, did...) becomes will, be or do; "not" becomes not; a preposition and the words
+ *  after it become one prepositional phrase. Returns null for a formula the video can't act out yet. */
+function storySlots(breakdown: string, sentence: string): { kinds: Kind[]; fixed: (string | undefined)[]; contract: boolean } | null {
+  const slots = breakdown.replace(/proper noun/g, 'propernoun').split(/\s+/).filter((w) => /^[a-z]+$/.test(w));
+  const words = sentence.replace(/[“”"]/g, ' ').split(/\s+/).map((w) => w.replace(/^[^A-Za-z']+|[^A-Za-z']+$/g, '').toLowerCase().replace(/’/g, "'")).filter(Boolean);
+  if (slots.length < 1) return null;
+  const kinds: Kind[] = [];
+  const fixed: (string | undefined)[] = [];
+  let contract = false;
+  let w = 0;
+  const push = (k: Kind, v?: string) => { kinds.push(k); fixed.push(v); };
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i];
+    const word = words[w] ?? '';
+    if (slot === 'preposition') {
+      w++;
+      let j = i + 1;
+      while (slots[j] === 'article' || slots[j] === 'adjective') { j++; w++; }
+      if (slots[j] !== 'noun') return null;
+      w++;
+      i = j;
+      push('phrase');
+      continue;
+    }
+    w++;
+    if (slot === 'verb') {
+      if (word === 'will') push('will');
+      else if (/^(am|is|are|was|were)$/.test(word)) push('be');
+      else if (/^(isn't|aren't|wasn't|weren't)$/.test(word)) { push('be'); push('not'); contract = true; }
+      else if (/^(do|does|did)$/.test(word)) push('do');
+      else if (/^(don't|doesn't|didn't)$/.test(word)) { push('do'); push('not'); contract = true; }
+      else if (/'/.test(word) || /^(can|could|should|must|may|has|have|had|feel|feels|felt)$/.test(word)) return null;
+      else push('verb');
+    } else if (slot === 'adverb') push(word === 'not' ? 'not' : 'adverb');
+    else if (slot === 'conjunction') { if (!CONJUNCTIONS.includes(word)) return null; push('conj', word); }
+    else if (slot === 'pronoun') { if (/'/.test(word)) return null; push('pronoun'); }
+    else if (slot === 'propernoun') push('propernoun');
+    else if (slot === 'article' || slot === 'noun' || slot === 'adjective' || slot === 'interjection') push(slot);
+    else return null;
+  }
+  return parse(kinds) ? { kinds, fixed, contract } : null;
+}
 
 let cache: StoryFormula[] | null = null;
-/** Every formula from her formula cards that the video can act out, by formula code. */
+/** Every formula in her master list that the video can act out, in her order. */
 export function storyFormulas(): StoryFormula[] {
   if (cache) return cache;
   const seen = new Set<string>();
   const out: StoryFormula[] = [];
-  for (const f of SENTENCE_FORMULAS) {
-    const kinds = f.slots.map((s) => SLOT_KIND[s]);
-    if (kinds.some((k) => !k)) continue;
+  for (const f of FORMULA_LIST) {
     // Questions and commands have their own word order; the video acts out statements and exclamations.
-    if (/^(Q|C|Cn)\d/.test(f.code) || /,C\d/.test(f.code)) continue;
-    const fixed = f.slots.map((s) => (CONJUNCTIONS.includes(s) ? s : undefined));
-    const key = `${f.code}|${f.slots.join(' ')}`;
-    if (seen.has(key) || !parse(kinds)) continue;
-    const st: SentenceState = { tokens: kinds.map((k, i) => ({ id: `f${i}`, kind: k, value: fixed[i] })), tense: 'past', contract: f.code.includes("'") };
+    if (/^(Q|C|Cn)\d/.test(f.code) || /(^|[,(])C\d/.test(f.code) || /^B\(C/.test(f.code)) continue;
+    const sl = storySlots(f.breakdown, f.example);
+    if (!sl) continue;
+    const key = `${f.code}|${sl.kinds.join(' ')}|${sl.fixed.join(' ')}`;
+    if (seen.has(key)) continue;
+    const contract = sl.contract || f.code.includes("'");
+    const st: SentenceState = { tokens: sl.kinds.map((k, i) => ({ id: `f${i}`, kind: k, value: sl.fixed[i] })), tense: 'past', contract };
     if (analyze(rollAll(st, EMPTY_CONTEXT)).status !== 'ok') continue;
     seen.add(key);
-    out.push({ code: f.code, kinds, fixed, formula: f.formula, contract: f.code.includes("'"), exclaim: /^E\d/.test(f.code) && !kinds.includes('interjection'), example: f.sentence });
+    out.push({
+      code: f.code, kinds: sl.kinds, fixed: sl.fixed, formula: f.breakdown, contract, exclaim: /^E\d/.test(f.code) || /!$/.test(f.example) && !sl.kinds.includes('interjection'),
+      example: f.example, name: f.name, purpose: f.purpose,
+    });
   }
   cache = out;
   return out;
@@ -752,9 +810,13 @@ export function exampleFill(f: StoryFormula, ctx: StoryContext): SentenceState {
       case 'phrase': {
         const next = low(w + 1);
         const hasArt = ['the', 'a', 'an'].includes(next);
-        const pl = PLACES.find((p) => p.id === (hasArt ? low(w + 2) : next));
+        let k = hasArt ? w + 2 : w + 1;
+        while (ADJECTIVES.some((a) => a.id === low(k)) || (low(k) && !PLACES.some((p) => p.id === low(k)) && !NOUNS.some((n) => n.sing === low(k) || n.plural === low(k)) && low(k + 1) && k < w + 4)) k++;
+        const pl = PLACES.find((p) => p.id === low(k));
+        const nn = NOUNS.find((n) => n.sing === low(k) || n.plural === low(k));
         if (pl && pl.preps.includes(word as PrepId)) { tok.value = word; tok.place = pl.id; }
-        w += hasArt ? 3 : 2; break;
+        else if (nn && NOUN_PREPS.includes(word as PrepId)) { tok.value = word; tok.place = nn.id; }
+        w = k + 1; break;
       }
     }
   }
@@ -766,4 +828,37 @@ export function exampleFill(f: StoryFormula, ctx: StoryContext): SentenceState {
   }
   if (analyze(st, ctx).status === 'ok') return st;
   return rollAll({ ...base, tense: st.tense }, ctx);
+}
+
+/** Every prepositional phrase that fits this blank, like "to the park". */
+export function phraseChoices(st: SentenceState, idx: number, ctx: StoryContext): { value: string; place: string }[] {
+  const out: { value: string; place: string }[] = [];
+  const tryIt = (value: string, place: string) => { if (analyze(withValue(st, idx, { value, place }), ctx).status !== 'error') out.push({ value, place }); };
+  for (const p of PLACES) for (const prep of p.preps) tryIt(prep, p.id);
+  for (const n of NOUNS) for (const prep of NOUN_PREPS) tryIt(prep, n.id);
+  return out;
+}
+
+export interface WordHit { kind: Kind; value: string; label: string; tense?: Tense }
+
+/** Words in the video's word bank that start with what was typed, in every word type. */
+export function findWords(q: string): WordHit[] {
+  const s = q.trim().toLowerCase();
+  if (!s) return [];
+  const hits: WordHit[] = [];
+  const add = (h: WordHit) => { if (h.label.toLowerCase().startsWith(s) && !hits.some((x) => x.kind === h.kind && x.value === h.value && x.label === h.label)) hits.push(h); };
+  for (const n of NOUNS) { add({ kind: 'noun', value: n.id, label: n.sing }); if (n.plural !== n.sing) add({ kind: 'noun', value: `${n.id}:pl`, label: n.plural }); }
+  for (const n of NAMES) add({ kind: 'propernoun', value: n.id, label: n.id });
+  for (const p of PRONOUNS) { add({ kind: 'pronoun', value: p.id, label: p.subj }); add({ kind: 'pronoun', value: p.id, label: p.obj }); }
+  for (const a of ADJECTIVES) add({ kind: 'adjective', value: a.id, label: a.id });
+  for (const a of ADVERBS) add({ kind: 'adverb', value: a.id, label: a.id });
+  for (const v of VERBS) {
+    add({ kind: 'verb', value: v.id, label: v.past, tense: 'past' });
+    add({ kind: 'verb', value: v.id, label: v.third, tense: 'present' });
+    add({ kind: 'verb', value: v.id, label: v.base, tense: 'present' });
+    add({ kind: 'verb', value: v.id, label: v.ing });
+  }
+  for (const w of INTERJECTIONS) add({ kind: 'interjection', value: w, label: w });
+  for (const w of CONJUNCTIONS) add({ kind: 'conj', value: w, label: w });
+  return hits.sort((a, b) => Number(b.label.toLowerCase() === s) - Number(a.label.toLowerCase() === s) || a.label.localeCompare(b.label)).slice(0, 14);
 }

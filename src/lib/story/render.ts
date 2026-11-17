@@ -583,7 +583,13 @@ function groupFrame(f: Frame, g: GroupModel, gi: number, clip: Clip, t: number) 
   const centerX = gi === 0 ? (clip.a.groups.length > 1 ? 50 : 72) : 100;
   const spread = (i: number) => (i - (n - 1) / 2) * 20;
   const ph = g.prep;
-  const sp = g.place && g.place === place ? spot(place, ph) : g.place && place === 'room' && ph === 'in' ? spot('room', undefined) : null;
+  // A phrase with a person, animal or thing in it ("from the cat", "near the dog"): that one stands in the scene.
+  const po = g.prepObj[0];
+  const objX = ph === 'to' ? 112 : ph === 'over' ? 84 : ph === 'behind' ? 92 : 98;
+  let sp: Spot | null = g.place && g.place === place ? spot(place, ph) : g.place && place === 'room' && ph === 'in' ? spot('room', undefined) : null;
+  if (po && ph === 'near') sp = { x: objX - 26, y: G.ground };
+  if (po && ph === 'behind') sp = { x: objX, y: G.ground, behind: true };
+  const LX = po ? objX : G.lx;
 
   const push = (d: Draw, i: number, adjsForFx: string[], intensity: number) => {
     adjFx(f, d, adjsForFx, t + i * 0.37, intensity);
@@ -593,6 +599,14 @@ function groupFrame(f: Frame, g: GroupModel, gi: number, clip: Clip, t: number) 
     }
     f.draws.push(d);
   };
+
+  if (po && ph && ph !== 'from') {
+    g.prepObj.forEach((o, k) => {
+      const d = mkDraw(o, objX + k * 14, G.ground + lane, { facing: -1 });
+      d.pose.eyesClosed = (t % 3.1) < 0.15;
+      push(d, 20 + k, o.adjs, o.intensity);
+    });
+  }
 
   // Not: the Who stays put and thinks about it.
   if (g.negated) {
@@ -651,7 +665,7 @@ function groupFrame(f: Frame, g: GroupModel, gi: number, clip: Clip, t: number) 
     if (motion === 'loco') {
       const isSwim = verb === 'swim';
       const water = G.water;
-      const moving = MOVING_PREPS_SET.has(ph ?? '');
+      const moving = MOVING_PREPS_SET.has(ph ?? '') && !(po && ph === 'from');
       if (spec.look === 'fish' || (isSwim && water && !moving)) {
         const r = pingpong(water ? water.x0 + 8 : 20, ta * (BASE_SPEED.swim ?? 18) * m - lag, (water?.x0 ?? 10) + 8, (water?.x1 ?? 134) - 8);
         d.x = r.x; d.facing = r.facing; d.y = (water?.swim ?? G.ground) + Math.sin(t * 3 + i) * 1 + lane;
@@ -661,25 +675,39 @@ function groupFrame(f: Frame, g: GroupModel, gi: number, clip: Clip, t: number) 
         const T = clamp(((ARRIVE[verb] ?? 0.5) * W) / m, 0.5, W);
         const p = clamp((ta - i * 0.15) / T, 0, 1);
         const x0 = ph === 'across' || ph === 'through' ? 4 - EX : 14 - EX * 0.6;
-        let x1 = G.lx - 22;
+        let x1 = LX - 22;
         if (ph === 'into') x1 = place === 'house' ? 105 : place === 'pond' ? 96 : 100;
-        if (ph === 'over') x1 = G.lx + 36;
+        if (ph === 'over') x1 = LX + 36;
         if (ph === 'across' || ph === 'through') x1 = 140 + EX;
         if (ph === 'up') x1 = place === 'tree' ? G.lx - 8 : G.lx;
-        if (place === 'pond' && ph === 'to') x1 = 56;
-        if (place === 'beach' && ph === 'to') x1 = 86;
+        if (!po && place === 'pond' && ph === 'to') x1 = 56;
+        if (!po && place === 'beach' && ph === 'to') x1 = 86;
         const pp = ph === 'up' && place === 'tree' ? clamp(p * 2, 0, 1) : p;
         d.x = lerp(x0, x1, pp) - lag * (1 - p);
         d.facing = 1;
         const deck = place === 'bridge' && (ph === 'across');
         d.y = terrain(place, d.x, deck) + lane - i * 2;
-        if (ph === 'over') d.y -= Math.sin(Math.PI * p) * (place === 'hill' ? 46 : 26);
+        if (ph === 'over') d.y -= Math.sin(Math.PI * p) * (!po && place === 'hill' ? 46 : 26);
         if (ph === 'up' && place === 'tree' && p > 0.5) d.y = lerp(G.ground, 62, ease((p - 0.5) * 2));
         d.pose.moving = p < 1;
         if (p >= 1) {
           if (ph === 'into' && place !== 'pond') d.alpha = clamp(1 - (ta - T) / 0.5, 0, 1);
           if (ph === 'into' && place === 'pond') { d.x = 100 - lag; d.y = 113; d.water = 104; d.pose.moving = true; }
           if (ph === 'across' || ph === 'through') d.alpha = clamp(1 - (ta - T) / 0.4, 0, 1);
+        }
+      } else if (po && ph === 'from') {
+        // Running from someone: they chase right behind.
+        const v = (BASE_SPEED[verb] ?? 20) * m;
+        const r = pingpong(60, v * ta - lag, 30 - EX * 0.6, 132 + EX * 0.6);
+        d.x = r.x; d.facing = r.facing; d.pose.moving = ta > 0;
+        d.y = G.ground + lane - i * 2;
+        if (i === 0) {
+          g.prepObj.forEach((o, k) => {
+            const c = mkDraw(o, r.x - r.facing * (30 + k * 14), G.ground + lane + 1, { facing: r.facing });
+            c.pose.moving = ta > 0; c.pose.phase = ta * 3 * m;
+            push(c, 20 + k, o.adjs, o.intensity);
+          });
+          if (ta > 0 && (t % 1.6) < 0.8) f.low.push((c) => pattern(c, d.x - 2, d.y - 34 * d.scale, ['X', 'X', 'X', '.', 'X'], '#e53935'));
         }
       } else if (g.advs.includes('away')) {
         const v = (BASE_SPEED[verb] ?? 20) * m;
@@ -854,7 +882,7 @@ function groupFrame(f: Frame, g: GroupModel, gi: number, clip: Clip, t: number) 
   });
 }
 
-const MOVING_PREPS_SET = new Set<string>(['to', 'into', 'over', 'across', 'through', 'up']);
+const MOVING_PREPS_SET = new Set<string>(['to', 'into', 'over', 'across', 'through', 'up', 'from']);
 
 function tag(h: Ctx, x: number, y: number, label: string) {
   const fam = getComputedStyle(document.documentElement).getPropertyValue('--lm-font') || 'sans-serif';
