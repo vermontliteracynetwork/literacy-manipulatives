@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HomeButton } from '../HomeButton';
 import { ReferencePopover } from '../ReferencePopover';
 import { GRAMMAR_SYMBOL_INFO, TENSE_SYMBOLS, type SymbolWordClass } from '../../lib/grammarSymbols';
-import { useFontChoice } from '../../lib/fontChoice';
 import { buildUtterance } from '../../lib/tts';
 import {
   analyze, baseChoices, choicesFor, EMPTY_CONTEXT, formulaTokens, KIND_CLASS, KIND_LABEL, needsPick, nextContext, placeChoices, prepChoices,
@@ -104,7 +103,6 @@ function Category({ label, color, open, onToggle, children }: { label: string; c
 type Ch = { preps: string[]; places: string[] } | { list: { value: string; label: string }[] } | null;
 
 export function StoryMaker() {
-  const { font, setFont } = useFontChoice();
   const assets = useAssets();
   const formulas = useMemo(() => storyFormulas(), []);
   const [rows, setRows] = useState<Row[]>(() => [newRow()]);
@@ -137,12 +135,11 @@ export function StoryMaker() {
 
   /* ---- The video ---- */
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const live = useRef({ clip: null as Clip | null, playlist, playing: false, idlePlace: 'meadow', start: 0, capKey: '', capActive: -1 });
+  const live = useRef({ clip: null as Clip | null, playlist, playing: false, start: 0, capKey: '', capActive: -1 });
   const previewClip = activeData?.clip ?? null;
-  const idlePlace = activeData?.before.place ?? 'meadow';
   useEffect(() => {
-    Object.assign(live.current, { clip: previewClip, playlist, playing, idlePlace });
-  }, [previewClip, playlist, playing, idlePlace]);
+    Object.assign(live.current, { clip: previewClip, playlist, playing });
+  }, [previewClip, playlist, playing]);
 
   useEffect(() => {
     let raf = 0;
@@ -165,7 +162,7 @@ export function StoryMaker() {
         shown = L.clip; t = (now / 1000) % L.clip.duration;
         drawScene(h, shown, t, assets, 'meadow', true);
       } else {
-        drawScene(h, null, now / 1000, assets, L.idlePlace, true);
+        h.clearRect(0, 0, VIDEO_W, VIDEO_H);
       }
       const key = shown ? shown.text : '';
       const activeWord = shown ? wordAt(t, shown.words.length) : -1;
@@ -389,14 +386,13 @@ export function StoryMaker() {
   );
 
   return (
-    <div className={`sm-page${drag ? ' sm-dragging' : ''}`}>
+    <div className={`sm-page${drag ? ' sm-dragging' : ''}${drag?.item.type === 'formula' || drag?.item.type === 'kind' ? ' sm-dropping' : ''}`}>
       <div className="lm-toolbar sm-toolbar">
         <HomeButton />
         <a className="lm-sidebar-title lm-home-link" href="/" title="Back to all tools">Story Maker</a>
         <button type="button" className="btn btn-sm" onClick={() => setSidebarOpen((v) => !v)} aria-label={sidebarOpen ? 'Hide materials' : 'Show materials'}>{sidebarOpen ? '⟨⟨' : '⟩⟩'}</button>
         <span className="lm-toolbar-divider" />
-        <button type="button" className={`btn btn-sm${font === 'dyslexic' ? ' btn-primary' : ''}`} aria-pressed={font === 'dyslexic'} onClick={() => setFont(font === 'dyslexic' ? 'inclusive' : 'dyslexic')}>OpenDyslexic</button>
-        <button type="button" className="btn btn-sm" aria-expanded={showHelp} onClick={() => setShowHelp((v) => !v)}>How it works</button>
+        <button type="button" className="btn btn-sm" aria-haspopup="dialog" onClick={() => setShowHelp(true)}>How it works</button>
         <span className="sm-grow" />
         <button type="button" className="btn btn-sm btn-primary" onClick={play} disabled={!playlist.length || !!rec}>
           {playing ? '■ Stop' : playlist.length > 1 ? '▶ Play story' : '▶ Play'}
@@ -410,7 +406,7 @@ export function StoryMaker() {
             <input className="lm-tray-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a formula or symbol" aria-label="Find a formula or symbol" />
 
             <Category label="Sentence Formulas" color="#C0D6F5" open={open.formulas} onToggle={() => setOpen((o) => ({ ...o, formulas: !o.formulas }))}>
-              <p className="sm-tray-note">Drag a formula onto a sentence row, or tap it.</p>
+              <p className="sm-how"><strong>Drag</strong> a card onto a sentence row, or <strong>click</strong> it to add it.</p>
               <div className="sm-formula-list">
                 {shownFormulas.map((f) => (
                   <div
@@ -423,9 +419,14 @@ export function StoryMaker() {
                     onClick={tap(() => tapFormula(f))}
                     onKeyDown={keyTap(() => tapFormula(f))}
                   >
-                    <span className="sm-code">{f.code}</span>
+                    <span className="sm-card-top">
+                      <span className="sm-grip-dots" aria-hidden="true">⠿</span>
+                      <span className="sm-code">{f.code}</span>
+                      <span className="sm-add" aria-hidden="true">+ Add</span>
+                    </span>
                     <span className="lm-pattern-icons">{f.kinds.map((k, i) => <img key={i} src={symbolUrl(KIND_CLASS[k])} alt="" draggable={false} />)}</span>
                     <span className="lm-pattern-text">{f.formula}</span>
+                    <span className="sm-example">{f.example}</span>
                   </div>
                 ))}
                 {!shownFormulas.length && <p className="sm-tray-note">No formula matches.</p>}
@@ -466,21 +467,17 @@ export function StoryMaker() {
         )}
 
         <main className="sm-main">
-          {showHelp && (
-            <section className="sm-help" aria-label="How Story Maker works">
-              <ol>
-                <li><strong>Start with a formula.</strong> Drag a formula onto a sentence row, or tap it. You can also drag single grammar symbols in and snap them together.</li>
-                <li><strong>Fill each blank.</strong> Pick a word from the dropdown, or roll the dice. The dice only pick words the video can act out.</li>
-                <li><strong>Watch the meaning.</strong> Every word changes the video: <em>quickly</em> runs fast, <em>slowly</em> creeps, <em>big</em> grows, <em>sad</em> brings a rain cloud.</li>
-                <li><strong>Choose the time.</strong> Past, Present or Future changes the verb and the look of the video.</li>
-                <li><strong>Make a story.</strong> One row per sentence. Use he, she, it or they to keep talking about the same characters. Press 🔈 on a row to hear it, Play to watch the whole story, and Save video to download it.</li>
-              </ol>
-              <button type="button" className="btn btn-sm" onClick={() => setShowHelp(false)}>Got it</button>
-            </section>
-          )}
 
           <section className="sm-video" aria-label="Video">
-            <canvas ref={canvasRef} width={VIDEO_W} height={VIDEO_H} role="img" aria-label={shownClip ? `Video: ${shownClip.text}` : 'Video: waiting for a sentence'} />
+            <div className="sm-screen">
+              <canvas ref={canvasRef} width={VIDEO_W} height={VIDEO_H} role="img" aria-label={shownClip ? `Video: ${shownClip.text}` : 'Video: waiting for a sentence'} />
+              {!shownClip && (
+                <div className="sm-blank" aria-hidden="true">
+                  <span className="sm-blank-icon">▶</span>
+                  <span>Your video will appear here</span>
+                </div>
+              )}
+            </div>
             <div className="sm-captions">
               {shownClip ? (
                 shownClip.words.map((w, i) => (
@@ -499,6 +496,9 @@ export function StoryMaker() {
           <section className="sm-doc" aria-label="Sentences">
             <div className="sm-doc-head">
               <h2>My story</h2>
+              <ol className="sm-mini-steps" aria-label="Steps">
+                <li>1 Drag a formula</li><li>2 Fill the blanks</li><li>3 Play</li>
+              </ol>
               <span>{playlist.length ? `${playlist.length} ${playlist.length === 1 ? 'sentence' : 'sentences'} ready · ${Math.round(totalSeconds)} seconds` : 'One row per sentence'}</span>
             </div>
             <ol className="sm-rows">
@@ -515,10 +515,36 @@ export function StoryMaker() {
                     onPointerDown={() => setActive(r)}
                     onFocus={() => setActive(r)}
                   >
-                    <span className="sm-num" aria-label={`Sentence ${r + 1}`}>{r + 1}</span>
-                    <div className="sm-row-body">
-                      <div className="sm-line">
-                        {!s.tokens.length && <span className="sm-line-empty">Drag a formula or symbols here</span>}
+                    <div className="sm-row-head">
+                      <span className="sm-num" aria-label={`Sentence ${r + 1}`}>{r + 1}</span>
+                      <span className={`sm-state sm-state-${a.status}`}>
+                        {a.status === 'ok' ? '✓ Ready' : a.status === 'incomplete' ? '✎ Fill the blanks' : a.status === 'error' ? '! Not recognized' : 'Empty'}
+                      </span>
+                      {(a.code || a.status === 'ok') && <span className={`sm-pill${a.code ? '' : ' own'}`}>{a.code ?? 'My own formula'}</span>}
+                      {isActive && a.status === 'ok' && !playing && <span className="sm-onscreen">▶ In the video</span>}
+                      <span className="sm-grow" />
+                      <span className="sm-row-manage">
+                        <button type="button" className="sm-mini" onClick={() => swapRows(r, r - 1)} disabled={r === 0} aria-label={`Move sentence ${r + 1} up`} title="Move up">↑</button>
+                        <button type="button" className="sm-mini" onClick={() => swapRows(r, r + 1)} disabled={r === rows.length - 1} aria-label={`Move sentence ${r + 1} down`} title="Move down">↓</button>
+                        <button type="button" className="sm-mini" onClick={() => removeRow(r)} aria-label={`Delete sentence ${r + 1}`} title="Delete sentence">🗑</button>
+                      </span>
+                    </div>
+                    {s.tokens.length > 0 && (
+                      <p className={`sm-big sm-big-${a.status}`}>
+                        {a.status === 'error' ? (
+                          <><strong>Sentence not recognized.</strong> {a.hint}</>
+                        ) : a.words.filter((w) => w.text).map((w, k) => (
+                          <span key={k} className={w.blank ? 'sm-gap' : ''} style={{ ['--c' as string]: GRAMMAR_SYMBOL_INFO[w.cls].color }}>{w.blank ? '?' : w.text}</span>
+                        ))}
+                      </p>
+                    )}
+                    <div className="sm-line">
+                        {!s.tokens.length && (
+                          <span className="sm-line-empty">
+                            {over ? <strong>Drop it here</strong> : <><span className="sm-arrow" aria-hidden="true">⟵</span> Drag a formula card here, or click <em>+ Add</em> on a card</>}
+                          </span>
+                        )}
+                        {over && s.tokens.length > 0 && drag?.item.type === 'formula' && <span className="sm-replace-note">Drop to use {drag.label} in this row</span>}
                         {s.tokens.map((tok, i) => {
                           const cls = KIND_CLASS[tok.kind];
                           const ws = a.words.filter((w) => w.idx === i);
@@ -543,6 +569,7 @@ export function StoryMaker() {
                                   <img src={symbolUrl(cls)} alt="" draggable={false} />
                                   {wordTense && <img className="sm-tense-mark" src={TENSE_SYMBOLS[wordTense].imageUrl} alt="" draggable={false} />}
                                 </button>
+                                <span className="sm-slot-kind">{tok.kind === 'phrase' ? 'phrase' : KIND_LABEL[tok.kind].split(' (')[0]}</span>
                                 {tok.kind === 'phrase' && ch && 'preps' in ch ? (
                                   <span className="sm-phrase">
                                     <select aria-label={`${label}: preposition`} value={tok.value ?? ''} onChange={(e) => setToken(r, i, { value: e.target.value || undefined })} disabled={!tok.place}>
@@ -572,45 +599,33 @@ export function StoryMaker() {
                           );
                         })}
                         {over && over.at === s.tokens.length && s.tokens.length > 0 && drag?.item.type !== 'formula' && drag?.item.type !== 'tense' && <span className="sm-caret end" aria-hidden="true" />}
-                      </div>
-                      <div className="sm-row-foot">
-                        <span className={`sm-pill${a.code ? '' : ' own'}`}>{a.status === 'ok' ? (a.code ?? 'My own formula') : (a.code ?? (s.tokens.length ? 'Building' : 'Empty'))}</span>
-                        <p className={`sm-row-text sm-status-${a.status}`}>
-                          {a.status === 'ok' && a.text}
-                          {a.status === 'incomplete' && <span className="sm-muted">{a.text}</span>}
-                          {a.status === 'error' && <><strong>Sentence not recognized.</strong> {a.hint}</>}
-                        </p>
-                      </div>
+                      
                     </div>
-                    <div className="sm-row-tools">
-                      <div className="sm-tense" role="radiogroup" aria-label={`Sentence ${r + 1} time`}>
-                        {TENSES.map((tn) => (
-                          <button
-                            key={tn}
-                            type="button"
-                            role="radio"
-                            aria-checked={a.tense === tn}
-                            className={a.tense === tn ? 'on' : ''}
-                            disabled={!!a.lockedTense && a.lockedTense !== tn}
-                            title={a.lockedTense && a.lockedTense !== tn ? `This sentence's words set the time to ${a.lockedTense}` : TENSE_SYMBOLS[tn].name}
-                            onClick={() => updateRow(r, (st) => ({ ...st, tense: tn }))}
-                            aria-label={TENSE_SYMBOLS[tn].name}
-                          >
-                            <img src={TENSE_SYMBOLS[tn].imageUrl} alt="" draggable={false} />
-                          </button>
-                        ))}
-                      </div>
-                      <div className="sm-tool-btns">
-                        <button type="button" className="sm-mini" onClick={() => updateRow(r, (st) => rollAll(st, d.before))} disabled={!s.tokens.length} aria-label={`Roll every word in sentence ${r + 1}`} title="Roll every word"><Die /></button>
-                        <button type="button" className="sm-mini" onClick={() => speak(a.text)} disabled={a.status !== 'ok'} aria-label={`Read sentence ${r + 1} aloud`} title="Read aloud">🔈</button>
+                    {s.tokens.length > 0 && (
+                      <div className="sm-row-actions">
+                        <div className="sm-tense" role="radiogroup" aria-label={`Sentence ${r + 1} time`}>
+                          {TENSES.map((tn) => (
+                            <button
+                              key={tn}
+                              type="button"
+                              role="radio"
+                              aria-checked={a.tense === tn}
+                              className={a.tense === tn ? 'on' : ''}
+                              disabled={!!a.lockedTense && a.lockedTense !== tn}
+                              title={a.lockedTense && a.lockedTense !== tn ? `This sentence's words set the time to ${a.lockedTense}` : undefined}
+                              onClick={() => updateRow(r, (st) => ({ ...st, tense: tn }))}
+                            >
+                              <img src={TENSE_SYMBOLS[tn].imageUrl} alt="" draggable={false} />{TENSE_SYMBOLS[tn].name}
+                            </button>
+                          ))}
+                        </div>
+                        <button type="button" className="sm-act sm-act-dice" onClick={() => updateRow(r, (st) => rollAll(st, d.before))}><Die /> Roll all words</button>
+                        <button type="button" className="sm-act" onClick={() => speak(a.text)} disabled={a.status !== 'ok'}><span aria-hidden="true">🔈</span> Hear it</button>
                         {a.canContract && (
-                          <button type="button" className={`sm-mini sm-wide${s.contract ? ' on' : ''}`} aria-pressed={s.contract} onClick={() => updateRow(r, (st) => ({ ...st, contract: !st.contract }))} title="Use a contraction">n't</button>
+                          <button type="button" className={`sm-act${s.contract ? ' on' : ''}`} aria-pressed={s.contract} onClick={() => updateRow(r, (st) => ({ ...st, contract: !st.contract }))}>Contraction (n&apos;t)</button>
                         )}
-                        <button type="button" className="sm-mini" onClick={() => swapRows(r, r - 1)} disabled={r === 0} aria-label={`Move sentence ${r + 1} up`} title="Move up">↑</button>
-                        <button type="button" className="sm-mini" onClick={() => swapRows(r, r + 1)} disabled={r === rows.length - 1} aria-label={`Move sentence ${r + 1} down`} title="Move down">↓</button>
-                        <button type="button" className="sm-mini" onClick={() => removeRow(r)} aria-label={`Delete sentence ${r + 1}`} title="Delete sentence">×</button>
                       </div>
-                    </div>
+                    )}
                   </li>
                 );
               })}
@@ -621,11 +636,27 @@ export function StoryMaker() {
               className={`sm-new${drag?.target?.row === 'new' ? ' over' : ''}`}
               onClick={() => addRowWith((s) => s)}
             >
-              + New sentence <span>or drop a formula here</span>
+              {drag?.target?.row === 'new' ? 'Drop here for a new sentence' : <>+ New sentence <span>or drop a formula card here</span></>}
             </button>
           </section>
         </main>
       </div>
+
+      {showHelp && (
+        <div className="sm-modal" role="dialog" aria-modal="true" aria-labelledby="sm-help-title" onClick={(e) => { if (e.target === e.currentTarget) setShowHelp(false); }} onKeyDown={(e) => { if (e.key === 'Escape') setShowHelp(false); }}>
+          <div className="sm-modal-card sm-help-card">
+            <h2 id="sm-help-title">How Story Maker works</h2>
+            <ol className="sm-steps">
+              <li><span>1</span><div><strong>Pick a formula.</strong> Drag a formula card from the left onto a sentence row, or click its <em>+ Add</em> button. You can also drag single grammar symbols in and snap them together.</div></li>
+              <li><span>2</span><div><strong>Fill each blank.</strong> Pick a word from each dropdown, or roll the dice. The dice only pick words the video can act out.</div></li>
+              <li><span>3</span><div><strong>Watch the meaning.</strong> Every word changes the video: <em>quickly</em> runs fast, <em>slowly</em> creeps, <em>big</em> grows, <em>sad</em> brings a rain cloud.</div></li>
+              <li><span>4</span><div><strong>Choose the time.</strong> Past, Present or Future changes the verb and the look of the video. Drop a tense symbol on a row, or click one on the row.</div></li>
+              <li><span>5</span><div><strong>Make a story.</strong> One row per sentence. He, she, it and they keep talking about the same characters. Click 🔈 to hear a row, Play to watch the story, and Save video to download it.</div></li>
+            </ol>
+            <button type="button" className="btn btn-sm btn-primary" autoFocus onClick={() => setShowHelp(false)}>Got it</button>
+          </div>
+        </div>
+      )}
 
       {drag && (
         <div className="sm-ghost" style={{ left: drag.x, top: drag.y }} aria-hidden="true">

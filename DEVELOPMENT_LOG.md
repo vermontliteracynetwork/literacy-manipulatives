@@ -1083,3 +1083,10 @@ tense symbols, which can be dropped on a sentence to change its time). The video
 on both sides) with captions under it, and below it a word processor with one row per sentence, each with its own
 blanks, dice, tense, read-aloud, move and delete. Read aloud only happens when the 🔈 button is clicked. The saved
 video stays vertical (9:16).
+
+Update (same day, her review): OpenDyslexic button removed; How it works opens as a pop-up; the video starts blank
+("Your video will appear here") and stays in view while the sentence list scrolls under it. Formula cards show a drag
+grip, a "+ Add" button and an example sentence, and empty rows point to the menu. Each sentence row is now a card: a
+status chip (Ready, Fill the blanks, Not recognized), the formula code, the sentence in big type with each word
+underlined in its symbol's color (blanks show as yellow "?"), labeled word cards, and labeled buttons (Past, Present,
+Future, Roll all words, Hear it).
