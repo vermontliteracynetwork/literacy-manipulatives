@@ -59,6 +59,13 @@ const TOOLS: Tool[] = [
     image: '/dashboard/assessment-scoring.svg',
     tags: ['Teacher tool', 'Assessment'],
   },
+  {
+    title: 'Story Maker',
+    description: 'Build sentences from the formulas and grammar symbols, Mad Lib style, and watch a pixel video act out what the words mean. Add sentences to make a story, play it aloud and save it as a video.',
+    href: '/story',
+    image: '/dashboard/story-maker.svg',
+    tags: ['Student-facing', 'Teacher tool', 'Formulas'],
+  },
 ];
 
 export function ToolDashboard() {

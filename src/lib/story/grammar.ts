@@ -1,0 +1,696 @@
+// Story Maker grammar: reads a row of grammar-symbol slots (the same slot names as her formula cards), decides
+// whether it is a sentence the video can act out, writes the words in the right forms (tense, one or many, a/an,
+// contractions), and turns it into the actors and actions the renderer plays.
+import { SENTENCE_FORMULAS } from '../writer/formulas';
+import type { SymbolWordClass } from '../grammarSymbols';
+import {
+  ABILITIES, ADJECTIVES, ADVERBS, CONJUNCTIONS, INTERJECTIONS, LIVING, MOVING_PREPS, NAMES, NOUNS, PLACES, PRONOUNS, VERBS,
+  advById, nameById, placeById, pronounById, readNoun, verbById,
+  type LookId, type PrepId, type Pron3, type Tense, type VerbDef, type VerbId,
+} from './words';
+
+export type Kind =
+  | 'article' | 'noun' | 'propernoun' | 'pronoun' | 'adjective' | 'verb' | 'adverb' | 'phrase' | 'interjection' | 'conj'
+  | 'will' | 'be' | 'do' | 'not';
+
+/** Kinds that need a word picked. will, be, do and not write themselves. */
+export const PICK_KINDS: Kind[] = ['article', 'noun', 'propernoun', 'pronoun', 'adjective', 'verb', 'adverb', 'phrase', 'interjection', 'conj'];
+export const needsPick = (k: Kind) => PICK_KINDS.includes(k);
+
+export interface Token { id: string; kind: Kind; value?: string; place?: string }
+export interface SentenceState { tokens: Token[]; tense: Tense; contract: boolean; exclaim?: boolean }
+
+export const KIND_CLASS: Record<Kind, SymbolWordClass> = {
+  article: 'article', noun: 'noun', propernoun: 'propernoun', pronoun: 'pronoun', adjective: 'adjective', verb: 'verb',
+  adverb: 'adverb', phrase: 'preposition', interjection: 'interjection', conj: 'conjunction', will: 'verb', be: 'verb', do: 'verb', not: 'adverb',
+};
+
+export const KIND_LABEL: Record<Kind, string> = {
+  article: 'article', noun: 'noun', propernoun: 'proper noun', pronoun: 'pronoun', adjective: 'adjective', verb: 'verb', adverb: 'adverb',
+  phrase: 'prepositional phrase', interjection: 'interjection', conj: 'conjunction', will: 'will', be: 'be (am, is, are, was, were)',
+  do: 'do (do, does, did)', not: 'not',
+};
+
+let uidN = 0;
+export const uid = () => `t${Date.now().toString(36)}${(uidN++).toString(36)}`;
+
+/* ---------------- Parsing ---------------- */
+
+interface Mod { adv?: number; adj: number }
+export interface NP { art?: number; mods: Mod[]; head: number }
+export interface Group { members: NP[]; and?: number }
+export type VPType = 'action' | 'state' | 'identity' | 'location';
+export interface VP {
+  type: VPType; will?: number; be?: number; doo?: number; not?: number; verbs: number[]; vand?: number;
+  object?: NP; advs: number[]; phrase?: number; adjs: Mod[]; adjAnds: number[]; ident?: NP;
+}
+export interface Clause { subject: Group; vp: VP }
+export interface Parsed { intj?: number; front?: number; clauses: Clause[]; cand?: number }
+
+function np(k: Kind[], i: number): [NP, number] | null {
+  let j = i;
+  let art: number | undefined;
+  if (k[j] === 'article') art = j++;
+  const mods: Mod[] = [];
+  for (;;) {
+    if (k[j] === 'adverb' && k[j + 1] === 'adjective') { mods.push({ adv: j, adj: j + 1 }); j += 2; }
+    else if (k[j] === 'adjective') mods.push({ adj: j++ });
+    else break;
+  }
+  if (k[j] === 'noun') return [{ art, mods, head: j }, j + 1];
+  if (art === undefined && !mods.length && (k[j] === 'propernoun' || k[j] === 'pronoun')) return [{ mods, head: j }, j + 1];
+  return null;
+}
+
+function* groups(k: Kind[], i: number): Generator<[Group, number]> {
+  const a = np(k, i);
+  if (!a) return;
+  if (k[a[1]] === 'conj') {
+    const b = np(k, a[1] + 1);
+    if (b) yield [{ members: [a[0], b[0]], and: a[1] }, b[1]];
+  }
+  yield [{ members: [a[0]] }, a[1]];
+}
+
+function* rest(k: Kind[], j: number, base: VP): Generator<[VP, number]> {
+  const objs: [NP | undefined, number][] = [];
+  const o = np(k, j);
+  if (o) objs.push([o[0], o[1]]);
+  objs.push([undefined, j]);
+  for (const [object, j2] of objs) {
+    let m = j2;
+    const advs: number[] = [];
+    let phrase: number | undefined;
+    while (k[m] === 'adverb' && k[m + 1] !== 'adjective') advs.push(m++);
+    if (k[m] === 'phrase') phrase = m++;
+    while (k[m] === 'adverb' && k[m + 1] !== 'adjective') advs.push(m++);
+    yield [{ ...base, object, advs, phrase }, m];
+  }
+}
+
+function* vps(k: Kind[], i: number): Generator<[VP, number]> {
+  const b: VP = { type: 'action', verbs: [], advs: [], adjs: [], adjAnds: [] };
+  if (k[i] === 'will' && k[i + 1] === 'verb') yield* rest(k, i + 2, { ...b, will: i, verbs: [i + 1] });
+  if (k[i] === 'do' && k[i + 1] === 'not' && k[i + 2] === 'verb') yield* rest(k, i + 3, { ...b, doo: i, not: i + 1, verbs: [i + 2] });
+  if (k[i] === 'be') {
+    if (k[i + 1] === 'verb') yield* rest(k, i + 2, { ...b, be: i, verbs: [i + 1] });
+    let j = i + 1;
+    let not: number | undefined;
+    if (k[j] === 'not') not = j++;
+    const adjs: Mod[] = [];
+    const ands: number[] = [];
+    let m = j;
+    for (;;) {
+      if (k[m] === 'adverb' && k[m + 1] === 'adjective') { adjs.push({ adv: m, adj: m + 1 }); m += 2; }
+      else if (k[m] === 'adjective') adjs.push({ adj: m++ });
+      else break;
+      if (k[m] === 'conj' && (k[m + 1] === 'adjective' || (k[m + 1] === 'adverb' && k[m + 2] === 'adjective'))) ands.push(m++);
+      else break;
+    }
+    if (adjs.length) yield [{ ...b, type: 'state', be: i, not, adjs, adjAnds: ands }, m];
+    const id = np(k, j);
+    if (id && k[id[0].head] === 'noun') yield [{ ...b, type: 'identity', be: i, not, ident: id[0] }, id[1]];
+    if (not === undefined && k[j] === 'phrase') yield [{ ...b, type: 'location', be: i, phrase: j }, j + 1];
+  }
+  if (k[i] === 'verb') {
+    if (k[i + 1] === 'conj' && k[i + 2] === 'verb') yield* rest(k, i + 3, { ...b, verbs: [i, i + 2], vand: i + 1 });
+    yield* rest(k, i + 1, { ...b, verbs: [i] });
+  }
+}
+
+function* clauses(k: Kind[], i: number): Generator<[Clause, number]> {
+  for (const [g, j] of groups(k, i)) for (const [vp, m] of vps(k, j)) yield [{ subject: g, vp }, m];
+}
+
+export function parse(k: Kind[]): Parsed | null {
+  if (!k.length) return null;
+  let i = 0;
+  const p: Parsed = { clauses: [] };
+  if (k[i] === 'interjection') p.intj = i++;
+  if (i === k.length && p.intj !== undefined) return p;
+  if ((k[i] === 'adverb' && k[i + 1] !== 'adjective') || k[i] === 'phrase') p.front = i++;
+  for (const [c1, j] of clauses(k, i)) {
+    if (j === k.length) return { ...p, clauses: [c1] };
+    if (k[j] === 'conj') for (const [c2, m] of clauses(k, j + 1)) if (m === k.length) return { ...p, clauses: [c1, c2], cand: j };
+  }
+  return null;
+}
+
+/* ---------------- People and things in the video ---------------- */
+
+export interface ActorSpec { look: LookId; name?: string; tag?: 'ME' | 'YOU'; adjs: string[]; intensity: number }
+export type RefPron = Pron3 | 'they' | 'i' | 'we' | 'you';
+export interface Referent { actors: ActorSpec[]; pron: RefPron }
+export interface StoryContext { refs: Referent[]; place: string | null }
+export const EMPTY_CONTEXT: StoryContext = { refs: [], place: null };
+
+const plain = (look: LookId, extra: Partial<ActorSpec> = {}): ActorSpec => ({ look, adjs: [], intensity: 1, ...extra });
+
+function resolvePronoun(key: string | undefined, ctx: StoryContext): ActorSpec[] {
+  const last = (p: RefPron) => [...ctx.refs].reverse().find((r) => r.pron === p);
+  switch (key) {
+    case 'i': return [plain('me', { tag: 'ME' })];
+    case 'we': return [plain('me', { tag: 'ME' }), plain('boy')];
+    case 'you': return [plain('you', { tag: 'YOU' })];
+    case 'he': return last('he')?.actors ?? [plain('boy')];
+    case 'she': return last('she')?.actors ?? [plain('girl')];
+    case 'it': return last('it')?.actors ?? [plain('dog')];
+    case 'they': return [...ctx.refs].reverse().find((r) => r.actors.length > 1)?.actors ?? [plain('girl'), plain('boy')];
+    default: return [];
+  }
+}
+
+function npActors(n: NP, t: Token[], ctx: StoryContext): ActorSpec[] {
+  const head = t[n.head];
+  const adjs = n.mods.map((m) => t[m.adj].value).filter((v): v is string => !!v);
+  const intensity = n.mods.some((m) => m.adv !== undefined && t[m.adv].value) ? 1.6 : 1;
+  if (head.kind === 'noun') {
+    const r = readNoun(head.value);
+    if (!r) return [];
+    const a = plain(r.def.look, { adjs, intensity });
+    return r.plural ? [a, { ...a }, { ...a }] : [a];
+  }
+  if (head.kind === 'propernoun') {
+    const d = nameById(head.value ?? '');
+    return d ? [plain(d.look, { name: d.id, adjs, intensity })] : [];
+  }
+  return resolvePronoun(head.value, ctx).map((a) => ({ ...a, adjs: [...a.adjs, ...adjs] }));
+}
+
+function refPron(g: Group, t: Token[], actors: ActorSpec[]): RefPron {
+  if (g.members.length > 1 || actors.length > 1) return 'they';
+  const head = t[g.members[0].head];
+  if (head.kind === 'noun') return readNoun(head.value)?.def.pron ?? 'it';
+  if (head.kind === 'propernoun') return nameById(head.value ?? '')?.pron ?? 'it';
+  const k = head.value as RefPron;
+  return k === 'i' || k === 'we' || k === 'you' ? k : (actors[0] ? lookPron(actors[0]) : 'it');
+}
+
+function lookPron(a: ActorSpec): RefPron {
+  if (a.name) return nameById(a.name)?.pron ?? 'it';
+  if (a.look === 'girl') return 'she';
+  if (a.look === 'boy') return 'he';
+  return 'it';
+}
+
+/* ---------------- Writing the words ---------------- */
+
+export interface Word { text: string; idx: number; cls: SymbolWordClass; tense?: Tense; blank?: boolean }
+
+type Num = 'i' | 'sg' | 'pl';
+
+function groupNum(g: Group, t: Token[]): Num {
+  if (g.members.length > 1) return 'pl';
+  const head = t[g.members[0].head];
+  if (head.kind === 'noun') return readNoun(head.value)?.plural ? 'pl' : 'sg';
+  if (head.kind === 'pronoun') return pronounById(head.value ?? '')?.num ?? 'sg';
+  return 'sg';
+}
+
+function beText(tense: Tense, num: Num): string {
+  if (tense === 'future') return 'will be';
+  if (tense === 'past') return num === 'pl' ? 'were' : 'was';
+  return num === 'i' ? 'am' : num === 'pl' ? 'are' : 'is';
+}
+function doText(tense: Tense, num: Num): string {
+  if (tense === 'future') return 'will';
+  if (tense === 'past') return 'did';
+  return num === 'sg' ? 'does' : 'do';
+}
+function verbText(v: VerbDef, tense: Tense, num: Num, mode: 'simple' | 'base' | 'ing', first: boolean): string {
+  if (mode === 'base') return v.base;
+  if (mode === 'ing') return v.ing;
+  if (tense === 'past') return v.past;
+  if (tense === 'future') return first ? `will ${v.base}` : v.base;
+  return num === 'sg' ? v.third : v.base;
+}
+const NOT_FORMS: Record<string, string> = { is: "isn't", are: "aren't", was: "wasn't", were: "weren't", 'will be': "won't be", did: "didn't", does: "doesn't", do: "don't", will: "won't" };
+const PRON_BE: Record<string, string> = { 'I am': "I'm", 'you are': "you're", 'we are': "we're", 'they are': "they're", 'he is': "he's", 'she is': "she's", 'it is': "it's" };
+
+const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/* ---------------- Analysis ---------------- */
+
+export interface GroupModel {
+  kind: VPType; actors: ActorSpec[]; verbs: VerbId[]; object: ActorSpec[]; advs: string[]; prep?: PrepId; place?: string;
+  negated: boolean; progressive: boolean; adjs: { id: string; intensity: number }[]; ident: ActorSpec[];
+}
+
+export interface Analysis {
+  status: 'empty' | 'incomplete' | 'ok' | 'error';
+  hint?: string;
+  parsed: Parsed | null;
+  tense: Tense;
+  lockedTense: Tense | null;
+  words: Word[];
+  text: string;
+  canContract: boolean;
+  code: string | null;
+  groups: GroupModel[];
+  refs: Referent[];
+  intj?: string;
+  place: string | null;
+}
+
+const VOWEL = /^[aeiou]/i;
+const STATIC_VERB_PREPS: PrepId[] = ['in', 'on', 'under', 'near', 'behind'];
+const LOUD_OK: VerbId[] = ['sing', 'bark', 'meow', 'croak', 'beep', 'laugh', 'cry', 'fall', 'run', 'walk', 'jump', 'dance', 'bounce'];
+
+function lookName(l: LookId): string {
+  if (l === 'me') return 'I';
+  if (l === 'you') return 'you';
+  return `a ${l}`.replace(/^a ([aeiou])/, 'an $1');
+}
+
+export function analyze(st: SentenceState, ctx: StoryContext = EMPTY_CONTEXT): Analysis {
+  const t = st.tokens;
+  const kinds = t.map((x) => x.kind);
+  const parsed = parse(kinds);
+  const base: Analysis = {
+    status: 'ok', parsed, tense: st.tense, lockedTense: null, words: [], text: '', canContract: false, code: null, groups: [], refs: [], place: null,
+  };
+  if (!t.length) return { ...base, status: 'empty' };
+
+  // Tense: will makes it future; a time adverb sets it too.
+  let errors: string | undefined;
+  const fail = (h: string) => { if (!errors) errors = h; };
+  let locked: Tense | null = null;
+  if (kinds.includes('will')) locked = 'future';
+  for (const x of t) {
+    if (x.kind !== 'adverb' || !x.value) continue;
+    const d = advById(x.value);
+    if (d?.kind !== 'time' || !d.tense) continue;
+    if (locked && locked !== d.tense) fail(locked === 'future' ? `${x.value} is past, but will is future. Try tomorrow.` : `Use only one time word.`);
+    else locked = d.tense;
+  }
+  const tense = locked ?? st.tense;
+
+  // Roles and forms from the parse.
+  const role: Record<number, 'subj' | 'obj'> = {};
+  const verbMode: Record<number, { num: Num; mode: 'simple' | 'base' | 'ing'; first: boolean }> = {};
+  const beNum: Record<number, { num: Num; not?: number; pron?: number }> = {};
+  const doNum: Record<number, { num: Num; not?: number }> = {};
+  if (parsed) {
+    for (const c of parsed.clauses) {
+      const num = groupNum(c.subject, t);
+      for (const m of c.subject.members) role[m.head] = 'subj';
+      if (c.vp.object) role[c.vp.object.head] = 'obj';
+      const vp = c.vp;
+      vp.verbs.forEach((v, i) => {
+        verbMode[v] = { num, mode: vp.will !== undefined || vp.doo !== undefined ? 'base' : vp.be !== undefined ? 'ing' : 'simple', first: i === 0 };
+      });
+      if (vp.be !== undefined) {
+        const only = c.subject.members.length === 1 ? c.subject.members[0] : undefined;
+        const pron = only && t[only.head].kind === 'pronoun' && only.head === vp.be - 1 ? only.head : undefined;
+        beNum[vp.be] = { num, not: vp.not, pron };
+      }
+      if (vp.doo !== undefined) doNum[vp.doo] = { num, not: vp.not };
+    }
+  }
+
+  // Contractions this sentence could use.
+  const contractNot = Object.values(beNum).some((b) => b.not !== undefined) || Object.values(doNum).some((d) => d.not !== undefined);
+  const contractPron = tense === 'present' && Object.values(beNum).some((b) => b.pron !== undefined && b.not === undefined);
+  const canContract = contractNot || contractPron;
+  const contract = st.contract && canContract;
+
+  // Words.
+  const words: Word[] = [];
+  const blank = (idx: number, cls: SymbolWordClass) => words.push({ text: '___', idx, cls, blank: true });
+  t.forEach((x, idx) => {
+    const cls = KIND_CLASS[x.kind];
+    switch (x.kind) {
+      case 'article': case 'adjective': case 'adverb': case 'conj':
+        if (x.value) words.push({ text: x.value, idx, cls }); else blank(idx, cls);
+        break;
+      case 'interjection':
+        if (x.value) words.push({ text: `${x.value}!`, idx, cls }); else blank(idx, cls);
+        break;
+      case 'noun': {
+        const r = readNoun(x.value);
+        if (r) words.push({ text: r.plural ? r.def.plural : r.def.sing, idx, cls }); else blank(idx, cls);
+        break;
+      }
+      case 'propernoun':
+        if (x.value) words.push({ text: x.value, idx, cls }); else blank(idx, cls);
+        break;
+      case 'pronoun': {
+        const d = pronounById(x.value ?? '');
+        if (!d) { blank(idx, cls); break; }
+        const be = beNum[idx + 1];
+        let text = role[idx] === 'obj' ? d.obj : d.subj;
+        if (contract && be?.pron === idx && be.not === undefined && tense === 'present') text = PRON_BE[`${d.subj} ${beText(tense, be.num)}`] ?? text;
+        words.push({ text, idx, cls });
+        break;
+      }
+      case 'phrase': {
+        words.push({ text: x.value ?? '___', idx, cls: 'preposition', blank: !x.value });
+        words.push({ text: 'the', idx, cls: 'article' });
+        words.push({ text: x.place ?? '___', idx, cls: 'noun', blank: !x.place });
+        break;
+      }
+      case 'will':
+        words.push({ text: 'will', idx, cls, tense: 'future' });
+        break;
+      case 'be': {
+        const b = beNum[idx] ?? { num: 'sg' as Num };
+        let text = beText(tense, b.num);
+        if (contract && b.not !== undefined && NOT_FORMS[text]) text = NOT_FORMS[text];
+        else if (contract && b.pron !== undefined && b.not === undefined && tense === 'present') text = '';
+        words.push({ text, idx, cls, tense });
+        break;
+      }
+      case 'do': {
+        const d = doNum[idx] ?? { num: 'sg' as Num };
+        let text = doText(tense, d.num);
+        if (contract && d.not !== undefined) text = NOT_FORMS[text] ?? text;
+        words.push({ text, idx, cls, tense });
+        break;
+      }
+      case 'not': {
+        const contracted = contract && (Object.values(beNum).some((b) => b.not === idx && NOT_FORMS[beText(tense, b.num)]) || Object.values(doNum).some((d) => d.not === idx));
+        words.push({ text: contracted ? '' : 'not', idx, cls });
+        break;
+      }
+      case 'verb': {
+        const v = verbById(x.value ?? '');
+        if (!v) { blank(idx, cls); break; }
+        const m = verbMode[idx] ?? { num: 'sg' as Num, mode: 'simple' as const, first: true };
+        words.push({ text: verbText(v, tense, m.num, m.mode, m.first), idx, cls, tense: m.mode === 'simple' ? tense : undefined });
+        break;
+      }
+    }
+  });
+
+  // Capitals and punctuation.
+  const shown = words.filter((w) => w.text);
+  const firstAfter = (from: number) => shown.find((w) => w.idx >= from);
+  if (shown[0]) shown[0].text = cap(shown[0].text);
+  if (parsed?.intj !== undefined) { const f = firstAfter(parsed.intj + 1); if (f) f.text = cap(f.text); }
+  for (const w of shown) if (w.text === 'i') w.text = 'I';
+  if (parsed?.front !== undefined) {
+    const front = shown.filter((w) => w.idx === parsed.front);
+    const lastFront = front[front.length - 1];
+    if (lastFront) lastFront.text += ',';
+  }
+  const last = shown[shown.length - 1];
+  if (last && !last.text.endsWith('!')) last.text += st.exclaim ? '!' : '.';
+  const text = shown.map((w) => w.text).join(' ');
+
+  const missing = t.some((x) => needsPick(x.kind) && (!x.value || (x.kind === 'phrase' && !x.place)));
+  const out: Analysis = { ...base, tense, lockedTense: locked, words, text, canContract, code: formulaCodeFor(t, contract) };
+  if (!parsed) return { ...out, status: 'error', hint: 'Check the order of the symbols.' };
+
+  /* ---- Meaning checks (only on words that are picked) ---- */
+  const nounWord = (i: number) => {
+    const x = t[i];
+    if (x.kind === 'noun') { const r = readNoun(x.value); return r ? (r.plural ? r.def.plural : r.def.sing) : undefined; }
+    return undefined;
+  };
+  const checkNP = (n: NP) => {
+    const head = t[n.head];
+    for (const m of n.mods) {
+      if (m.adv === undefined) continue;
+      const a = advById(t[m.adv].value ?? '');
+      if (a && a.kind !== 'intensifier') fail(`${a.id} can't go before ${t[m.adj].value ?? 'a describing word'}. Try very or so.`);
+    }
+    if (head.kind !== 'noun') return;
+    const r = readNoun(head.value);
+    if (!r) return;
+    const art = n.art !== undefined ? t[n.art].value : undefined;
+    if (n.art === undefined && !r.plural) fail(`Add a, an or the before ${r.def.sing}.`);
+    if (!art) return;
+    if ((art === 'a' || art === 'an') && r.plural) fail(`Use the with more than one: the ${r.def.plural}.`);
+    const m0 = n.mods[0];
+    const next = m0 ? (m0.adv !== undefined ? t[m0.adv].value : t[m0.adj].value) : nounWord(n.head);
+    if (next) {
+      if (art === 'a' && VOWEL.test(next)) fail(`Use an before a vowel sound: an ${next}.`);
+      if (art === 'an' && !VOWEL.test(next)) fail(`Use a before ${next}: a ${next}.`);
+    }
+  };
+
+  const groupsOut: GroupModel[] = [];
+  const refs: Referent[] = [];
+  let place: string | null = null;
+  const frontTok = parsed.front !== undefined ? t[parsed.front] : undefined;
+  if (frontTok?.kind === 'adverb' && frontTok.value) {
+    const a = advById(frontTok.value);
+    if (a && a.kind !== 'manner' && a.kind !== 'time') fail(`${a.id} can't start this sentence. Try quickly or yesterday.`);
+  }
+
+  parsed.clauses.forEach((c, ci) => {
+    const vp = c.vp;
+    c.subject.members.forEach(checkNP);
+    if (vp.object) checkNP(vp.object);
+    if (vp.ident) checkNP(vp.ident);
+    if (c.subject.and !== undefined && t[c.subject.and].value && t[c.subject.and].value !== 'and') fail('Use and to join two Whos.');
+    if (vp.vand !== undefined && t[vp.vand].value && t[vp.vand].value !== 'and') fail('Use and to join two Actions.');
+    for (const a of vp.adjAnds) if (t[a].value && t[a].value !== 'and') fail('Use and to join two describing words.');
+    if (c.subject.members.length === 2) {
+      const [a, b] = c.subject.members.map((m) => t[m.head]);
+      if (a.kind === 'pronoun' && a.value === 'i') fail(`Name the other person first: ${b.kind === 'propernoun' && b.value ? b.value : 'Sam'} and I.`);
+      if (a.kind === b.kind && a.value && a.value === b.value) fail('Use two different Whos.');
+    }
+
+    const actors = c.subject.members.flatMap((m) => npActors(m, t, ctx));
+    const object = vp.object ? npActors(vp.object, t, ctx) : [];
+    const ident = vp.ident ? npActors(vp.ident, t, ctx) : [];
+    const verbs = vp.verbs.map((i) => t[i].value).filter((v): v is VerbId => !!v);
+    const negated = vp.not !== undefined;
+    const advs = vp.advs.map((i) => t[i].value).filter((v): v is string => !!v);
+    if (ci === 0 && frontTok?.kind === 'adverb' && frontTok.value) advs.unshift(frontTok.value);
+    const phraseIdx = vp.phrase ?? (ci === 0 && frontTok?.kind === 'phrase' ? parsed.front : undefined);
+    const ph = phraseIdx !== undefined ? t[phraseIdx] : undefined;
+    const prep = ph?.value as PrepId | undefined;
+    const pl = ph?.place;
+
+    // Verbs: can these Whos do it, and does it need a What?
+    if (!negated) {
+      for (const v of verbs) for (const a of actors) {
+        if (!ABILITIES[a.look].includes(v)) fail(`${cap(lookName(a.look))} can't ${verbById(v)?.base} in this video. Try another verb.`);
+      }
+    }
+    const lastVerb = verbs.length === vp.verbs.length ? verbById(verbs[verbs.length - 1] ?? '') : undefined;
+    if (lastVerb && vp.verbs.length === verbs.length) {
+      if (lastVerb.trans === 'yes' && !vp.object) fail(`${cap(lastVerb.past)} who or what? Add a noun after the verb.`);
+      if (lastVerb.trans === 'no' && vp.object) fail(`${cap(lastVerb.past)} can't have a noun after it. Try chased or kicked.`);
+      if (vp.verbs.length === 2) { const f = verbById(verbs[0]); if (f?.trans === 'yes') fail(`${cap(f.past)} needs a noun right after it.`); }
+      if (lastVerb.objects && object.length) {
+        const rule = lastVerb.objects;
+        const ok = (o: ActorSpec) => {
+          const food = NOUNS.find((n) => n.look === o.look)?.food;
+          if (rule === 'food') return !!food;
+          if (rule === 'living') return LIVING.includes(o.look);
+          if (rule === 'kickable') return o.look === 'ball' || o.look === 'box' || o.look === 'apple';
+          if (rule === 'chaseable') return LIVING.includes(o.look) || o.look === 'ball';
+          return true;
+        };
+        if (!object.every(ok)) {
+          const tip = rule === 'food' ? 'Try apple or cake.' : rule === 'living' ? 'Try a person or an animal.' : rule === 'kickable' ? 'Try ball or box.' : 'Try an animal or a ball.';
+          fail(`You can't ${lastVerb.base} ${lookName(object[0].look)} here. ${tip}`);
+        }
+      }
+    }
+
+    // Adverbs.
+    for (const id of advs) {
+      const a = advById(id);
+      if (!a) continue;
+      if (a.kind === 'intensifier') fail(`${id} needs a describing word after it, like ${id} big.`);
+      if (vp.type !== 'action') { if (a.kind !== 'time') fail(`${id} describes an Action. Try a verb sentence.`); continue; }
+      if (a.kind === 'direction') {
+        if (ph) fail(`Use ${id} or a place, not both.`);
+        if (verbs.some((v) => verbById(v)?.motion !== 'loco')) fail(`${id} needs a moving verb, like ran ${id}.`);
+      }
+      if ((id === 'quickly' || id === 'slowly') && verbs.includes('sleep')) fail(`You can't sleep ${id}. Try another adverb.`);
+      if (id === 'loudly' && verbs.some((v) => !LOUD_OK.includes(v))) fail(`${cap(verbById(verbs[0])?.past ?? 'That')} can't be loud. Try quietly or happily.`);
+      if (id === 'carefully' && verbs.some((v) => v === 'sleep' || v === 'cry' || v === 'laugh' || v === 'fall')) fail(`Try another adverb with ${verbById(verbs[0])?.past}.`);
+    }
+    if (advs.filter((id) => advById(id)?.kind === 'time').length > 1) fail('Use only one time word.');
+
+    // Places.
+    const fishy = [...actors].some((a) => a.look === 'fish');
+    if (pl && prep) {
+      const pd = placeById(pl);
+      if (pd && !pd.preps.includes(prep)) fail(`Try another preposition with ${pl}.`);
+      const isMoving = MOVING_PREPS.includes(prep);
+      if (isMoving && (vp.type !== 'action' || verbs.some((v) => { const m = verbById(v)?.motion; return m !== 'loco'; }))) {
+        fail(`${prep} the ${pl} needs a moving verb. Try ${STATIC_VERB_PREPS.filter((p) => pd?.preps.includes(p)).join(' or ') || 'another place'}.`);
+      }
+      if (verbs.includes('swim') && !pd?.water && !negated) fail('Swimming needs water: try the pond or the beach.');
+      if (fishy && !pd?.water) fail('A fish needs water: try the pond.');
+    }
+    if (ci === 0 && pl) place = pl;
+    if (ci > 0 && !place && pl) place = pl;
+
+    if (vp.type === 'identity' && [...actors, ...ident].some((x) => !LIVING.includes(x.look))) fail('Use a person or an animal on both sides, like Max is a dog.');
+    if (vp.type === 'identity' && actors.length && ident.length) {
+      const subjMany = actors.length > 1;
+      const identMany = ident.length > 1;
+      if (subjMany !== identMany) fail('Match one or many on both sides.');
+    }
+
+    groupsOut.push({
+      kind: vp.type, actors, verbs, object, advs, prep, place: pl, negated, progressive: vp.be !== undefined && vp.type === 'action',
+      adjs: vp.adjs.map((m) => ({ id: t[m.adj].value ?? '', intensity: m.adv !== undefined && t[m.adv].value ? 1.6 : 1 })).filter((a) => a.id),
+      ident,
+    });
+    if (actors.length) refs.push({ actors, pron: refPron(c.subject, t, actors) });
+  });
+
+  const intj = parsed.intj !== undefined ? t[parsed.intj].value : undefined;
+  const status = errors ? 'error' : missing ? 'incomplete' : 'ok';
+  return { ...out, status, hint: errors, groups: groupsOut, refs, intj, place };
+}
+
+/** The story's memory after a sentence: who "he", "she", "it" and "they" mean, and where we are. */
+export function nextContext(ctx: StoryContext, a: Analysis): StoryContext {
+  if (a.status !== 'ok') return ctx;
+  return { refs: [...ctx.refs, ...a.refs].slice(-8), place: a.place ?? ctx.place };
+}
+
+/* ---------------- Choices, dropdowns and the dice ---------------- */
+
+export interface Choice { value: string; label: string }
+
+export function baseChoices(kind: Kind): Choice[] {
+  switch (kind) {
+    case 'article': return ['a', 'an', 'the'].map((v) => ({ value: v, label: v }));
+    case 'noun': return NOUNS.flatMap((n) => [{ value: n.id, label: n.sing }, ...(n.plural !== n.sing ? [{ value: `${n.id}:pl`, label: n.plural }] : [{ value: `${n.id}:pl`, label: `${n.plural} (many)` }])]);
+    case 'propernoun': return NAMES.map((n) => ({ value: n.id, label: n.id }));
+    case 'pronoun': return PRONOUNS.map((p) => ({ value: p.id, label: p.subj }));
+    case 'adjective': return ADJECTIVES.map((a) => ({ value: a.id, label: a.id }));
+    case 'adverb': return ADVERBS.map((a) => ({ value: a.id, label: a.id }));
+    case 'verb': return VERBS.map((v) => ({ value: v.id, label: v.base }));
+    case 'interjection': return INTERJECTIONS.map((v) => ({ value: v, label: `${v}!` }));
+    case 'conj': return CONJUNCTIONS.map((v) => ({ value: v, label: v }));
+    default: return [];
+  }
+}
+
+function withValue(st: SentenceState, idx: number, patch: Partial<Token>): SentenceState {
+  return { ...st, tokens: st.tokens.map((x, i) => (i === idx ? { ...x, ...patch } : x)) };
+}
+
+/** Words that fit this blank, labeled the way they will read in the sentence (ran, runs, will run...). */
+export function choicesFor(st: SentenceState, idx: number, ctx: StoryContext, strict = false): Choice[] {
+  const tok = st.tokens[idx];
+  const all = baseChoices(tok.kind);
+  const keep = all.filter((c) => {
+    if (!strict && tok.kind === 'article') return true;
+    return analyze(withValue(st, idx, { value: c.value }), ctx).status !== 'error';
+  });
+  const list = keep.length ? keep : all;
+  if (tok.kind === 'verb' || tok.kind === 'pronoun') {
+    return list.map((c) => {
+      const a = analyze(withValue(st, idx, { value: c.value }), ctx);
+      const w = a.words.filter((x) => x.idx === idx).map((x) => x.text.replace(/[.,!]$/, '')).join(' ');
+      return { value: c.value, label: w ? w.replace(/^./, (s) => (tok.kind === 'pronoun' && w !== 'I' && !w.startsWith("I'") ? s.toLowerCase() : s)) : c.label };
+    });
+  }
+  return list;
+}
+
+export function placeChoices(st: SentenceState, idx: number, ctx: StoryContext, strict = false): string[] {
+  const ok = PLACES.filter((p) => p.preps.some((prep) => analyze(withValue(st, idx, { value: prep, place: p.id }), ctx).status !== 'error'));
+  return (ok.length || strict ? ok : PLACES).map((p) => p.id);
+}
+
+export function prepChoices(st: SentenceState, idx: number, ctx: StoryContext): string[] {
+  const tok = st.tokens[idx];
+  const pd = placeById(tok.place ?? '');
+  const preps = pd ? pd.preps : [];
+  const ok = preps.filter((p) => analyze(withValue(st, idx, { value: p }), ctx).status !== 'error');
+  return ok.length ? ok : preps;
+}
+
+const pick = <T,>(xs: T[]): T | undefined => xs[Math.floor(Math.random() * xs.length)];
+
+function rollOne(st: SentenceState, idx: number, ctx: StoryContext): SentenceState {
+  const tok = st.tokens[idx];
+  if (!needsPick(tok.kind)) return st;
+  if (tok.kind === 'conj' && tok.value) return st;
+  if (tok.kind === 'phrase') {
+    const pairs = PLACES.flatMap((p) => p.preps.map((prep) => ({ place: p.id, value: prep })))
+      .filter((pr) => analyze(withValue(st, idx, pr), ctx).status !== 'error');
+    const pr = pick(pairs);
+    return pr ? withValue(st, idx, pr) : st;
+  }
+  let list = choicesFor(st, idx, ctx, true);
+  // The dice lean toward people and animals: they have more to act out.
+  if (tok.kind === 'noun' && Math.random() < 0.8) {
+    const living = list.filter((c) => { const r = readNoun(c.value); return !!r && LIVING.includes(r.def.look); });
+    if (living.length) list = living;
+  }
+  const c = pick(list);
+  return c ? withValue(st, idx, { value: c.value }) : st;
+}
+
+/** One die: a new word for one blank that still works with the rest of the sentence. */
+export function rollToken(st: SentenceState, idx: number, ctx: StoryContext): SentenceState {
+  const cleared = withValue(st, idx, st.tokens[idx].kind === 'conj' ? {} : { value: undefined, place: undefined });
+  return rollOne(cleared, idx, ctx);
+}
+
+/** All the dice: a whole new sentence the video can play. */
+export function rollAll(st: SentenceState, ctx: StoryContext): SentenceState {
+  let best = st;
+  for (let tries = 0; tries < 60; tries++) {
+    let s: SentenceState = { ...st, tokens: st.tokens.map((x) => (x.kind === 'conj' ? x : { ...x, value: undefined, place: undefined })) };
+    const order = s.tokens.map((_, i) => i);
+    // Pick the Whos first, then the rest, so every verb fits the Who.
+    order.sort((a, b) => rank(s.tokens[a].kind) - rank(s.tokens[b].kind));
+    for (const i of order) s = rollOne(s, i, ctx);
+    const a = analyze(s, ctx);
+    if (a.status === 'ok') return s;
+    best = s;
+  }
+  return best;
+}
+function rank(k: Kind): number {
+  return ({ noun: 0, propernoun: 0, pronoun: 0, verb: 1, phrase: 2, article: 3, adjective: 3, adverb: 4 } as Partial<Record<Kind, number>>)[k] ?? 5;
+}
+
+/* ---------------- Her formulas ---------------- */
+
+export interface StoryFormula { code: string; kinds: Kind[]; fixed: (string | undefined)[]; formula: string; contract: boolean; exclaim: boolean; example: string }
+
+const SLOT_KIND: Record<string, Kind> = {
+  article: 'article', noun: 'noun', propernoun: 'propernoun', pronoun: 'pronoun', adjective: 'adjective', verb: 'verb', adverb: 'adverb',
+  phrase: 'phrase', interjection: 'interjection', will: 'will', be: 'be', do: 'do', not: 'not', and: 'conj', but: 'conj', so: 'conj', because: 'conj',
+};
+
+let cache: StoryFormula[] | null = null;
+/** Every formula from her formula cards that the video can act out, by formula code. */
+export function storyFormulas(): StoryFormula[] {
+  if (cache) return cache;
+  const seen = new Set<string>();
+  const out: StoryFormula[] = [];
+  for (const f of SENTENCE_FORMULAS) {
+    const kinds = f.slots.map((s) => SLOT_KIND[s]);
+    if (kinds.some((k) => !k)) continue;
+    // Questions and commands have their own word order; the video acts out statements and exclamations.
+    if (/^(Q|C|Cn)\d/.test(f.code) || /,C\d/.test(f.code)) continue;
+    const fixed = f.slots.map((s) => (CONJUNCTIONS.includes(s) ? s : undefined));
+    const key = `${f.code}|${f.slots.join(' ')}`;
+    if (seen.has(key) || !parse(kinds)) continue;
+    const st: SentenceState = { tokens: kinds.map((k, i) => ({ id: `f${i}`, kind: k, value: fixed[i] })), tense: 'past', contract: f.code.includes("'") };
+    if (analyze(rollAll(st, EMPTY_CONTEXT)).status !== 'ok') continue;
+    seen.add(key);
+    out.push({ code: f.code, kinds, fixed, formula: f.formula, contract: f.code.includes("'"), exclaim: /^E\d/.test(f.code) && !kinds.includes('interjection'), example: f.sentence });
+  }
+  cache = out;
+  return out;
+}
+
+export function formulaTokens(f: StoryFormula): Token[] {
+  return f.kinds.map((k, i) => ({ id: uid(), kind: k, value: f.fixed[i] }));
+}
+
+function formulaCodeFor(t: Token[], contract: boolean): string | null {
+  if (!cache) return null;
+  const sig = t.map((x) => (x.kind === 'conj' ? `conj:${x.value ?? ''}` : x.kind)).join(' ');
+  const match = cache.filter((f) => f.kinds.map((k, i) => (k === 'conj' ? `conj:${f.fixed[i] ?? ''}` : k)).join(' ') === sig);
+  if (!match.length) return null;
+  return (match.find((f) => f.contract === contract) ?? match[0]).code;
+}

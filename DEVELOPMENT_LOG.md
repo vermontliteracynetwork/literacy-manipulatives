@@ -1057,3 +1057,22 @@ CSV, and shows growth across pretest, mid-check and posttest. Print gives the sc
 Every unit is data: `src/lib/assessments/unit1.ts` is the whole Unit 1 sheet (columns, rows per level, questions,
 required words, target column and number, teach-next lessons, the how-to-score guide). Add Unit 2 by writing
 `unit2.ts` in the same shape and listing it in `src/lib/assessments/index.ts`.
+
+## 2026-11-17: Story Maker (`/story`)
+
+A build-your-own-story video maker. The screen is a vertical (9:16) studio: a pixel video on the top half, the sentence
+on the bottom half. Students drag one of her formulas (by formula code) or single grammar symbols into the sentence; the
+symbols snap together, and every blank is a dropdown with a dice button (the dice only pick words the video can act
+out). Past, Present and Future use her tense symbols, change the verb, and change the video (past looks like an old
+photo, future like a daydream, with the tense symbol in the corner). Sentences that do not fit say "Sentence not
+recognized" with a short tip (a/an, one or many, "a fish can't fly", "chased who?"). Sentences add up to a story:
+pronouns follow the characters, the place carries over, Play reads each sentence aloud with highlighted captions, and
+Save video records the story (video on top, the sentence with her symbols below) to the device as MP4 or WebM. No
+saved projects. OpenDyslexic is one tap in the header.
+
+- `src/lib/story/words.ts`: the word bank (every word has a look and a motion) and what each character can do.
+- `src/lib/story/grammar.ts`: reads the slot row (her formula slot names), checks meaning, writes the words in the
+  right forms, picks dropdown choices and dice rolls, and lists which of her formulas the video can play (52 now;
+  questions, commands and formulas with words like "that" or "feel" are left out until the video can act them out).
+- `src/lib/story/render.ts`: the pixel stage (144 x 128), places, characters, motions, feelings, tense looks, and the
+  saved-video frame.

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" shape-rendering="crispEdges">
+  <rect width="640" height="360" fill="#E8F4F8"/>
+  <rect x="220" y="14" width="200" height="332" rx="22" fill="#0F2B45"/>
+  <rect x="230" y="24" width="180" height="160" fill="#9fd8f5"/>
+  <rect x="230" y="150" width="180" height="34" fill="#7cc35a"/>
+  <rect x="250" y="38" width="30" height="8" fill="#fff"/><rect x="258" y="32" width="16" height="6" fill="#fff"/>
+  <g transform="translate(300 118) scale(2)">
+    <rect x="9" y="18" width="17" height="8" fill="#a66a3a"/><rect x="23" y="11" width="10" height="9" fill="#a66a3a"/>
+    <rect x="23" y="10" width="3" height="8" fill="#6e4424"/><rect x="31" y="15" width="5" height="4" fill="#e3b27f"/>
+    <rect x="28" y="13" width="1" height="2" fill="#1d1d27"/><rect x="6" y="15" width="4" height="2" fill="#a66a3a"/>
+    <rect x="12" y="26" width="2" height="5" fill="#6e4424"/><rect x="15" y="26" width="2" height="4" fill="#a66a3a"/>
+    <rect x="22" y="26" width="2" height="5" fill="#6e4424"/><rect x="25" y="26" width="2" height="4" fill="#a66a3a"/>
+  </g>
+  <g fill="#fff"><rect x="268" y="150" width="20" height="2"/><rect x="262" y="158" width="24" height="2"/><rect x="270" y="166" width="16" height="2"/></g>
+  <rect x="230" y="190" width="180" height="146" rx="10" fill="#fff"/>
+  <rect x="242" y="202" width="62" height="18" rx="9" fill="#1968AB"/>
+  <g font-family="system-ui, sans-serif" font-weight="700">
+    <text x="252" y="215" font-size="11" fill="#fff">S1.A.B</text>
+    <text x="242" y="312" font-size="13" fill="#0F2B45">The dog ran quickly.</text>
+  </g>
+  <rect x="242" y="232" width="34" height="48" rx="6" fill="#F4F9FB" stroke="#C9DCE6"/><polygon points="259,240 251,254 267,254" fill="#F7B3CF"/>
+  <rect x="280" y="232" width="34" height="48" rx="6" fill="#F4F9FB" stroke="#C9DCE6"/><polygon points="297,238 285,258 309,258" fill="#D02028"/>
+  <rect x="318" y="232" width="34" height="48" rx="6" fill="#F4F9FB" stroke="#C9DCE6"/><circle cx="335" cy="248" r="10" fill="#40A870"/>
+  <rect x="356" y="232" width="34" height="48" rx="6" fill="#F4F9FB" stroke="#C9DCE6"/><circle cx="373" cy="248" r="7" fill="#1868A8"/>
+  <rect x="96" y="120" width="96" height="40" rx="12" fill="#fff" stroke="#C9DCE6" stroke-width="2"/><text x="112" y="146" font-family="system-ui, sans-serif" font-weight="800" font-size="16" fill="#124E81">S1.A.PRP</text>
+  <rect x="460" y="150" width="56" height="56" rx="12" fill="#FBF2BB" stroke="#E9DC8C" stroke-width="2"/>
+  <g fill="#0F2B45"><circle cx="476" cy="166" r="4"/><circle cx="500" cy="190" r="4"/><circle cx="488" cy="178" r="4"/><circle cx="500" cy="166" r="4"/><circle cx="476" cy="190" r="4"/></g>
+</svg>
