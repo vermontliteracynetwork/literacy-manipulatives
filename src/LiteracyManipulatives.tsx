@@ -972,7 +972,7 @@ export default function LiteracyManipulatives({ startInWriter = false, embed }: 
     try { return JSON.parse(localStorage.getItem('lm-my-checks') ?? '{}') ?? {}; } catch { return {}; }
   });
   const saveMyTicks = (m: Record<string, Record<string, boolean>>) => { try { localStorage.setItem('lm-my-checks', JSON.stringify(m)); } catch { /* storage blocked */ } return m; };
-  const insertImages = async (files: FileList | null) => {
+  const insertImages = async (files: FileList | File[] | null) => {
     const list = [...(files ?? [])].filter((f) => f.type.startsWith('image/'));
     setImageError(files?.length && !list.length ? 'That file is not a picture.' : '');
     if (!list.length) return;
@@ -984,6 +984,25 @@ export default function LiteracyManipulatives({ startInWriter = false, embed }: 
     placeAtCenter(made.map((im) => ({ kind: 'image', imageSrc: im.src, imageW: im.w, imageH: im.h })));
     setMyImages((old) => saveMyImages([...made, ...old.filter((o) => !made.some((m) => m.src === o.src))]));
   };
+  // Paste a picture (her request 2026-11-17: "allow me to copy paste in images for them to be added as insert in
+  // whiteboard"): a copied picture or screenshot pasted anywhere on the board (Ctrl+V or Cmd+V) goes on the board like
+  // an inserted picture, and into My pictures. Pasting text into a text box still pastes text.
+  const pasteRef = useRef({ insertImages, blocked: false });
+  useEffect(() => { pasteRef.current = { insertImages, blocked: studentViewOnly || showWriter }; });
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (pasteRef.current.blocked || !e.clipboardData) return;
+      const files = [...e.clipboardData.items].filter((i) => i.kind === 'file' && i.type.startsWith('image/')).map((i) => i.getAsFile()).filter((f): f is File => !!f);
+      if (!files.length) return;
+      const el = e.target as HTMLElement | null;
+      const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+      if (typing && e.clipboardData.getData('text/plain')) return;
+      e.preventDefault();
+      void pasteRef.current.insertImages(files);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, []);
   const [openSubcategories, setOpenSubcategories] = useState<Record<string, boolean>>({
     page1: false, page2: false, page3: false, page4: false, page5: false, page6: false, page7: false, page8: false, page9: false, page10: false, page11: false,
     prefixes: true, suffixes: false, bases: false, roots: false,

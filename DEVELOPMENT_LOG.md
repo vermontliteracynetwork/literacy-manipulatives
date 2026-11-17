@@ -1123,3 +1123,10 @@ are added straight into the sentence with their symbol (a typed verb sets the ti
 word is looked up in the engine's dictionary ("giraffe is a noun") with a button to add that kind of blank.
 Prepositional phrases can now name a person, animal or thing: from, to, with, near, behind and over ("The dog runs
 from the cat." The cat chases it).
+
+## 2026-11-17: Paste pictures onto the whiteboard
+
+Her request: "allow me to copy paste in images for them to be added as insert in whiteboard". A picture or screenshot
+on the clipboard, pasted anywhere on the board (Ctrl+V or Cmd+V), goes on the board exactly like Insert a picture
+(made small, ready to move, resize, crop and rotate) and into My pictures. Pasting text into a text box still pastes
+text; a view-only student and the Word Processor do not take pasted pictures. A tip under Insert a picture says so.
