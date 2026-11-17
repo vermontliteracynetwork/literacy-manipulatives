@@ -1138,3 +1138,12 @@ title: Dr. Lee, Mr. Kim, Ms. Rosa and Mrs. Diaz. The title's period stays in the
 ("Dr. Lee ran to the park."). In her master list, a title and a name written as two proper noun symbols are read as
 one proper noun, and an example sentence with a title fills in with a titled name. (The engine already keeps "Dr." from
 ending a sentence in the Word Processor and Formula Search.)
+
+## 2026-11-17: Story Maker formula shelves
+
+Her request: "sort the formulas in a much easier way for students to see. remove tags on top of that section." The
+symbol filter tags and the sort menu are gone. Formulas now sit on seven shelves named by what the sentence does,
+each with a model sentence, its symbol and a count: Who + Action (The frog jumps.), Who + Action + What (The bird
+eats a worm.), Where it happens (The cat hid under the bed.), Is, am, are, was, were (The turtle is slow.), Not
+sentences, Wow! sentences, and Joined with and, but, so. One shelf is open at a time (tap a shelf to open it); on each
+shelf the shortest formulas come first. Searching opens every shelf with a match.

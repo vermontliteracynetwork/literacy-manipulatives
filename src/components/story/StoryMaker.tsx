@@ -102,19 +102,26 @@ function Category({ label, color, open, onToggle, children }: { label: string; c
   );
 }
 
-// Symbol filters for the formula list: show only formulas that have these parts.
-const FILTERS: { kind: Kind; cls: SymbolWordClass; name: string; short: string }[] = [
-  { kind: 'propernoun', cls: 'propernoun', name: 'Proper noun', short: 'name' },
-  { kind: 'pronoun', cls: 'pronoun', name: 'Pronoun', short: 'pronoun' },
-  { kind: 'adjective', cls: 'adjective', name: 'Adjective', short: 'adjective' },
-  { kind: 'adverb', cls: 'adverb', name: 'Adverb', short: 'adverb' },
-  { kind: 'phrase', cls: 'preposition', name: 'Prepositional phrase', short: 'phrase' },
-  { kind: 'conj', cls: 'conjunction', name: 'Conjunction', short: 'and, but' },
-  { kind: 'not', cls: 'adverb', name: 'Not', short: 'not' },
-  { kind: 'will', cls: 'verb', name: 'Will', short: 'will' },
-  { kind: 'be', cls: 'verb', name: 'Be', short: 'is, was' },
-  { kind: 'interjection', cls: 'interjection', name: 'Interjection', short: 'Wow!' },
+// Formula shelves (her request 2026-11-17: "sort the formulas in a much easier way for students to see"): every
+// formula sits on one shelf named by what the sentence does, with a model sentence; shortest formulas first.
+const SHELVES: { title: string; example: string; cls: SymbolWordClass }[] = [
+  { title: 'Who + Action', example: 'The frog jumps.', cls: 'verb' },
+  { title: 'Who + Action + What', example: 'The bird eats a worm.', cls: 'noun' },
+  { title: 'Where it happens', example: 'The cat hid under the bed.', cls: 'preposition' },
+  { title: 'Is, am, are, was, were', example: 'The turtle is slow.', cls: 'adjective' },
+  { title: 'Not sentences', example: 'The cat did not run.', cls: 'adverb' },
+  { title: 'Wow! sentences', example: 'The cake is huge!', cls: 'interjection' },
+  { title: 'Joined with and, but, so', example: 'The cat and the dog ran.', cls: 'conjunction' },
 ];
+function shelfOf(f: StoryFormula): number {
+  if (f.kinds.includes('interjection') || f.exclaim) return 5;
+  if (f.kinds.includes('not')) return 4;
+  if (f.kinds.includes('conj')) return 6;
+  if (f.kinds.includes('be') && !f.kinds.includes('verb')) return 3;
+  if (f.kinds.includes('phrase')) return 2;
+  if (/^(B,|PRP,)?S2/.test(f.code)) return 1;
+  return 0;
+}
 
 const CLASS_KIND: Partial<Record<SymbolWordClass, Kind>> = {
   noun: 'noun', propernoun: 'propernoun', pronoun: 'pronoun', verb: 'verb', adjective: 'adjective', adverb: 'adverb',
@@ -206,8 +213,7 @@ export function StoryMaker() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [open, setOpen] = useState({ formulas: true, symbols: true });
   const [fq, setFq] = useState('');
-  const [need, setNeed] = useState<Kind[]>([]);
-  const [sortBy, setSortBy] = useState<'order' | 'short' | 'long' | 'code'>('order');
+  const [shelf, setShelf] = useState<number | null>(0);
   const [wq, setWq] = useState('');
   const [picker, setPicker] = useState<{ row: number; index: number } | null>(null);
   const [engineOk, setEngineOk] = useState(false);
@@ -493,8 +499,7 @@ export function StoryMaker() {
   const shownFormulas = formulas
     .map((f, order) => ({ f, order }))
     .filter(({ f }) => !fneedle || [f.code, f.formula, formulaWords(f), f.example, f.name].some((x) => x.toLowerCase().includes(fneedle)))
-    .filter(({ f }) => need.every((k) => f.kinds.includes(k)))
-    .sort((a, b) => (sortBy === 'short' ? a.f.kinds.length - b.f.kinds.length : sortBy === 'long' ? b.f.kinds.length - a.f.kinds.length : sortBy === 'code' ? a.f.code.localeCompare(b.f.code) : 0) || a.order - b.order)
+    .sort((a, b) => shelfOf(a.f) - shelfOf(b.f) || a.f.kinds.length - b.f.kinds.length || a.order - b.order)
     .map(({ f }) => f);
   const hits = useMemo(() => findWords(wq), [wq]);
   const dictTypes = engineOk && wq.trim() && !hits.length ? jobsOfWord(wq.trim()) : [];
@@ -543,52 +548,43 @@ export function StoryMaker() {
           <aside className="lm-sidebar sm-sidebar" aria-label="Materials">
             <Category label="Sentence Formulas" color="#C0D6F5" open={open.formulas} onToggle={() => setOpen((o) => ({ ...o, formulas: !o.formulas }))}>
               <input className="lm-tray-search" type="search" value={fq} onChange={(e) => setFq(e.target.value)} placeholder="Search a code, word or sentence" aria-label="Search formulas" />
-              <div className="sm-filter" role="group" aria-label="Show formulas that have">
-                {FILTERS.map((p) => (
-                  <button
-                    key={p.kind}
-                    type="button"
-                    className={`sm-chip${need.includes(p.kind) ? ' on' : ''}`}
-                    aria-pressed={need.includes(p.kind)}
-                    onClick={() => setNeed((n) => (n.includes(p.kind) ? n.filter((k) => k !== p.kind) : [...n, p.kind]))}
-                    title={`Only formulas with ${p.name.toLowerCase()}`}
-                  >
-                    <img src={symbolUrl(p.cls)} alt="" draggable={false} />{p.short}
-                  </button>
-                ))}
-              </div>
-              <div className="sm-sortrow">
-                <span>{shownFormulas.length} {shownFormulas.length === 1 ? 'formula' : 'formulas'}</span>
-                <label>
-                  <span className="sm-sr">Sort formulas</span>
-                  <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
-                    <option value="order">In teaching order</option>
-                    <option value="short">Shortest first</option>
-                    <option value="long">Longest first</option>
-                    <option value="code">By code, A to Z</option>
-                  </select>
-                </label>
-                {(fq || need.length > 0) && <button type="button" className="sm-linkbtn" onClick={() => { setFq(''); setNeed([]); }}>Clear</button>}
-              </div>
-              <div className="sm-formula-list">
-                {shownFormulas.map((f) => (
-                  <div key={`${f.code}|${f.kinds.join(' ')}|${f.fixed.join(' ')}`} className="sm-fcard">
-                    <button type="button" className="sm-plus" onClick={() => tapFormula(f)} aria-label={`Add ${f.code}: ${f.example}`} title="Add">+</button>
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      className="sm-fbody"
-                      aria-label={`Formula ${f.code}: ${formulaWords(f)}. Drag onto the page.`}
-                      onPointerDown={startDrag({ type: 'formula', f }, f.code)}
-                      onClick={tap(() => tapFormula(f))}
-                      onKeyDown={keyTap(() => tapFormula(f))}
-                    >
-                      <span className="sm-fsyms">{f.kinds.map((k, i) => <img key={i} src={symbolUrl(KIND_CLASS[k])} alt="" draggable={false} />)}</span>
-                      <span className="sm-fex">{f.example}</span>
-                      <span className="sm-fline"><strong>{f.code}</strong> {formulaWords(f)}</span>
-                    </div>
-                  </div>
-                ))}
+              <div className="sm-shelves">
+                {SHELVES.map((sh, k) => {
+                  const list = shownFormulas.filter((f) => shelfOf(f) === k);
+                  if (!list.length) return null;
+                  const isOpen = !!fneedle || shelf === k;
+                  return (
+                    <section key={sh.title} className={`sm-shelf${isOpen ? ' open' : ''}`}>
+                      <button type="button" className="sm-shelf-head" aria-expanded={isOpen} onClick={() => setShelf(shelf === k ? null : k)}>
+                        <img src={symbolUrl(sh.cls)} alt="" draggable={false} />
+                        <span><strong>{sh.title}</strong><small>{sh.example}</small></span>
+                        <span className="sm-shelf-count">{list.length}</span>
+                      </button>
+                      {isOpen && (
+                        <div className="sm-formula-list">
+                    {list.map((f) => (
+                      <div key={`${f.code}|${f.kinds.join(' ')}|${f.fixed.join(' ')}`} className="sm-fcard">
+                        <button type="button" className="sm-plus" onClick={() => tapFormula(f)} aria-label={`Add ${f.code}: ${f.example}`} title="Add">+</button>
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          className="sm-fbody"
+                          aria-label={`Formula ${f.code}: ${formulaWords(f)}. Drag onto the page.`}
+                          onPointerDown={startDrag({ type: 'formula', f }, f.code)}
+                          onClick={tap(() => tapFormula(f))}
+                          onKeyDown={keyTap(() => tapFormula(f))}
+                        >
+                          <span className="sm-fsyms">{f.kinds.map((k, i) => <img key={i} src={symbolUrl(KIND_CLASS[k])} alt="" draggable={false} />)}</span>
+                          <span className="sm-fex">{f.example}</span>
+                          <span className="sm-fline"><strong>{f.code}</strong> {formulaWords(f)}</span>
+                        </div>
+                      </div>
+                    ))}
+                        </div>
+                      )}
+                    </section>
+                  );
+                })}
                 {!shownFormulas.length && <p className="sm-tray-note">No formula matches.</p>}
               </div>
             </Category>
