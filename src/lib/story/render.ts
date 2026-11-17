@@ -7,7 +7,11 @@ import { verbById, type LookId, type PrepId, type Tense, type VerbId } from './w
 export const SW = 144;
 export const SH = 128;
 export const HI = 5; // screen pixels per stage pixel
+/** Extra stage on each side for the wide (16:9) screen video. The saved vertical video uses none. */
+export const WIDE = 42;
 type Ctx = CanvasRenderingContext2D;
+let EX = 0;
+const FW = () => SW + 2 * EX;
 
 /* ---------------- Clips ---------------- */
 
@@ -271,21 +275,22 @@ function drawLook(c: Ctx, look: LookId, pal: Pal, p: Pose) {
 /* ---------------- Backgrounds ---------------- */
 
 function sky(c: Ctx, t: number, bands = ['#9fd8f5', '#b4e2f8', '#c9ecfa', '#dcf3fc']) {
-  bands.forEach((col, i) => R(c, 0, i * 22, SW, 22, col));
-  R(c, 0, 88, SW, 40, bands[bands.length - 1]);
-  const cx = ((t * 3) % (SW + 60)) - 30;
-  for (const [x, y] of [[cx, 14], [cx + 70, 26]]) {
-    const xx = ((x % (SW + 60)) + SW + 60) % (SW + 60) - 30;
+  bands.forEach((col, i) => R(c, -EX, i * 22, FW(), 22, col));
+  R(c, -EX, 88, FW(), 40, bands[bands.length - 1]);
+  const span = FW() + 60;
+  const cx = t * 3;
+  for (const [x, y] of [[cx, 14], [cx + 70, 26], [cx + 150, 18]]) {
+    const xx = ((x % span) + span) % span - 30 - EX;
     R(c, xx, y, 18, 4, '#ffffff'); R(c, xx + 4, y - 3, 10, 3, '#ffffff');
   }
 }
 function grass(c: Ctx, y = 104, col = '#7cc35a', dark = '#5aa33c') {
-  R(c, 0, y, SW, SH - y, col);
-  for (let x = 3; x < SW; x += 9) { R(c, x, y + 4 + ((x * 7) % 11), 1, 2, dark); R(c, x + 1, y + 3 + ((x * 7) % 11), 1, 1, dark); }
-  R(c, 0, y, SW, 1, dark);
+  R(c, -EX, y, FW(), SH - y, col);
+  for (let x = 3 - EX; x < SW + EX; x += 9) { const o = (((x * 7) % 11) + 11) % 11; R(c, x, y + 4 + o, 1, 2, dark); R(c, x + 1, y + 3 + o, 1, 1, dark); }
+  R(c, -EX, y, FW(), 1, dark);
 }
 function farHills(c: Ctx) {
-  for (let x = 0; x < SW; x++) {
+  for (let x = -EX; x < SW + EX; x++) {
     const h = 10 + Math.round(Math.sin(x / 13) * 4 + Math.sin(x / 7) * 2);
     R(c, x, 104 - h, 1, h, '#a5d68a');
   }
@@ -326,20 +331,20 @@ function pond(c: Ctx, t: number) {
   R(c, 70, 102, 3, 2, '#2e7d32'); R(c, 134, 104, 3, 2, '#2e7d32');
 }
 function beach(c: Ctx, t: number) {
-  R(c, 0, 0, SW, 88, '#a7dcf6'); R(c, 8, 10, 14, 14, '#ffe082'); R(c, 6, 14, 18, 6, '#ffe082');
-  R(c, 0, 82, SW, 18, '#5bb6e8');
-  R(c, 0, 100, SW, 28, '#f3d99b');
-  for (let y = 98; y < SH; y++) { const x0 = 98 + Math.round((y - 98) * 0.25 + Math.sin(t * 2 + y / 3)); R(c, x0, y, SW - x0, 1, '#4aa3df'); }
+  R(c, -EX, 0, FW(), 88, '#a7dcf6'); R(c, 8, 10, 14, 14, '#ffe082'); R(c, 6, 14, 18, 6, '#ffe082');
+  R(c, -EX, 82, FW(), 18, '#5bb6e8');
+  R(c, -EX, 100, FW(), 28, '#f3d99b');
+  for (let y = 98; y < SH; y++) { const x0 = 98 + Math.round((y - 98) * 0.25 + Math.sin(t * 2 + y / 3)); R(c, x0, y, SW + EX - x0, 1, '#4aa3df'); }
   for (let i = 0; i < 6; i++) R(c, 104 + ((i * 11 + t * 6) % 38), 104 + (i % 4) * 5, 4, 1, '#bfe6fb');
   R(c, 30, 112, 3, 2, '#e8b04a'); R(c, 60, 118, 2, 1, '#ffffff');
 }
 function forest(c: Ctx) {
-  for (let i = 0; i < 9; i++) tree(c, 64 + i * 11, 104 - (i % 2) * 6, 0.7);
+  for (let i = 0; i < 9 + Math.ceil(EX / 11); i++) tree(c, 64 + i * 11, 104 - (i % 2) * 6, 0.7);
 }
 function room(c: Ctx) {
-  R(c, 0, 0, SW, 108, '#f8e7c9');
-  for (let x = 0; x < SW; x += 12) R(c, x, 0, 6, 108, '#f3dcb4');
-  R(c, 0, 108, SW, 20, '#b07a4a'); for (let x = 0; x < SW; x += 16) R(c, x, 108, 1, 20, '#94643a');
+  R(c, -EX, 0, FW(), 108, '#f8e7c9');
+  for (let x = -EX; x < SW + EX; x += 12) R(c, x, 0, 6, 108, '#f3dcb4');
+  R(c, -EX, 108, FW(), 20, '#b07a4a'); for (let x = -EX; x < SW + EX; x += 16) R(c, x, 108, 1, 20, '#94643a');
   R(c, 92, 24, 30, 26, '#9fd8f5'); R(c, 92, 24, 30, 2, '#ffffff'); R(c, 106, 24, 2, 26, '#ffffff'); R(c, 92, 36, 30, 2, '#ffffff');
   R(c, 14, 76, 34, 4, '#8d6e63'); R(c, 16, 80, 3, 28, '#6d4c41'); R(c, 43, 80, 3, 28, '#6d4c41');
   R(c, 24, 70, 6, 6, '#e57373');
@@ -350,7 +355,7 @@ export function drawBackground(c: Ctx, place: string, t: number) {
   if (place === 'beach') { beach(c, t); return; }
   sky(c, t);
   farHills(c);
-  if (place === 'forest') { R(c, 60, 46, 84, 58, '#2f7d3a'); }
+  if (place === 'forest') { R(c, 60, 46, 84 + EX, 58, '#2f7d3a'); }
   grass(c, 104);
   if (place === 'meadow' || place === 'park') flowers(c, 104);
   if (place === 'park') { tree(c, 118, 104, 0.8); R(c, 82, 94, 22, 3, '#8d6e63'); R(c, 82, 90, 22, 2, '#8d6e63'); R(c, 84, 97, 2, 7, '#6d4c41'); R(c, 100, 97, 2, 7, '#6d4c41'); }
@@ -496,7 +501,7 @@ function bubble(f: Frame, x: number, y: number, text: string, size: number, alph
     const w = h.measureText(text).width + size * 0.9;
     const bh = size * 1.6;
     let bx = x * HI - w / 2;
-    bx = clamp(bx, 6, SW * HI - w - 6);
+    bx = clamp(bx, 6 - EX * HI, (SW + EX) * HI - w - 6);
     const by = Math.max(6, y * HI - bh - 10);
     h.fillStyle = '#ffffff'; h.strokeStyle = '#1d1d27'; h.lineWidth = 4;
     roundRect(h, bx, by, w, bh, bh / 2); h.fill(); h.stroke();
@@ -509,7 +514,7 @@ function bubble(f: Frame, x: number, y: number, text: string, size: number, alph
 
 function thought(f: Frame, x: number, y: number, inner: (c: Ctx, cx: number, cy: number) => void) {
   f.low.push((c) => {
-    const bx = clamp(x - 2, 4, SW - 34);
+    const bx = clamp(x - 2, 4 - EX, SW + EX - 34);
     const by = Math.max(2, y - 30);
     R(c, bx, by + 2, 32, 22, '#ffffff'); R(c, bx + 2, by, 28, 26, '#ffffff');
     R(c, x - 6, by + 27, 4, 3, '#ffffff'); R(c, x - 9, by + 31, 2, 2, '#ffffff');
@@ -655,11 +660,11 @@ function groupFrame(f: Frame, g: GroupModel, gi: number, clip: Clip, t: number) 
       } else if (moving && ph) {
         const T = clamp(((ARRIVE[verb] ?? 0.5) * W) / m, 0.5, W);
         const p = clamp((ta - i * 0.15) / T, 0, 1);
-        const x0 = ph === 'across' || ph === 'through' ? 4 : 14;
+        const x0 = ph === 'across' || ph === 'through' ? 4 - EX : 14 - EX * 0.6;
         let x1 = G.lx - 22;
         if (ph === 'into') x1 = place === 'house' ? 105 : place === 'pond' ? 96 : 100;
         if (ph === 'over') x1 = G.lx + 36;
-        if (ph === 'across' || ph === 'through') x1 = 140;
+        if (ph === 'across' || ph === 'through') x1 = 140 + EX;
         if (ph === 'up') x1 = place === 'tree' ? G.lx - 8 : G.lx;
         if (place === 'pond' && ph === 'to') x1 = 56;
         if (place === 'beach' && ph === 'to') x1 = 86;
@@ -683,10 +688,10 @@ function groupFrame(f: Frame, g: GroupModel, gi: number, clip: Clip, t: number) 
       } else if (g.advs.includes('around')) {
         const v = (BASE_SPEED[verb] ?? 20) * m;
         const ang = (v * ta) / 34 - i * 0.6;
-        d.x = 72 + Math.cos(ang) * 40; d.y = G.ground - 4 + Math.sin(ang) * 6 + lane;
+        d.x = 72 + Math.cos(ang) * (40 + EX * 0.6); d.y = G.ground - 4 + Math.sin(ang) * 6 + lane;
         d.facing = Math.sin(ang) > 0 ? -1 : 1; d.pose.moving = true;
       } else {
-        const range = sp && place !== 'meadow' && ph && ph !== 'in' ? [sp.x - 24, sp.x + 24] : [14, 130];
+        const range = sp && place !== 'meadow' && ph && ph !== 'in' ? [sp.x - 24, sp.x + 24] : [14 - EX * 0.8, 130 + EX * 0.8];
         const v = (BASE_SPEED[verb] ?? 20) * m;
         const r = pingpong(range[0] + 6, v * ta - lag, range[0], range[1]);
         d.x = r.x; d.facing = r.facing; d.pose.moving = ta > 0 && ta < W;
@@ -775,7 +780,7 @@ function groupFrame(f: Frame, g: GroupModel, gi: number, clip: Clip, t: number) 
       const objDraws = (x: number, y: number, extra: Partial<Draw> = {}) => g.object.slice(0, 3).map((o, k) => mkDraw(o, x + k * 12, y - k * 2, extra));
       if (verb === 'chase') {
         const v = 40 * mm;
-        const r = pingpong(60, v * ta, 30, 132);
+        const r = pingpong(60, v * ta, 30 - EX * 0.6, 132 + EX * 0.6);
         const os = objDraws(r.x, G.ground + lane, { facing: r.facing });
         os.forEach((o) => { o.pose.moving = ta > 0; o.pose.phase = ta * 3 * mm; if (o.look === 'ball') o.rot = o.x / 6; });
         if (i === 0) os.forEach((o, k) => push(o, 10 + k, [], 1));
@@ -840,6 +845,7 @@ function groupFrame(f: Frame, g: GroupModel, gi: number, clip: Clip, t: number) 
       }
     }
 
+    if (spec.look === 'fish' && G.water && motion !== 'loco') { d.y = G.water.swim + lane; d.water = G.water.y; }
     if (happyAdv) { d.pose.mood = 'happy'; if (d.pose.moving) d.y -= Math.abs(Math.sin(t * 9)) * 2; }
     if (sadAdv) d.pose.mood = 'sad';
     if (quiet && i === 0 && motion !== 'sound' && ta > 0 && ta < 1.2) bubble(f, d.x, d.y - 30 * d.scale, 'shh', 20, 0.75);
@@ -855,7 +861,7 @@ function tag(h: Ctx, x: number, y: number, label: string) {
   h.save();
   h.font = `700 22px ${fam}`;
   const w = h.measureText(label).width + 18;
-  const bx = clamp(x * HI - w / 2, 4, SW * HI - w - 4);
+  const bx = clamp(x * HI - w / 2, 4 - EX * HI, (SW + EX) * HI - w - 4);
   const by = Math.max(4, y * HI - 40);
   h.fillStyle = label === 'ME' || label === 'YOU' ? '#fdd835' : '#ffffff';
   h.strokeStyle = '#1d1d27'; h.lineWidth = 3;
@@ -874,8 +880,9 @@ function roundRect(h: Ctx, x: number, y: number, w: number, hh: number, r: numbe
 /* ---------------- Drawing a frame ---------------- */
 
 let lowCanvas: HTMLCanvasElement | null = null;
-function lowCtx(): Ctx {
-  if (!lowCanvas) { lowCanvas = document.createElement('canvas'); lowCanvas.width = SW; lowCanvas.height = SH; }
+function lowCtx(w: number): Ctx {
+  if (!lowCanvas) { lowCanvas = document.createElement('canvas'); lowCanvas.height = SH; }
+  if (lowCanvas.width !== w) lowCanvas.width = w;
   const c = lowCanvas.getContext('2d')!;
   c.imageSmoothingEnabled = false;
   return c;
@@ -885,16 +892,18 @@ export interface Assets { tense: Record<Tense, HTMLImageElement>; symbols: Recor
 
 const TENSE_LABEL: Record<Tense, string> = { past: 'Past', present: 'Present', future: 'Future' };
 
-/** Draws the video (720 x 640) for clip time t. With no clip, just the place. */
-export function drawScene(h: Ctx, clip: Clip | null, t: number, assets: Assets | null, idlePlace = 'meadow') {
-  const c = lowCtx();
+/** Draws the video for clip time t: 720 x 640 for the saved video, or 16:9 (1140 x 640) with wide on. */
+export function drawScene(h: Ctx, clip: Clip | null, t: number, assets: Assets | null, idlePlace = 'meadow', wide = false) {
+  EX = wide ? WIDE : 0;
+  const BW = FW();
+  const c = lowCtx(BW);
   const place = clip?.place ?? idlePlace;
   const f: Frame = { draws: [], low: [], hi: [], shake: 0, bush: false };
   if (clip) clip.a.groups.forEach((g, gi) => groupFrame(f, g, gi, clip, t));
   const sx = f.shake ? Math.round(Math.sin(t * 70) * f.shake) : 0;
   c.save();
-  c.clearRect(0, 0, SW, SH);
-  c.translate(sx, 0);
+  c.clearRect(0, 0, BW, SH);
+  c.translate(sx + EX, 0);
   drawBackground(c, place, t);
   if (f.bush) occluder(c, 'meadow', true);
   const behind = f.draws.filter((d) => d.behind);
@@ -902,7 +911,7 @@ export function drawScene(h: Ctx, clip: Clip | null, t: number, assets: Assets |
   behind.forEach((d) => blit(c, d));
   if (behind.length) occluder(c, place, f.bush);
   front.forEach((d) => blit(c, d));
-  if (place === 'forest') { R(c, 2, 70, 7, 58, '#4e342e'); R(c, 134, 66, 8, 62, '#4e342e'); }
+  if (place === 'forest') { R(c, 2 - EX, 70, 7, 58, '#4e342e'); R(c, SW + EX - 10, 66, 8, 62, '#4e342e'); }
   f.low.forEach((fn) => fn(c));
   c.restore();
 
@@ -910,31 +919,34 @@ export function drawScene(h: Ctx, clip: Clip | null, t: number, assets: Assets |
   const tense = clip?.a.tense;
   if (tense === 'past') {
     c.save();
-    c.globalCompositeOperation = 'saturation'; c.globalAlpha = 0.85; c.fillStyle = '#808080'; c.fillRect(0, 0, SW, SH);
-    c.globalCompositeOperation = 'multiply'; c.globalAlpha = 0.55; c.fillStyle = '#e8c99a'; c.fillRect(0, 0, SW, SH);
+    c.globalCompositeOperation = 'saturation'; c.globalAlpha = 0.85; c.fillStyle = '#808080'; c.fillRect(0, 0, BW, SH);
+    c.globalCompositeOperation = 'multiply'; c.globalAlpha = 0.55; c.fillStyle = '#e8c99a'; c.fillRect(0, 0, BW, SH);
     c.restore();
   } else if (tense === 'future') {
     c.save();
-    c.globalCompositeOperation = 'soft-light'; c.globalAlpha = 0.6; c.fillStyle = '#7c6cff'; c.fillRect(0, 0, SW, SH);
+    c.globalCompositeOperation = 'soft-light'; c.globalAlpha = 0.6; c.fillStyle = '#7c6cff'; c.fillRect(0, 0, BW, SH);
     c.restore();
-    for (let k = 0; k < 7; k++) { const q = (t * 0.25 + k / 7) % 1; if (((t * 2 + k) % 1) < 0.6) pattern(c, (k * 37) % (SW - 6), SH - q * SH, PLUS, '#ffffff'); }
+    for (let k = 0; k < 7; k++) { const q = (t * 0.25 + k / 7) % 1; if (((t * 2 + k) % 1) < 0.6) pattern(c, (k * 37 + Math.floor(k / 4) * 61) % (BW - 6), SH - q * SH, PLUS, '#ffffff'); }
   }
 
   h.save();
   h.imageSmoothingEnabled = false;
-  h.clearRect(0, 0, SW * HI, SH * HI);
-  h.drawImage(lowCanvas!, 0, 0, SW, SH, 0, 0, SW * HI, SH * HI);
+  h.clearRect(0, 0, BW * HI, SH * HI);
+  h.drawImage(lowCanvas!, 0, 0, BW, SH, 0, 0, BW * HI, SH * HI);
   if (tense === 'past') {
-    const g = h.createRadialGradient(SW * HI / 2, SH * HI / 2, SH * HI * 0.35, SW * HI / 2, SH * HI / 2, SW * HI * 0.75);
+    const g = h.createRadialGradient(BW * HI / 2, SH * HI / 2, SH * HI * 0.35, BW * HI / 2, SH * HI / 2, BW * HI * 0.6);
     g.addColorStop(0, 'rgba(60,40,20,0)'); g.addColorStop(1, 'rgba(60,40,20,0.45)');
-    h.fillStyle = g; h.fillRect(0, 0, SW * HI, SH * HI);
+    h.fillStyle = g; h.fillRect(0, 0, BW * HI, SH * HI);
   }
   if (tense === 'future') {
     h.strokeStyle = 'rgba(255,255,255,0.85)'; h.lineWidth = 8; h.setLineDash([26, 18]);
-    roundRect(h, 14, 14, SW * HI - 28, SH * HI - 28, 30); h.stroke(); h.setLineDash([]);
+    roundRect(h, 14, 14, BW * HI - 28, SH * HI - 28, 30); h.stroke(); h.setLineDash([]);
   }
+  h.save();
+  h.translate(EX * HI, 0);
   f.hi.forEach((fn) => fn(h));
   if (clip?.a.intj && t < 1.6) burst(h, clip.a.intj, t);
+  h.restore();
   if (tense && assets) tenseBadge(h, tense, assets);
   h.restore();
 }

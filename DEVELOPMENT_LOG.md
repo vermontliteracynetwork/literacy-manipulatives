@@ -1076,3 +1076,10 @@ saved projects. OpenDyslexic is one tap in the header.
   questions, commands and formulas with words like "that" or "feel" are left out until the video can act them out).
 - `src/lib/story/render.ts`: the pixel stage (144 x 128), places, characters, motions, feelings, tense looks, and the
   saved-video frame.
+
+Update (same day, her review): the screen is now laid out like the whiteboard. The materials menu on the left uses the
+whiteboard's collapsible categories (Sentence Formulas, Grammar Symbols, Helper Words, Additional Symbols with the
+tense symbols, which can be dropped on a sentence to change its time). The video on screen is 16:9 (the stage is wider
+on both sides) with captions under it, and below it a word processor with one row per sentence, each with its own
+blanks, dice, tense, read-aloud, move and delete. Read aloud only happens when the 🔈 button is clicked. The saved
+video stays vertical (9:16).
