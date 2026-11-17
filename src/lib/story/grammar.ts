@@ -694,3 +694,76 @@ function formulaCodeFor(t: Token[], contract: boolean): string | null {
   if (!match.length) return null;
   return (match.find((f) => f.contract === contract) ?? match[0]).code;
 }
+
+/** Short name of each slot for a formula written out: article + noun + verb. */
+export function formulaWords(f: StoryFormula): string {
+  return f.kinds.map((k, i) => (k === 'conj' ? f.fixed[i] ?? 'conjunction' : k === 'phrase' ? 'prepositional phrase' : KIND_LABEL[k].split(' (')[0])).join(' + ');
+}
+
+/** A formula filled in with its example sentence from her formula card. A word the video doesn't know (a name
+ *  like Boston) is swapped for one it does, so the example always plays. */
+export function exampleFill(f: StoryFormula, ctx: StoryContext): SentenceState {
+  const base: SentenceState = { tokens: formulaTokens(f), tense: 'past', contract: f.contract, exclaim: f.exclaim };
+  const words = f.example.replace(/[“”"]/g, '').split(/\s+/).map((w) => w.replace(/[.,!?;:]+$/, '')).filter(Boolean);
+  const low = (i: number) => (words[i] ?? '').toLowerCase().replace(/’/g, "'");
+  const tokens = base.tokens.map((x) => ({ ...x }));
+  let w = 0;
+  let tense: Tense | null = null;
+  let skipNot = false;
+  let skipBe = false;
+  for (const tok of tokens) {
+    const word = low(w);
+    switch (tok.kind) {
+      case 'article': if (['a', 'an', 'the'].includes(word)) tok.value = word; w++; break;
+      case 'noun': {
+        const n = NOUNS.find((x) => x.sing === word || x.plural === word);
+        if (n) tok.value = n.plural === word && n.sing !== word ? `${n.id}:pl` : n.id;
+        w++; break;
+      }
+      case 'propernoun': { const n = NAMES.find((x) => x.id.toLowerCase() === word); if (n) tok.value = n.id; w++; break; }
+      case 'pronoun': {
+        const raw = word.split("'")[0];
+        const p = PRONOUNS.find((x) => x.subj.toLowerCase() === raw || x.obj === raw);
+        if (p) tok.value = p.id;
+        if (word.includes("'")) skipBe = true;
+        w++; break;
+      }
+      case 'adjective': if (ADJECTIVES.some((a) => a.id === word)) tok.value = word; w++; break;
+      case 'adverb': if (ADVERBS.some((a) => a.id === word)) tok.value = word; w++; break;
+      case 'interjection': { const i = INTERJECTIONS.find((x) => x.toLowerCase() === word); if (i) tok.value = i; w++; break; }
+      case 'conj': w++; break;
+      case 'verb': {
+        const v = VERBS.find((x) => [x.base, x.third, x.past, x.ing].includes(word));
+        if (v) { tok.value = v.id; if (!tense) tense = word === v.past ? 'past' : word === v.third || word === v.base ? 'present' : null; }
+        w++; break;
+      }
+      case 'will': tense = 'future'; w++; break;
+      case 'be':
+        if (skipBe) { skipBe = false; tense ??= 'present'; break; }
+        if (word === 'will') { tense = 'future'; w += 2; break; }
+        if (/^(was|were)/.test(word)) tense = 'past'; else if (/^(is|are|am)/.test(word)) tense = 'present';
+        if (word.endsWith("n't")) skipNot = true;
+        w++; break;
+      case 'do':
+        if (/^did/.test(word)) tense = 'past'; else if (/^(will|won't)/.test(word)) tense = 'future'; else if (/^do/.test(word)) tense = 'present';
+        if (word.endsWith("n't")) skipNot = true;
+        w++; break;
+      case 'not': if (skipNot) { skipNot = false; break; } w++; break;
+      case 'phrase': {
+        const next = low(w + 1);
+        const hasArt = ['the', 'a', 'an'].includes(next);
+        const pl = PLACES.find((p) => p.id === (hasArt ? low(w + 2) : next));
+        if (pl && pl.preps.includes(word as PrepId)) { tok.value = word; tok.place = pl.id; }
+        w += hasArt ? 3 : 2; break;
+      }
+    }
+  }
+  let st: SentenceState = { ...base, tokens, tense: tense ?? 'past' };
+  const order = st.tokens.map((_, i) => i).sort((a, b) => rank(st.tokens[a].kind) - rank(st.tokens[b].kind));
+  for (const i of order) {
+    const x = st.tokens[i];
+    if (needsPick(x.kind) && x.kind !== 'conj' && (!x.value || (x.kind === 'phrase' && !x.place))) st = rollToken(st, i, ctx);
+  }
+  if (analyze(st, ctx).status === 'ok') return st;
+  return rollAll({ ...base, tense: st.tense }, ctx);
+}

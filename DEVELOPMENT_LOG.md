@@ -1090,3 +1090,12 @@ grip, a "+ Add" button and an example sentence, and empty rows point to the menu
 status chip (Ready, Fill the blanks, Not recognized), the formula code, the sentence in big type with each word
 underlined in its symbol's color (blanks show as yellow "?"), labeled word cards, and labeled buttons (Past, Present,
 Future, Roll all words, Hear it).
+
+Update (same day, her review): the video is smaller and sits over a plain white page; a bar between them drags to
+resize the video (remembered on the device). The page has no header or directions: each sentence is its own line of
+words (each word a dropdown styled as text, underlined in its symbol's color, with the symbol above it), with space
+between lines. Hovering a word shows roll and remove; hovering a line shows its tense, roll, hear and delete, and a ⠿
+handle drags lines into a new order. A sentence the video can't play gets a red wavy underline and a short tip.
+Formula cards: big symbols on top, the example sentence under them, then the code with the formula written out
+(article + noun + verb), and a + on the left to add it. Every formula now arrives filled in with its example sentence
+(words the video doesn't know, like Boston, are swapped for ones it does).
