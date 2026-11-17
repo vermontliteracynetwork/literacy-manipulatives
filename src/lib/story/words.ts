@@ -43,7 +43,16 @@ export const NAMES: NameDef[] = [
   { id: 'Luna', look: 'cat', pron: 'she' },
   { id: 'Pip', look: 'bird', pron: 'she' },
   { id: 'Bolt', look: 'robot', pron: 'it' },
+  // Titles keep their period (her request 2026-11-17): the period after Dr., Mr., Ms. or Mrs. is part of the name,
+  // not the end of the sentence.
+  { id: 'Dr. Lee', look: 'you', pron: 'she' },
+  { id: 'Mr. Kim', look: 'boy', pron: 'he' },
+  { id: 'Ms. Rosa', look: 'girl', pron: 'she' },
+  { id: 'Mrs. Diaz', look: 'me', pron: 'she' },
 ];
+
+/** Titles that go before a name, with their period. */
+export const TITLES = ['Dr.', 'Mr.', 'Ms.', 'Mrs.'];
 
 export type PronKey = 'i' | 'you' | 'he' | 'she' | 'it' | 'we' | 'they';
 export interface PronounDef { id: PronKey; subj: string; obj: string; num: 'i' | 'sg' | 'pl' }

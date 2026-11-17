@@ -1130,3 +1130,11 @@ Her request: "allow me to copy paste in images for them to be added as insert in
 on the clipboard, pasted anywhere on the board (Ctrl+V or Cmd+V), goes on the board exactly like Insert a picture
 (made small, ready to move, resize, crop and rotate) and into My pictures. Pasting text into a text box still pastes
 text; a view-only student and the Word Processor do not take pasted pictures. A tip under Insert a picture says so.
+
+## 2026-11-17: Story Maker names with a title and its period
+
+Her request: "add allowing for period to be in proper noun". Story Maker's proper nouns now include names with a
+title: Dr. Lee, Mr. Kim, Ms. Rosa and Mrs. Diaz. The title's period stays in the name and never ends the sentence
+("Dr. Lee ran to the park."). In her master list, a title and a name written as two proper noun symbols are read as
+one proper noun, and an example sentence with a title fills in with a titled name. (The engine already keeps "Dr." from
+ending a sentence in the Word Processor and Formula Search.)

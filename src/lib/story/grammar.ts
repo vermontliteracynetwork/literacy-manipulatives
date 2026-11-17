@@ -708,7 +708,11 @@ function storySlots(breakdown: string, sentence: string): { kinds: Kind[]; fixed
     } else if (slot === 'adverb') push(word === 'not' ? 'not' : 'adverb');
     else if (slot === 'conjunction') { if (!CONJUNCTIONS.includes(word)) return null; push('conj', word); }
     else if (slot === 'pronoun') { if (/'/.test(word)) return null; push('pronoun'); }
-    else if (slot === 'propernoun') push('propernoun');
+    else if (slot === 'propernoun') {
+      // A title and a name ("Dr. Lee") are one proper noun; the title's period stays.
+      if (/^(dr|mr|mrs|ms)$/.test(word) && slots[i + 1] === 'propernoun') { i++; w++; }
+      push('propernoun');
+    }
     else if (slot === 'article' || slot === 'noun' || slot === 'adjective' || slot === 'interjection') push(slot);
     else return null;
   }
@@ -778,7 +782,14 @@ export function exampleFill(f: StoryFormula, ctx: StoryContext): SentenceState {
         if (n) tok.value = n.plural === word && n.sing !== word ? `${n.id}:pl` : n.id;
         w++; break;
       }
-      case 'propernoun': { const n = NAMES.find((x) => x.id.toLowerCase() === word); if (n) tok.value = n.id; w++; break; }
+      case 'propernoun': {
+        const titled = /^(dr|mr|mrs|ms)$/.test(word);
+        const full = titled ? `${word} ${low(w + 1)}` : word;
+        const n = NAMES.find((x) => x.id.toLowerCase().replace(/\./g, '') === full);
+        if (n) tok.value = n.id;
+        else if (titled) { const t = NAMES.find((x) => x.id.toLowerCase().startsWith(`${word}.`)); if (t) tok.value = t.id; }
+        w += titled ? 2 : 1; break;
+      }
       case 'pronoun': {
         const raw = word.split("'")[0];
         const p = PRONOUNS.find((x) => x.subj.toLowerCase() === raw || x.obj === raw);
