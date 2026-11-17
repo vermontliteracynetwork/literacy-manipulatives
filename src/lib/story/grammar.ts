@@ -4,7 +4,7 @@
 import { FORMULA_LIST } from '../writer/formulaList';
 import type { SymbolWordClass } from '../grammarSymbols';
 import {
-  ABILITIES, ADJECTIVES, ADVERBS, CONJUNCTIONS, INTERJECTIONS, LIVING, MOVING_PREPS, NAMES, NOUN_PREPS, NOUNS, PLACES, PRONOUNS, VERBS,
+  ABILITIES, ADJECTIVES, ADVERBS, ANIMALS, CONJUNCTIONS, INTERJECTIONS, KICKABLE, LIVING, MOVING_PREPS, NAMES, NOUN_PREPS, NOUNS, PLACES, PRONOUNS, VERBS,
   advById, nameById, placeById, pronounById, readNoun, verbById,
   type LookId, type PrepId, type Pron3, type Tense, type VerbDef, type VerbId,
 } from './words';
@@ -188,8 +188,8 @@ function refPron(g: Group, t: Token[], actors: ActorSpec[]): RefPron {
 
 function lookPron(a: ActorSpec): RefPron {
   if (a.name) return nameById(a.name)?.pron ?? 'it';
-  if (a.look === 'girl') return 'she';
-  if (a.look === 'boy') return 'he';
+  if (a.look === 'girl' || a.look === 'woman') return 'she';
+  if (a.look === 'boy' || a.look === 'man') return 'he';
   return 'it';
 }
 
@@ -256,7 +256,10 @@ export interface Analysis {
 
 const VOWEL = /^[aeiou]/i;
 const STATIC_VERB_PREPS: PrepId[] = ['in', 'on', 'under', 'near', 'behind'];
-const LOUD_OK: VerbId[] = ['sing', 'bark', 'meow', 'croak', 'beep', 'laugh', 'cry', 'fall', 'run', 'walk', 'jump', 'dance', 'bounce'];
+const LOUD_OK: VerbId[] = [
+  'sing', 'bark', 'meow', 'croak', 'beep', 'laugh', 'cry', 'fall', 'run', 'walk', 'jump', 'dance', 'bounce',
+  'hop', 'skip', 'clap', 'yawn', 'sneeze', 'shout', 'moo', 'oink', 'quack', 'neigh', 'roar', 'hoot', 'squeak', 'hiss', 'growl',
+];
 
 function lookName(l: LookId): string {
   if (l === 'me') return 'I';
@@ -485,12 +488,13 @@ export function analyze(st: SentenceState, ctx: StoryContext = EMPTY_CONTEXT): A
           const food = NOUNS.find((n) => n.look === o.look)?.food;
           if (rule === 'food') return !!food;
           if (rule === 'living') return LIVING.includes(o.look);
-          if (rule === 'kickable') return o.look === 'ball' || o.look === 'box' || o.look === 'apple';
-          if (rule === 'chaseable') return LIVING.includes(o.look) || o.look === 'ball';
+          if (rule === 'animal') return ANIMALS.includes(o.look);
+          if (rule === 'kickable') return KICKABLE.includes(o.look);
+          if (rule === 'chaseable') return LIVING.includes(o.look) || o.look === 'ball' || o.look === 'car' || o.look === 'kite';
           return true;
         };
         if (!object.every(ok)) {
-          const tip = rule === 'food' ? 'Try apple or cake.' : rule === 'living' ? 'Try a person or an animal.' : rule === 'kickable' ? 'Try ball or box.' : 'Try an animal or a ball.';
+          const tip = rule === 'food' ? 'Try apple, cake or banana.' : rule === 'living' ? 'Try a person or an animal.' : rule === 'animal' ? 'Try an animal, like a dog.' : rule === 'kickable' ? 'Try ball, box or rock.' : 'Try an animal or a ball.';
           fail(`You can't ${lastVerb.base} ${lookName(object[0].look)} here. ${tip}`);
         }
       }
@@ -506,9 +510,9 @@ export function analyze(st: SentenceState, ctx: StoryContext = EMPTY_CONTEXT): A
         if (ph) fail(`Use ${id} or a place, not both.`);
         if (verbs.some((v) => verbById(v)?.motion !== 'loco')) fail(`${id} needs a moving verb, like ran ${id}.`);
       }
-      if ((id === 'quickly' || id === 'slowly') && verbs.includes('sleep')) fail(`You can't sleep ${id}. Try another adverb.`);
-      if (id === 'loudly' && verbs.some((v) => !LOUD_OK.includes(v))) fail(`${cap(verbById(verbs[0])?.past ?? 'That')} can't be loud. Try quietly or happily.`);
-      if (id === 'carefully' && verbs.some((v) => v === 'sleep' || v === 'cry' || v === 'laugh' || v === 'fall')) fail(`Try another adverb with ${verbById(verbs[0])?.past}.`);
+      if ((id === 'quickly' || id === 'slowly' || id === 'wildly' || id === 'lazily') && verbs.includes('sleep')) fail(`You can't sleep ${id}. Try another adverb.`);
+      if ((id === 'loudly' || id === 'noisily') && verbs.some((v) => !LOUD_OK.includes(v))) fail(`${cap(verbById(verbs[0])?.past ?? 'That')} can't be loud. Try quietly or happily.`);
+      if ((id === 'carefully' || id === 'gently') && verbs.some((v) => v === 'sleep' || v === 'cry' || v === 'laugh' || v === 'fall' || v === 'sneeze' || v === 'yawn')) fail(`Try another adverb with ${verbById(verbs[0])?.past}.`);
     }
     if (advs.filter((id) => advById(id)?.kind === 'time').length > 1) fail('Use only one time word.');
 

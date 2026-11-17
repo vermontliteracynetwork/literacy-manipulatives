@@ -1138,3 +1138,30 @@ title: Dr. Lee, Mr. Kim, Ms. Rosa and Mrs. Diaz. The title's period stays in the
 ("Dr. Lee ran to the park."). In her master list, a title and a name written as two proper noun symbols are read as
 one proper noun, and an example sentence with a title fills in with a titled name. (The engine already keeps "Dr." from
 ending a sentence in the Word Processor and Formula Search.)
+
+## 2026-11-17: Story Maker word bubbles, more words and new pixel pictures
+
+Her request: "use the symbolic grammar logic for the words; add more words to the dictionary; improve the drag and drop
+of the symbols into premade sentences, in the whiteboard's format with the round text bubbles; add the assets while you
+add more words" (and: "create pixel assets so i dont need to worry about copywrite").
+
+- **Word bubbles like the whiteboard.** Every word on the page is its grammar symbol with a round bubble under it, in
+  the symbol's color, outline or solid (a Word bubbles switch in the toolbar, remembered on the device). Words follow
+  her symbolic grammar: a prepositional phrase shows each word with its own symbol (preposition, article, noun),
+  "will run" is two verbs, and punctuation is its own gray icon (a title's period, as in Dr. Lee, stays in the name).
+  The word book's words are bubbles too, and the Symbolic Grammar Engine checks each one: a word its dictionary says
+  can't do that symbol's job is left out.
+- **Drag and drop.** A whole word (or a whole phrase) drags as one piece, from its symbol or its bubble. A symbol
+  dragged from the menu goes into any gap of a premade sentence and arrives with a word that fits. Words found with
+  the Grammar Symbols search drag too: onto a word with the same symbol to swap it, or between two words to add it.
+  The drop spot follows the pointer's line when a sentence wraps, and the page scrolls near its top and bottom.
+- **More words.** Nouns: pig, cow, horse, duck, mouse, bear, lion, owl, monkey, snake, man, woman, baby, teacher,
+  friend, banana, cookie, pizza, carrot, egg, car, kite, hat, drum, rock. Names: Ana, Leo, Ben, Grace, Rex, Kiki,
+  Daisy, Ollie, Coco. Verbs: hop, skip, crawl, spin, wave, smile, wiggle, clap, yawn, sneeze, shout, moo, oink,
+  quack, neigh, roar, hoot, squeak, hiss, growl, follow, see, pet. Adjectives: huge, little, orange, white, black,
+  brown, excited, tired, funny, grumpy, cheerful, brave, dirty, sparkly, speedy. Adverbs: softly, gently, lazily,
+  wildly, noisily, calmly, bravely, now, soon, later, extremely, quite. Places: farm, garden, school, cave.
+  Interjections: Yikes, Whoa, Hey, Ouch, Phew, Oh no.
+- **New pictures.** Every new character, thing and place is pixel art drawn in `src/lib/story/render.ts` (no outside
+  images), and every new verb, adjective and adverb shows in the video (spin, wave "Hi!", animal sounds, mud spots
+  for dirty, and so on).

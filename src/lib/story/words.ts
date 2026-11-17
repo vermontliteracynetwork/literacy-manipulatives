@@ -5,12 +5,17 @@ export type Tense = 'past' | 'present' | 'future';
 
 export type LookId =
   | 'dog' | 'cat' | 'bird' | 'frog' | 'fish' | 'rabbit' | 'turtle' | 'robot' | 'girl' | 'boy' | 'me' | 'you'
-  | 'ball' | 'apple' | 'cake' | 'box' | 'book' | 'flower';
+  | 'ball' | 'apple' | 'cake' | 'box' | 'book' | 'flower'
+  // Added 2026-11-17 (her request: more words, with their pictures)
+  | 'pig' | 'cow' | 'horse' | 'duck' | 'mouse' | 'bear' | 'lion' | 'owl' | 'monkey' | 'snake' | 'man' | 'woman' | 'baby'
+  | 'banana' | 'cookie' | 'pizza' | 'carrot' | 'egg' | 'car' | 'kite' | 'hat' | 'drum' | 'rock';
 
 export type VerbId =
   | 'run' | 'walk' | 'jump' | 'swim' | 'fly' | 'roll' | 'bounce' | 'dance' | 'sleep' | 'sit' | 'hide'
   | 'sing' | 'bark' | 'meow' | 'croak' | 'beep' | 'laugh' | 'cry' | 'fall'
-  | 'chase' | 'kick' | 'eat' | 'hug' | 'find' | 'push';
+  | 'chase' | 'kick' | 'eat' | 'hug' | 'find' | 'push'
+  | 'hop' | 'skip' | 'crawl' | 'spin' | 'wave' | 'smile' | 'wiggle' | 'clap' | 'yawn' | 'sneeze' | 'shout'
+  | 'moo' | 'oink' | 'quack' | 'neigh' | 'roar' | 'hoot' | 'squeak' | 'hiss' | 'growl' | 'follow' | 'see' | 'pet';
 
 export type Pron3 = 'he' | 'she' | 'it';
 
@@ -33,6 +38,31 @@ export const NOUNS: NounDef[] = [
   { id: 'box', sing: 'box', plural: 'boxes', look: 'box', kind: 'thing', pron: 'it' },
   { id: 'book', sing: 'book', plural: 'books', look: 'book', kind: 'thing', pron: 'it' },
   { id: 'flower', sing: 'flower', plural: 'flowers', look: 'flower', kind: 'thing', pron: 'it' },
+  { id: 'pig', sing: 'pig', plural: 'pigs', look: 'pig', kind: 'animal', pron: 'it' },
+  { id: 'cow', sing: 'cow', plural: 'cows', look: 'cow', kind: 'animal', pron: 'it' },
+  { id: 'horse', sing: 'horse', plural: 'horses', look: 'horse', kind: 'animal', pron: 'it' },
+  { id: 'duck', sing: 'duck', plural: 'ducks', look: 'duck', kind: 'animal', pron: 'it' },
+  { id: 'mouse', sing: 'mouse', plural: 'mice', look: 'mouse', kind: 'animal', pron: 'it' },
+  { id: 'bear', sing: 'bear', plural: 'bears', look: 'bear', kind: 'animal', pron: 'it' },
+  { id: 'lion', sing: 'lion', plural: 'lions', look: 'lion', kind: 'animal', pron: 'it' },
+  { id: 'owl', sing: 'owl', plural: 'owls', look: 'owl', kind: 'animal', pron: 'it' },
+  { id: 'monkey', sing: 'monkey', plural: 'monkeys', look: 'monkey', kind: 'animal', pron: 'it' },
+  { id: 'snake', sing: 'snake', plural: 'snakes', look: 'snake', kind: 'animal', pron: 'it' },
+  { id: 'man', sing: 'man', plural: 'men', look: 'man', kind: 'person', pron: 'he' },
+  { id: 'woman', sing: 'woman', plural: 'women', look: 'woman', kind: 'person', pron: 'she' },
+  { id: 'baby', sing: 'baby', plural: 'babies', look: 'baby', kind: 'person', pron: 'it' },
+  { id: 'teacher', sing: 'teacher', plural: 'teachers', look: 'woman', kind: 'person', pron: 'she' },
+  { id: 'friend', sing: 'friend', plural: 'friends', look: 'boy', kind: 'person', pron: 'he' },
+  { id: 'banana', sing: 'banana', plural: 'bananas', look: 'banana', kind: 'thing', pron: 'it', food: true },
+  { id: 'cookie', sing: 'cookie', plural: 'cookies', look: 'cookie', kind: 'thing', pron: 'it', food: true },
+  { id: 'pizza', sing: 'pizza', plural: 'pizzas', look: 'pizza', kind: 'thing', pron: 'it', food: true },
+  { id: 'carrot', sing: 'carrot', plural: 'carrots', look: 'carrot', kind: 'thing', pron: 'it', food: true },
+  { id: 'egg', sing: 'egg', plural: 'eggs', look: 'egg', kind: 'thing', pron: 'it', food: true },
+  { id: 'car', sing: 'car', plural: 'cars', look: 'car', kind: 'thing', pron: 'it' },
+  { id: 'kite', sing: 'kite', plural: 'kites', look: 'kite', kind: 'thing', pron: 'it' },
+  { id: 'hat', sing: 'hat', plural: 'hats', look: 'hat', kind: 'thing', pron: 'it' },
+  { id: 'drum', sing: 'drum', plural: 'drums', look: 'drum', kind: 'thing', pron: 'it' },
+  { id: 'rock', sing: 'rock', plural: 'rocks', look: 'rock', kind: 'thing', pron: 'it' },
 ];
 
 export interface NameDef { id: string; look: LookId; pron: Pron3 }
@@ -43,6 +73,15 @@ export const NAMES: NameDef[] = [
   { id: 'Luna', look: 'cat', pron: 'she' },
   { id: 'Pip', look: 'bird', pron: 'she' },
   { id: 'Bolt', look: 'robot', pron: 'it' },
+  { id: 'Ana', look: 'girl', pron: 'she' },
+  { id: 'Leo', look: 'boy', pron: 'he' },
+  { id: 'Ben', look: 'man', pron: 'he' },
+  { id: 'Grace', look: 'woman', pron: 'she' },
+  { id: 'Rex', look: 'dog', pron: 'he' },
+  { id: 'Kiki', look: 'monkey', pron: 'she' },
+  { id: 'Daisy', look: 'cow', pron: 'she' },
+  { id: 'Ollie', look: 'owl', pron: 'he' },
+  { id: 'Coco', look: 'bear', pron: 'she' },
   // Titles keep their period (her request 2026-11-17): the period after Dr., Mr., Ms. or Mrs. is part of the name,
   // not the end of the sentence.
   { id: 'Dr. Lee', look: 'you', pron: 'she' },
@@ -67,10 +106,12 @@ export const PRONOUNS: PronounDef[] = [
 ];
 
 export type Motion = 'loco' | 'static' | 'sound' | 'object' | 'fall';
-export type ObjectRule = 'living' | 'food' | 'kickable' | 'chaseable' | 'any';
+export type ObjectRule = 'living' | 'animal' | 'food' | 'kickable' | 'chaseable' | 'any';
 export interface VerbDef {
   id: VerbId; base: string; third: string; past: string; ing: string;
   trans: 'no' | 'yes' | 'opt'; motion: Motion; sound?: string; objects?: ObjectRule;
+  /** Moves in the video like this other verb (follow moves like chase). */
+  anim?: VerbId;
 }
 
 export const VERBS: VerbDef[] = [
@@ -99,27 +140,72 @@ export const VERBS: VerbDef[] = [
   { id: 'hug', base: 'hug', third: 'hugs', past: 'hugged', ing: 'hugging', trans: 'yes', motion: 'object', objects: 'living' },
   { id: 'find', base: 'find', third: 'finds', past: 'found', ing: 'finding', trans: 'yes', motion: 'object', objects: 'any' },
   { id: 'push', base: 'push', third: 'pushes', past: 'pushed', ing: 'pushing', trans: 'yes', motion: 'object', objects: 'kickable' },
+  { id: 'hop', base: 'hop', third: 'hops', past: 'hopped', ing: 'hopping', trans: 'no', motion: 'loco', anim: 'jump' },
+  { id: 'skip', base: 'skip', third: 'skips', past: 'skipped', ing: 'skipping', trans: 'no', motion: 'loco', anim: 'bounce' },
+  { id: 'crawl', base: 'crawl', third: 'crawls', past: 'crawled', ing: 'crawling', trans: 'no', motion: 'loco' },
+  { id: 'spin', base: 'spin', third: 'spins', past: 'spun', ing: 'spinning', trans: 'no', motion: 'static' },
+  { id: 'wave', base: 'wave', third: 'waves', past: 'waved', ing: 'waving', trans: 'no', motion: 'static' },
+  { id: 'smile', base: 'smile', third: 'smiles', past: 'smiled', ing: 'smiling', trans: 'no', motion: 'static' },
+  { id: 'wiggle', base: 'wiggle', third: 'wiggles', past: 'wiggled', ing: 'wiggling', trans: 'no', motion: 'static' },
+  { id: 'clap', base: 'clap', third: 'claps', past: 'clapped', ing: 'clapping', trans: 'no', motion: 'sound', sound: 'Clap clap!' },
+  { id: 'yawn', base: 'yawn', third: 'yawns', past: 'yawned', ing: 'yawning', trans: 'no', motion: 'sound', sound: 'Yaaawn!' },
+  { id: 'sneeze', base: 'sneeze', third: 'sneezes', past: 'sneezed', ing: 'sneezing', trans: 'no', motion: 'sound', sound: 'Achoo!' },
+  { id: 'shout', base: 'shout', third: 'shouts', past: 'shouted', ing: 'shouting', trans: 'no', motion: 'sound', sound: 'Hey!' },
+  { id: 'moo', base: 'moo', third: 'moos', past: 'mooed', ing: 'mooing', trans: 'no', motion: 'sound', sound: 'Moo!' },
+  { id: 'oink', base: 'oink', third: 'oinks', past: 'oinked', ing: 'oinking', trans: 'no', motion: 'sound', sound: 'Oink!' },
+  { id: 'quack', base: 'quack', third: 'quacks', past: 'quacked', ing: 'quacking', trans: 'no', motion: 'sound', sound: 'Quack!' },
+  { id: 'neigh', base: 'neigh', third: 'neighs', past: 'neighed', ing: 'neighing', trans: 'no', motion: 'sound', sound: 'Neigh!' },
+  { id: 'roar', base: 'roar', third: 'roars', past: 'roared', ing: 'roaring', trans: 'no', motion: 'sound', sound: 'ROAR!' },
+  { id: 'hoot', base: 'hoot', third: 'hoots', past: 'hooted', ing: 'hooting', trans: 'no', motion: 'sound', sound: 'Hoo hoo!' },
+  { id: 'squeak', base: 'squeak', third: 'squeaks', past: 'squeaked', ing: 'squeaking', trans: 'no', motion: 'sound', sound: 'Squeak!' },
+  { id: 'hiss', base: 'hiss', third: 'hisses', past: 'hissed', ing: 'hissing', trans: 'no', motion: 'sound', sound: 'Hisss!' },
+  { id: 'growl', base: 'growl', third: 'growls', past: 'growled', ing: 'growling', trans: 'no', motion: 'sound', sound: 'Grrr!' },
+  { id: 'follow', base: 'follow', third: 'follows', past: 'followed', ing: 'following', trans: 'yes', motion: 'object', objects: 'chaseable', anim: 'chase' },
+  { id: 'see', base: 'see', third: 'sees', past: 'saw', ing: 'seeing', trans: 'yes', motion: 'object', objects: 'any', anim: 'find' },
+  { id: 'pet', base: 'pet', third: 'pets', past: 'petted', ing: 'petting', trans: 'yes', motion: 'object', objects: 'animal', anim: 'hug' },
 ];
 
-const PERSON: VerbId[] = ['run', 'walk', 'jump', 'swim', 'dance', 'sit', 'sleep', 'hide', 'sing', 'laugh', 'cry', 'chase', 'kick', 'eat', 'hug', 'find', 'push', 'fall', 'roll'];
+const PERSON: VerbId[] = [
+  'run', 'walk', 'jump', 'swim', 'dance', 'sit', 'sleep', 'hide', 'sing', 'laugh', 'cry', 'chase', 'kick', 'eat', 'hug', 'find', 'push', 'fall', 'roll',
+  'hop', 'skip', 'crawl', 'spin', 'wave', 'smile', 'wiggle', 'clap', 'yawn', 'sneeze', 'shout', 'follow', 'see', 'pet',
+];
 
 /** What each look can do in the video. A sentence asking for anything else is not recognized. */
 export const ABILITIES: Record<LookId, VerbId[]> = {
-  dog: ['run', 'walk', 'jump', 'swim', 'sit', 'sleep', 'dance', 'hide', 'bark', 'chase', 'kick', 'eat', 'hug', 'find', 'push', 'roll', 'fall'],
-  cat: ['run', 'walk', 'jump', 'sit', 'sleep', 'hide', 'meow', 'chase', 'eat', 'find', 'push', 'roll', 'fall', 'dance'],
-  bird: ['fly', 'walk', 'jump', 'sing', 'sleep', 'eat', 'find', 'hide', 'sit', 'fall'],
-  frog: ['jump', 'swim', 'croak', 'sit', 'sleep', 'eat', 'hide', 'fall'],
-  fish: ['swim', 'sleep', 'eat', 'hide'],
-  rabbit: ['run', 'walk', 'jump', 'sit', 'sleep', 'hide', 'eat', 'dance', 'find', 'hug', 'fall'],
-  turtle: ['walk', 'swim', 'sleep', 'hide', 'eat', 'sit'],
-  robot: ['walk', 'run', 'roll', 'dance', 'beep', 'sit', 'find', 'push', 'kick', 'fall', 'hug', 'sleep', 'jump'],
-  girl: PERSON, boy: PERSON, me: PERSON, you: PERSON,
+  dog: ['run', 'walk', 'jump', 'swim', 'sit', 'sleep', 'dance', 'hide', 'bark', 'chase', 'kick', 'eat', 'hug', 'find', 'push', 'roll', 'fall', 'hop', 'crawl', 'wiggle', 'growl', 'yawn', 'sneeze', 'follow', 'see', 'spin'],
+  cat: ['run', 'walk', 'jump', 'sit', 'sleep', 'hide', 'meow', 'chase', 'eat', 'find', 'push', 'roll', 'fall', 'dance', 'crawl', 'hiss', 'yawn', 'follow', 'see', 'spin'],
+  bird: ['fly', 'walk', 'jump', 'sing', 'sleep', 'eat', 'find', 'hide', 'sit', 'fall', 'hop', 'see', 'follow'],
+  frog: ['jump', 'swim', 'croak', 'sit', 'sleep', 'eat', 'hide', 'fall', 'hop', 'see'],
+  fish: ['swim', 'sleep', 'eat', 'hide', 'see', 'wiggle'],
+  rabbit: ['run', 'walk', 'jump', 'sit', 'sleep', 'hide', 'eat', 'dance', 'find', 'hug', 'fall', 'hop', 'wiggle', 'see', 'follow', 'squeak'],
+  turtle: ['walk', 'swim', 'sleep', 'hide', 'eat', 'sit', 'crawl', 'see', 'yawn'],
+  robot: ['walk', 'run', 'roll', 'dance', 'beep', 'sit', 'find', 'push', 'kick', 'fall', 'hug', 'sleep', 'jump', 'spin', 'wave', 'follow', 'see', 'clap'],
+  girl: PERSON, boy: PERSON, me: PERSON, you: PERSON, man: PERSON, woman: PERSON,
+  baby: ['crawl', 'laugh', 'cry', 'sleep', 'sit', 'smile', 'wave', 'clap', 'yawn', 'sneeze', 'roll', 'see', 'hug', 'eat', 'wiggle', 'fall', 'find', 'pet'],
+  pig: ['run', 'walk', 'sit', 'sleep', 'eat', 'oink', 'roll', 'hide', 'find', 'see', 'follow', 'fall', 'dance', 'wiggle', 'swim'],
+  cow: ['walk', 'run', 'sit', 'sleep', 'eat', 'moo', 'see', 'follow', 'fall', 'jump'],
+  horse: ['run', 'walk', 'jump', 'sleep', 'eat', 'neigh', 'see', 'follow', 'fall', 'hop'],
+  duck: ['walk', 'swim', 'fly', 'quack', 'sleep', 'eat', 'hide', 'see', 'follow', 'fall', 'wiggle', 'find'],
+  mouse: ['run', 'walk', 'hide', 'squeak', 'eat', 'sleep', 'find', 'see', 'crawl', 'fall', 'sit', 'hop', 'follow'],
+  bear: ['walk', 'run', 'sit', 'sleep', 'eat', 'growl', 'roar', 'hug', 'dance', 'swim', 'find', 'see', 'fall', 'wave', 'yawn', 'follow', 'chase'],
+  lion: ['run', 'walk', 'jump', 'sleep', 'roar', 'chase', 'eat', 'sit', 'see', 'follow', 'fall', 'yawn', 'growl', 'hide'],
+  owl: ['fly', 'hoot', 'sleep', 'sit', 'see', 'find', 'eat', 'hide', 'fall', 'spin'],
+  monkey: ['run', 'jump', 'hop', 'dance', 'laugh', 'eat', 'hide', 'find', 'see', 'wave', 'clap', 'spin', 'sit', 'sleep', 'fall', 'walk', 'hug', 'follow', 'chase', 'roll'],
+  snake: ['crawl', 'hiss', 'hide', 'sleep', 'swim', 'see', 'find', 'eat', 'wiggle', 'follow'],
   ball: ['roll', 'bounce', 'fall'],
   apple: ['roll', 'fall'],
   cake: ['fall'], box: ['fall'], book: ['fall'], flower: ['fall'],
+  banana: ['fall'], cookie: ['fall', 'roll'], pizza: ['fall'], carrot: ['fall', 'roll'], egg: ['fall', 'roll'],
+  car: ['roll', 'fall'], kite: ['fly', 'fall', 'spin'], hat: ['fall', 'fly'], drum: ['fall', 'roll'], rock: ['roll', 'fall', 'bounce'],
 };
 
-export const LIVING: LookId[] = ['dog', 'cat', 'bird', 'frog', 'fish', 'rabbit', 'turtle', 'robot', 'girl', 'boy', 'me', 'you'];
+export const ANIMALS: LookId[] = ['dog', 'cat', 'bird', 'frog', 'fish', 'rabbit', 'turtle', 'pig', 'cow', 'horse', 'duck', 'mouse', 'bear', 'lion', 'owl', 'monkey', 'snake'];
+export const PEOPLE: LookId[] = ['girl', 'boy', 'me', 'you', 'man', 'woman', 'baby'];
+export const LIVING: LookId[] = [...ANIMALS, ...PEOPLE, 'robot'];
+/** Things you can kick or push. */
+export const KICKABLE: LookId[] = ['ball', 'box', 'apple', 'rock', 'hat', 'drum'];
+/** Round things that turn over as they roll. */
+export const ROUND: LookId[] = ['ball', 'apple', 'rock', 'egg', 'cookie', 'drum'];
 
 export type AdjKind = 'size' | 'color' | 'feeling' | 'state' | 'speed';
 export interface AdjDef { id: string; kind: AdjKind }
@@ -131,6 +217,11 @@ export const ADJECTIVES: AdjDef[] = [
   { id: 'scared', kind: 'feeling' }, { id: 'silly', kind: 'feeling' }, { id: 'hungry', kind: 'feeling' },
   { id: 'wet', kind: 'state' }, { id: 'cold', kind: 'state' }, { id: 'hot', kind: 'state' }, { id: 'shiny', kind: 'state' },
   { id: 'fast', kind: 'speed' }, { id: 'slow', kind: 'speed' },
+  { id: 'huge', kind: 'size' }, { id: 'little', kind: 'size' },
+  { id: 'orange', kind: 'color' }, { id: 'white', kind: 'color' }, { id: 'black', kind: 'color' }, { id: 'brown', kind: 'color' },
+  { id: 'excited', kind: 'feeling' }, { id: 'tired', kind: 'feeling' }, { id: 'funny', kind: 'feeling' }, { id: 'grumpy', kind: 'feeling' },
+  { id: 'cheerful', kind: 'feeling' }, { id: 'brave', kind: 'feeling' },
+  { id: 'dirty', kind: 'state' }, { id: 'sparkly', kind: 'state' }, { id: 'speedy', kind: 'speed' },
 ];
 
 export type AdvKind = 'manner' | 'intensifier' | 'time' | 'direction';
@@ -141,6 +232,10 @@ export const ADVERBS: AdvDef[] = [
   { id: 'away', kind: 'direction' }, { id: 'around', kind: 'direction' },
   { id: 'yesterday', kind: 'time', tense: 'past' }, { id: 'today', kind: 'time' }, { id: 'tomorrow', kind: 'time', tense: 'future' },
   { id: 'very', kind: 'intensifier' }, { id: 'so', kind: 'intensifier' }, { id: 'too', kind: 'intensifier' }, { id: 'really', kind: 'intensifier' },
+  { id: 'softly', kind: 'manner' }, { id: 'gently', kind: 'manner' }, { id: 'lazily', kind: 'manner' }, { id: 'wildly', kind: 'manner' },
+  { id: 'noisily', kind: 'manner' }, { id: 'calmly', kind: 'manner' }, { id: 'bravely', kind: 'manner' },
+  { id: 'now', kind: 'time', tense: 'present' }, { id: 'soon', kind: 'time', tense: 'future' }, { id: 'later', kind: 'time', tense: 'future' },
+  { id: 'extremely', kind: 'intensifier' }, { id: 'quite', kind: 'intensifier' },
 ];
 
 export type PrepId = 'in' | 'into' | 'to' | 'on' | 'under' | 'near' | 'behind' | 'over' | 'across' | 'through' | 'up' | 'from' | 'with';
@@ -160,9 +255,13 @@ export const PLACES: PlaceDef[] = [
   { id: 'hill', preps: ['on', 'to', 'over', 'behind', 'near', 'up'] },
   { id: 'tree', preps: ['under', 'near', 'behind', 'to', 'up'] },
   { id: 'bridge', preps: ['under', 'over', 'on', 'across', 'to'] },
+  { id: 'farm', preps: ['on', 'to', 'near'] },
+  { id: 'garden', preps: ['in', 'into', 'to', 'near', 'through'] },
+  { id: 'school', preps: ['in', 'into', 'to', 'near', 'behind'] },
+  { id: 'cave', preps: ['in', 'into', 'to', 'near'] },
 ];
 
-export const INTERJECTIONS = ['Wow', 'Yay', 'Oops', 'Boom', 'Crash', 'Splash', 'Uh-oh', 'Hooray'];
+export const INTERJECTIONS = ['Wow', 'Yay', 'Oops', 'Boom', 'Crash', 'Splash', 'Uh-oh', 'Hooray', 'Yikes', 'Whoa', 'Hey', 'Ouch', 'Phew', 'Oh no'];
 export const CONJUNCTIONS = ['and', 'but', 'so', 'because'];
 
 export const nounById = (id: string) => NOUNS.find((n) => n.id === id);

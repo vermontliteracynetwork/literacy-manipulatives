@@ -8,7 +8,8 @@ import {
   phraseChoices, rollAll, rollToken, storyFormulas, uid,
   type Analysis, type Kind, type SentenceState, type StoryContext, type StoryFormula, type Token, type WordHit,
 } from '../../lib/story/grammar';
-import { jobsOfWord, loadEngine } from '../../lib/grammarEngine';
+import { fitsJob, jobsOfWord, loadEngine } from '../../lib/grammarEngine';
+import { BUBBLE_BLACK, BUBBLE_WHITE, textOn, type BubbleStyle } from '../../lib/wordBubbles';
 import { drawExportFrame, drawScene, EXPORT_H, EXPORT_W, HI, makeClip, SH, SW, WIDE, wordAt, type Assets, type Clip } from '../../lib/story/render';
 import type { Tense } from '../../lib/story/words';
 import './storyMaker.css';
@@ -25,8 +26,10 @@ type DragItem =
   | { type: 'formula'; f: StoryFormula }
   | { type: 'slot'; row: number; index: number }
   | { type: 'tense'; tense: Tense }
-  | { type: 'line'; row: number };
-type Target = { row: number | 'new'; at: number } | { lines: number } | null;
+  | { type: 'line'; row: number }
+  | { type: 'word'; hit: WordHit };
+/** Where a drag lands: a gap in a sentence (at), or right on a word (onto) to swap that word. */
+type Target = { row: number | 'new'; at: number; onto?: number } | { lines: number } | null;
 interface DragState { item: DragItem; label: string; img?: string; x: number; y: number; target: Target }
 
 const TENSES: Tense[] = ['past', 'present', 'future'];
@@ -123,9 +126,39 @@ const CLASS_KIND: Partial<Record<SymbolWordClass, Kind>> = {
 
 const PER_PAGE = 12;
 
+/** A word bubble's colors, the same as the whiteboard's: outline (white inside, black words) or solid (the symbol's
+ *  color inside, black or white words, whichever reads better). */
+function pillStyle(color: string, style: BubbleStyle): React.CSSProperties {
+  return style === 'solid' ? { borderColor: color, background: color, color: textOn(color) } : { borderColor: color, background: BUBBLE_WHITE, color: BUBBLE_BLACK };
+}
+
+/** One bubble on the page: a word, its symbol, and any tense mark. */
+interface Bubble { text: string; cls: SymbolWordClass; tense?: Tense; blank: boolean }
+
+/** The bubbles for one slot of the sentence, read with her symbolic grammar: a prepositional phrase shows each of its
+ *  words with its own symbol (preposition, article, noun), "will run" is two verbs, and punctuation comes off the
+ *  word into its own gray icon (a title's period, as in Dr. Lee, stays in the name). */
+function bubblesFor(a: Analysis, idx: number, kind: Kind): { bubbles: Bubble[]; marks: string[] } {
+  const bubbles: Bubble[] = [];
+  const marks: string[] = [];
+  for (const w of a.words) {
+    if (w.idx !== idx || !w.text) continue;
+    let text = w.text;
+    const m = /([.,!])$/.exec(text);
+    if (m && !/^(Dr|Mr|Ms|Mrs)\.$/.test(text)) { marks.push(m[1]); text = text.slice(0, -1); }
+    const blank = !!w.blank || text === '___';
+    if (blank) { bubbles.push({ text: '', cls: w.cls, blank: true }); continue; }
+    const parts = w.cls === 'verb' && kind !== 'propernoun' ? text.split(' ') : [text];
+    parts.forEach((p, k) => bubbles.push({ text: p, cls: w.cls, tense: k === 0 ? w.tense : undefined, blank: false }));
+  }
+  if (!bubbles.length) bubbles.push({ text: '', cls: KIND_CLASS[kind], blank: true });
+  return { bubbles, marks };
+}
+
 // The word book: every word that fits a blank, in ABC order, a page at a time.
-function WordBook({ st, idx, ctx, onPick, onRoll, onRemove, onClose }: {
-  st: SentenceState; idx: number; ctx: StoryContext; onPick: (patch: Partial<Token>) => void; onRoll: () => void; onRemove: () => void; onClose: () => void;
+function WordBook({ st, idx, ctx, engineOk, bubbleStyle, onPick, onRoll, onRemove, onClose }: {
+  st: SentenceState; idx: number; ctx: StoryContext; engineOk: boolean; bubbleStyle: BubbleStyle;
+  onPick: (patch: Partial<Token>) => void; onRoll: () => void; onRemove: () => void; onClose: () => void;
 }) {
   const tok = st.tokens[idx];
   const cls = KIND_CLASS[tok.kind];
@@ -135,8 +168,12 @@ function WordBook({ st, idx, ctx, onPick, onRoll, onRemove, onClose }: {
     const list = tok.kind === 'phrase'
       ? phraseChoices(st, idx, ctx).map((c) => ({ key: `${c.value}|${c.place}`, label: `${c.value} the ${c.place}`, patch: { value: c.value, place: c.place } as Partial<Token> }))
       : (tok.kind === 'conj' ? baseChoices('conj') : choicesFor(st, idx, ctx)).map((c) => ({ key: c.value, label: c.label, patch: { value: c.value } as Partial<Token> }));
-    return list.sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
-  }, [st, idx, ctx, tok.kind]);
+    // The Symbolic Grammar Engine checks every word: a word its dictionary says can't do this symbol's job is left out.
+    const checked = engineOk && tok.kind !== 'phrase' && tok.kind !== 'propernoun' && tok.kind !== 'interjection'
+      ? list.filter((i) => fitsJob(i.label.replace(/ \(.*\)$/, '').split(' ').pop() ?? '', cls) !== 'no')
+      : list;
+    return (checked.length ? checked : list).sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
+  }, [st, idx, ctx, tok.kind, engineOk, cls]);
   const needle = q.trim().toLowerCase();
   const shown = needle ? items.filter((i) => i.label.toLowerCase().includes(needle)) : items;
   const pages = Math.max(1, Math.ceil(shown.length / PER_PAGE));
@@ -174,7 +211,7 @@ function WordBook({ st, idx, ctx, onPick, onRoll, onRemove, onClose }: {
           <ul className="sm-page-words">
             {shown.slice(pg * PER_PAGE, pg * PER_PAGE + PER_PAGE).map((i) => (
               <li key={i.key}>
-                <button type="button" className={i.key === current ? 'on' : ''} onClick={() => onPick(i.patch)} style={{ ['--c' as string]: GRAMMAR_SYMBOL_INFO[cls].color }}>{i.label}</button>
+                <button type="button" className={`sm-pill${i.key === current ? ' on' : ''}`} onClick={() => onPick(i.patch)} style={pillStyle(GRAMMAR_SYMBOL_INFO[cls].color, bubbleStyle)}>{i.label}</button>
               </li>
             ))}
             {!shown.length && (
@@ -217,6 +254,8 @@ export function StoryMaker() {
   const [recError, setRecError] = useState('');
   const [drag, setDrag] = useState<DragState | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [bubbleStyle, setBubbleStyle] = useState<BubbleStyle>(() => { try { return localStorage.getItem('sm-bubble') === 'solid' ? 'solid' : 'outline'; } catch { return 'outline'; } });
+  useEffect(() => { try { localStorage.setItem('sm-bubble', bubbleStyle); } catch { /* not remembered */ } }, [bubbleStyle]);
   const [caption, setCaption] = useState<{ key: string; active: number }>({ key: '', active: -1 });
 
   const act = Math.min(active, rows.length - 1);
@@ -356,7 +395,20 @@ export function StoryMaker() {
     if (!rows[last]?.s.tokens.length) { const ctx = data[last]?.before ?? EMPTY_CONTEXT; updateRow(last, () => exampleFill(f, ctx)); setActive(last); }
     else { const ctx = data[last]?.after ?? EMPTY_CONTEXT; addRowWith(() => exampleFill(f, ctx)); }
   };
-  const tapKind = (kind: Kind) => updateRow(act, (s) => insertToken(s, kind, s.tokens.length));
+  // A symbol dropped or tapped into a sentence comes with a word that fits the rest of it, ready to change.
+  const insertFilled = (s: SentenceState, kind: Kind, at: number, ctx: StoryContext): SentenceState => {
+    const next = insertToken(s, kind, at);
+    return needsPick(kind) && kind !== 'conj' ? rollToken(next, at, ctx) : next;
+  };
+  const tapKind = (kind: Kind) => updateRow(act, (s) => insertFilled(s, kind, s.tokens.length, data[act]?.before ?? EMPTY_CONTEXT));
+  /** A word from the word search: swaps the word it lands on (same symbol), fills a blank, or goes in at the gap. */
+  const placeWord = (s: SentenceState, h: WordHit, at: number, onto?: number): SentenceState => {
+    const tense = h.tense ?? s.tense;
+    if (onto !== undefined && s.tokens[onto]?.kind === h.kind) return { ...s, tense, tokens: s.tokens.map((x, j) => (j === onto ? { ...x, value: h.value } : x)) };
+    const tokens = [...s.tokens];
+    tokens.splice(at, 0, { id: uid(), kind: h.kind, value: h.value });
+    return { ...s, tense, tokens };
+  };
   const moveSlot = (from: { row: number; index: number }, to: { row: number; at: number }) => setRows((rs) => {
     const next = rs.map((r) => ({ ...r, s: { ...r.s, tokens: [...r.s.tokens] } }));
     const [tok] = next[from.row].s.tokens.splice(from.index, 1);
@@ -379,6 +431,7 @@ export function StoryMaker() {
   const rowEls = useRef<(HTMLLIElement | null)[]>([]);
   const slotEls = useRef(new Map<string, HTMLElement>());
   const newZone = useRef<HTMLDivElement>(null);
+  const docRef = useRef<HTMLElement>(null);
   const justDragged = useRef(false);
 
   const hitTest = useCallback((x: number, y: number, item: DragItem): Target => {
@@ -397,15 +450,19 @@ export function StoryMaker() {
     if (r < 0) return inside(newZone.current) && item.type !== 'tense' ? { row: 'new', at: 0 } : null;
     const n = rows[r].s.tokens.length;
     let best = { d: Infinity, at: n };
+    let onto: number | undefined;
     for (let i = 0; i < n; i++) {
       const el = slotEls.current.get(`${r}:${i}`);
       if (!el) continue;
       const b = el.getBoundingClientRect();
       const cx = b.left + b.width / 2;
-      const d = Math.abs(y - (b.top + b.height / 2)) * 3 + Math.abs(x - cx);
+      if (inside(el)) onto = i;
+      // Words on the same line as the pointer win, so a sentence that wraps still drops where the pointer is.
+      const dy = y < b.top ? b.top - y : y > b.bottom ? y - b.bottom : 0;
+      const d = dy * 4 + Math.abs(x - cx);
       if (d < best.d) best = { d, at: x < cx ? i : i + 1 };
     }
-    return { row: r, at: best.at };
+    return { row: r, at: best.at, onto };
   }, [rows]);
 
   const ctxAt = (r: number) => data[r]?.before ?? data[data.length - 1]?.after ?? EMPTY_CONTEXT;
@@ -425,7 +482,8 @@ export function StoryMaker() {
         if (lastEmpty >= 0) { updateRow(lastEmpty, fn); setActive(lastEmpty); } else addRowWith(fn);
       };
       if (item.type === 'formula') put(() => exampleFill(item.f, ctxAt(lastEmpty >= 0 ? lastEmpty : rows.length)));
-      else if (item.type === 'kind') put((s) => insertToken(s, item.kind, 0));
+      else if (item.type === 'kind') put((s) => insertFilled(s, item.kind, 0, ctxAt(lastEmpty >= 0 ? lastEmpty : rows.length)));
+      else if (item.type === 'word') put((s) => placeWord(s, item.hit, 0));
       else if (item.type === 'slot') {
         const tok = rows[item.row].s.tokens[item.index];
         setRows((rs) => [...rs.map((r, i) => (i === item.row ? { ...r, s: { ...r.s, tokens: r.s.tokens.filter((_, j) => j !== item.index) } } : r)), { ...newRow(), s: { tokens: [tok], tense: 'past', contract: false } }]);
@@ -436,7 +494,8 @@ export function StoryMaker() {
     const r = target.row;
     setActive(r);
     if (item.type === 'formula') updateRow(r, () => exampleFill(item.f, ctxAt(r)));
-    else if (item.type === 'kind') updateRow(r, (s) => insertToken(s, item.kind, target.at));
+    else if (item.type === 'kind') updateRow(r, (s) => insertFilled(s, item.kind, target.at, ctxAt(r)));
+    else if (item.type === 'word') updateRow(r, (s) => placeWord(s, item.hit, target.at, target.onto));
     else if (item.type === 'tense') updateRow(r, (s) => ({ ...s, tense: item.tense }));
     else if (item.type === 'slot' && !(item.row === r && (target.at === item.index || target.at === item.index + 1))) moveSlot(item, { row: r, at: target.at });
   };
@@ -453,6 +512,15 @@ export function StoryMaker() {
         started = true;
       }
       setDrag({ item, label, img, x: ev.clientX, y: ev.clientY, target: hitTest(ev.clientX, ev.clientY, item) });
+      // Near the top or bottom of the page, the page scrolls so any sentence can be reached.
+      const doc = docRef.current;
+      if (doc) {
+        const b = doc.getBoundingClientRect();
+        if (ev.clientX > b.left && ev.clientX < b.right) {
+          if (ev.clientY < b.top + 48) doc.scrollBy(0, -12);
+          else if (ev.clientY > b.bottom - 48) doc.scrollBy(0, 12);
+        }
+      }
     };
     const up = (ev: PointerEvent) => {
       cleanup();
@@ -531,6 +599,14 @@ export function StoryMaker() {
         <button type="button" className="btn btn-sm" onClick={() => setSidebarOpen((v) => !v)} aria-label={sidebarOpen ? 'Hide materials' : 'Show materials'}>{sidebarOpen ? '⟨⟨' : '⟩⟩'}</button>
         <span className="lm-toolbar-divider" />
         <button type="button" className="btn btn-sm" aria-haspopup="dialog" onClick={() => setShowHelp(true)}>How it works</button>
+        <span className="lm-bubble-toggle sm-bubble-toggle" role="radiogroup" aria-label="Word bubbles">
+          <span>Word bubbles:</span>
+          {(['outline', 'solid'] as const).map((v) => (
+            <button key={v} type="button" role="radio" aria-checked={bubbleStyle === v} aria-label={v === 'outline' ? 'Outline bubbles' : 'Solid bubbles'} title={v === 'outline' ? 'Outline' : 'Solid'} className={bubbleStyle === v ? 'on' : ''} onClick={() => setBubbleStyle(v)}>
+              <i className={`lm-bubble-swatch ${v}`} aria-hidden="true" />
+            </button>
+          ))}
+        </span>
         <span className="sm-grow" />
         <button type="button" className="btn btn-sm btn-primary" onClick={play} disabled={!playlist.length || !!rec}>
           {playing ? '■ Stop' : playlist.length > 1 ? '▶ Play story' : '▶ Play'}
@@ -598,7 +674,14 @@ export function StoryMaker() {
               {wq.trim() ? (
                 <div className="sm-hits">
                   {hits.map((h, k) => (
-                    <button key={`${h.kind}|${h.value}|${h.label}|${k}`} type="button" className="sm-hit" onClick={() => addHit(h)} title={`Add ${h.label} to sentence ${act + 1}`}>
+                    <button
+                      key={`${h.kind}|${h.value}|${h.label}|${k}`}
+                      type="button"
+                      className="sm-hit sm-hit-drag"
+                      onPointerDown={startDrag({ type: 'word', hit: h }, h.label, symbolUrl(KIND_CLASS[h.kind]))}
+                      onClick={tap(() => addHit(h))}
+                      title={`Drag ${h.label} into a sentence, or click to add it to sentence ${act + 1}`}
+                    >
                       <img src={symbolUrl(KIND_CLASS[h.kind])} alt="" draggable={false} />
                       <strong>{h.label}</strong>
                       <small>{KIND_LABEL[h.kind].split(' (')[0]}</small>
@@ -657,7 +740,7 @@ export function StoryMaker() {
             <span />
           </div>
 
-          <section className="sm-doc" aria-label="My story">
+          <section className="sm-doc" aria-label="My story" ref={docRef}>
             <ol className="sm-lines">
               {data.map((d, r) => {
                 const s = d.row.s;
@@ -686,41 +769,49 @@ export function StoryMaker() {
                     >⠿</button>
                     <div className="sm-words">
                       {s.tokens.map((tok, i) => {
-                        const cls = KIND_CLASS[tok.kind];
-                        const ws = a.words.filter((w) => w.idx === i);
-                        const wordTense = ws.find((w) => w.tense)?.tense;
                         const label = `Sentence ${r + 1}, ${KIND_LABEL[tok.kind]} ${i + 1}`;
-                        const color = GRAMMAR_SYMBOL_INFO[cls].color;
-                        const punct = ws.length ? (ws[ws.length - 1].text.match(/[.,!]$/)?.[0] ?? '') : '';
-                        const capFirst = ws[0]?.text && /^[A-Z]/.test(ws[0].text);
-                        const unfilled = needsPick(tok.kind) && (!tok.value || (tok.kind === 'phrase' && !tok.place));
-                        const shown = unfilled ? '' : ws.filter((w) => w.text).map((w) => w.text.replace(/[.,!]$/, '')).join(' ');
+                        const pick = needsPick(tok.kind);
+                        const { bubbles, marks } = bubblesFor(a, i, tok.kind);
+                        const said = bubbles.map((b) => b.text).filter(Boolean).join(' ');
+                        const onto = over && over.onto === i && drag?.item.type === 'word' && drag.item.hit.kind === tok.kind;
+                        const openBook = () => { setActive(r); setPicker({ row: r, index: i }); };
                         return (
                           <span key={tok.id} className="sm-wwrap">
-                            {over && over.at === i && drag?.item.type !== 'formula' && drag?.item.type !== 'tense' && <span className="sm-caret" aria-hidden="true" />}
-                            <span ref={(el) => { if (el) slotEls.current.set(`${r}:${i}`, el); else slotEls.current.delete(`${r}:${i}`); }} className={`sm-w${needsPick(tok.kind) && (!tok.value || (tok.kind === 'phrase' && !tok.place)) ? ' blank' : ''}`} style={{ ['--c' as string]: color }}>
-                              <span
-                                className="sm-sym"
-                                role="button"
-                                tabIndex={-1}
-                                onPointerDown={startDrag({ type: 'slot', row: r, index: i }, KIND_LABEL[tok.kind], symbolUrl(cls))}
-                                title={GRAMMAR_SYMBOL_INFO[cls].name}
-                              >
-                                <img src={symbolUrl(cls)} alt="" draggable={false} />
-                                {wordTense && <img className="sm-tense-mark" src={TENSE_SYMBOLS[wordTense].imageUrl} alt="" draggable={false} />}
-                              </span>
-                              <span className="sm-wtext">
-                                {needsPick(tok.kind) ? (
-                                  <button type="button" className={`sm-wbtn${capFirst ? ' cap' : ''}`} onClick={() => { setActive(r); setPicker({ row: r, index: i }); }} aria-label={`${label}: ${shown || 'blank'}. Choose a word.`} aria-haspopup="dialog">
-                                    {shown || '___'}
-                                  </button>
-                                ) : (
-                                  <span className="sm-fixedw">{shown}</span>
-                                )}
-                                {punct && <span className="sm-punct">{punct}</span>}
-                              </span>
-                              <span className="sm-wtools">
-                                {needsPick(tok.kind) && <button type="button" onClick={() => updateRow(r, (st) => rollToken(st, i, d.before))} aria-label={`Roll a new ${KIND_LABEL[tok.kind]}`} title="Roll"><Die /></button>}
+                            {over && over.at === i && !onto && drag?.item.type !== 'formula' && drag?.item.type !== 'tense' && <span className="sm-caret" aria-hidden="true" />}
+                            <span
+                              ref={(el) => { if (el) slotEls.current.set(`${r}:${i}`, el); else slotEls.current.delete(`${r}:${i}`); }}
+                              className={`sm-piece${tok.kind === 'phrase' ? ' phrase' : ''}${onto ? ' onto' : ''}${drag?.item.type === 'slot' && drag.item.row === r && drag.item.index === i ? ' lifted' : ''}`}
+                              onPointerDown={startDrag({ type: 'slot', row: r, index: i }, said || KIND_LABEL[tok.kind], symbolUrl(KIND_CLASS[tok.kind]))}
+                              title="Drag to move this word"
+                            >
+                              {bubbles.map((b, k) => {
+                                const color = GRAMMAR_SYMBOL_INFO[b.cls].color;
+                                const style = b.blank ? { borderColor: color, background: BUBBLE_WHITE, color: BUBBLE_BLACK } : pillStyle(color, bubbleStyle);
+                                const text = b.blank ? GRAMMAR_SYMBOL_INFO[b.cls].name.toLowerCase() : b.text;
+                                return (
+                                  <span key={k} className="sm-unit">
+                                    <span className="sm-sym" title={GRAMMAR_SYMBOL_INFO[b.cls].name}>
+                                      <img src={symbolUrl(b.cls)} alt="" draggable={false} />
+                                      {b.tense && <img className="sm-tense-mark" src={TENSE_SYMBOLS[b.tense].imageUrl} alt="" draggable={false} />}
+                                    </span>
+                                    {pick ? (
+                                      <button
+                                        type="button"
+                                        className={`sm-bubble${b.blank ? ' blank' : ''}`}
+                                        style={style}
+                                        onClick={tap(openBook)}
+                                        aria-label={`${label}: ${said || 'blank'}. Choose a word.`}
+                                        aria-haspopup="dialog"
+                                      >{text}</button>
+                                    ) : (
+                                      <span className="sm-bubble fixed" style={style}>{text}</span>
+                                    )}
+                                  </span>
+                                );
+                              })}
+                              {marks.map((m, k) => <span key={`p${k}`} className="sm-punct-icon" aria-label={`Punctuation ${m}`}>{m}</span>)}
+                              <span className="sm-wtools" onPointerDown={(e) => e.stopPropagation()}>
+                                {pick && <button type="button" onClick={() => updateRow(r, (st) => rollToken(st, i, d.before))} aria-label={`Roll a new ${KIND_LABEL[tok.kind]}`} title="Roll"><Die /></button>}
                                 <button type="button" onClick={() => updateRow(r, (st) => ({ ...st, tokens: st.tokens.filter((_, j) => j !== i) }))} aria-label={`Remove ${label}`} title="Remove">×</button>
                               </span>
                             </span>
@@ -772,6 +863,8 @@ export function StoryMaker() {
           st={rows[picker.row].s}
           idx={picker.index}
           ctx={data[picker.row]?.before ?? EMPTY_CONTEXT}
+          engineOk={engineOk}
+          bubbleStyle={bubbleStyle}
           onPick={(patch) => { setToken(picker.row, picker.index, patch); setPicker(null); }}
           onRoll={() => { const p = picker; updateRow(p.row, (st) => rollToken(st, p.index, data[p.row]?.before ?? EMPTY_CONTEXT)); setPicker(null); }}
           onRemove={() => { const p = picker; updateRow(p.row, (st) => ({ ...st, tokens: st.tokens.filter((_, j) => j !== p.index) })); setPicker(null); }}
@@ -784,8 +877,8 @@ export function StoryMaker() {
           <div className="sm-modal-card sm-help-card">
             <h2 id="sm-help-title">How Story Maker works</h2>
             <ol className="sm-steps">
-              <li><span>1</span><div><strong>Pick a formula.</strong> Find a formula with the search, the symbol buttons or the sort, then drag it onto the page or click its <strong>+</strong>. It comes filled in with its example sentence. You can also drag single grammar symbols in and snap them together.</div></li>
-              <li><span>2</span><div><strong>Change any word.</strong> Click a word to open its word book: every word that fits, in ABC order, a page at a time. Or type a word in Grammar Symbols to find its symbol, even if you don't know its part of speech. The dice only pick words the video can act out.</div></li>
+              <li><span>1</span><div><strong>Pick a formula.</strong> Find a formula with the search, the symbol buttons or the sort, then drag it onto the page or click its <strong>+</strong>. It comes filled in with its example sentence. You can also drag single grammar symbols into any spot in a sentence; each one comes with a word that fits.</div></li>
+              <li><span>2</span><div><strong>Change any word.</strong> Click a word to open its word book: every word that fits, in ABC order, a page at a time. Or type a word in Grammar Symbols to find its symbol, then drag it onto a word to swap it or between two words to add it. The dice only pick words the video can act out.</div></li>
               <li><span>3</span><div><strong>Watch the meaning.</strong> Every word changes the video: <em>quickly</em> runs fast, <em>slowly</em> creeps, <em>big</em> grows, <em>sad</em> brings a rain cloud.</div></li>
               <li><span>4</span><div><strong>Choose the time.</strong> Past, Present or Future changes the verb and the look of the video. Drop a tense symbol on a sentence, or click one beside it.</div></li>
               <li><span>5</span><div><strong>Make a story.</strong> Each sentence is its own line; drag ⠿ to put them in a new order. He, she, it and they keep talking about the same characters. Click 🔈 to hear a sentence, Play to watch the story, and Save video to download it.</div></li>

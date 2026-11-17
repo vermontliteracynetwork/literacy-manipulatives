@@ -212,3 +212,45 @@
 .sm-book-none { grid-column: 1 / -1; color: #4A5D70; font-weight: 600; text-align: center; padding: 20px 6px; }
 .sm-book-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 700; color: #4A5D70; }
 @media (max-width: 560px) { .sm-page-words { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Word bubbles (her request 2026-11-17: "the format that the whiteboard is with the round text bubbles and easy drag
+   drop"). Each word is its symbol with a round bubble under it, in the symbol's color, outline or solid; punctuation
+   is its own gray icon. A slot (a word, or a whole prepositional phrase) drags as one piece. */
+.sm-words { column-gap: 4px; row-gap: 14px; align-items: flex-end; padding-top: 18px; }
+.sm-piece { position: relative; display: inline-flex; align-items: flex-end; gap: 4px; padding: 2px 3px; border-radius: 14px; cursor: grab; touch-action: none; user-select: none; }
+.sm-piece:hover { background: #F1F7FB; }
+.sm-piece.phrase { background: #faf6f2; box-shadow: inset 0 0 0 1.5px #e6d5c6; }
+.sm-piece.onto { background: #FBF2BB; box-shadow: 0 0 0 3px #E9C84A; }
+.sm-piece.lifted { opacity: 0.35; }
+.sm-unit { display: inline-flex; flex-direction: column; align-items: center; }
+.sm-unit .sm-sym { position: relative; line-height: 0; z-index: 1; }
+.sm-unit .sm-sym img { width: 40px; height: 40px; object-fit: contain; pointer-events: none; }
+.sm-unit .sm-sym .sm-tense-mark { position: absolute; width: 18px; height: 18px; right: -10px; top: -4px; }
+.sm-bubble {
+  font-family: var(--lm-font); font-weight: 800; font-size: 1.15rem; line-height: 1; min-width: 58px; height: 40px; padding: 0 14px;
+  margin-top: -4px; border: 4px solid; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  white-space: nowrap; cursor: pointer; touch-action: none;
+}
+.sm-bubble.fixed { cursor: grab; }
+.sm-bubble.blank { border-style: dashed; font-weight: 700; }
+.sm-bubble:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(25, 104, 171, 0.45); }
+.sm-ln.bad .sm-bubble { text-decoration: underline wavy var(--sm-bad); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.sm-punct-icon {
+  width: 30px; height: 40px; border-radius: 999px; background: #b3b3b3; color: var(--ink); font-family: var(--lm-font); font-weight: 900;
+  font-size: 1.4rem; display: inline-grid; place-items: center; line-height: 1;
+}
+.sm-piece .sm-wtools { top: -22px; }
+.sm-piece:hover .sm-wtools, .sm-piece:focus-within .sm-wtools { display: flex; }
+.sm-caret { top: 0; bottom: 0; left: -4px; width: 4px; }
+.sm-caret.end { height: 80px; width: 4px; }
+.sm-handle { margin-top: 46px; }
+.sm-ltools { margin-top: 44px; }
+.sm-hit-drag { cursor: grab; touch-action: none; }
+.sm-bubble-toggle { margin: 0; }
+.sm-bubble-toggle button { min-height: 32px; }
+.sm-ghost { border-radius: 999px; }
+/* The word book's words are bubbles too. */
+.sm-page-words button.sm-pill { border: 4px solid; border-radius: 999px; min-height: 46px; padding: 6px 8px; }
+.sm-page-words button.sm-pill:hover { filter: brightness(0.96); }
+.sm-page-words button.sm-pill.on { box-shadow: 0 0 0 3px #E9C84A; }
+@media (max-width: 560px) { .sm-bubble-toggle > span { display: none; } }
