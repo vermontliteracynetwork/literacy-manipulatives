@@ -5,7 +5,9 @@ export type Tense = 'past' | 'present' | 'future';
 
 export type LookId =
   | 'dog' | 'cat' | 'bird' | 'frog' | 'fish' | 'rabbit' | 'turtle' | 'robot' | 'girl' | 'boy' | 'me' | 'you'
-  | 'ball' | 'apple' | 'cake' | 'box' | 'book' | 'flower';
+  | 'ball' | 'apple' | 'cake' | 'box' | 'book' | 'flower'
+  // A dictionary word the video has no picture for (shown as a sign with the word), and a place (drawn as the scene).
+  | 'word' | 'place';
 
 export type VerbId =
   | 'run' | 'walk' | 'jump' | 'swim' | 'fly' | 'roll' | 'bounce' | 'dance' | 'sleep' | 'sit' | 'hide'
@@ -14,7 +16,7 @@ export type VerbId =
 
 export type Pron3 = 'he' | 'she' | 'it';
 
-export interface NounDef { id: string; sing: string; plural: string; look: LookId; kind: 'animal' | 'person' | 'thing'; pron: Pron3; food?: boolean }
+export interface NounDef { id: string; sing: string; plural: string; look: LookId; kind: 'animal' | 'person' | 'thing'; pron: Pron3; food?: boolean; place?: boolean }
 
 export const NOUNS: NounDef[] = [
   { id: 'dog', sing: 'dog', plural: 'dogs', look: 'dog', kind: 'animal', pron: 'it' },
@@ -33,6 +35,15 @@ export const NOUNS: NounDef[] = [
   { id: 'box', sing: 'box', plural: 'boxes', look: 'box', kind: 'thing', pron: 'it' },
   { id: 'book', sing: 'book', plural: 'books', look: 'book', kind: 'thing', pron: 'it' },
   { id: 'flower', sing: 'flower', plural: 'flowers', look: 'flower', kind: 'thing', pron: 'it' },
+  // Places are nouns too ("at the park"); the video draws them as the scene.
+  { id: 'park', sing: 'park', plural: 'parks', look: 'place', kind: 'thing', pron: 'it', place: true },
+  { id: 'pond', sing: 'pond', plural: 'ponds', look: 'place', kind: 'thing', pron: 'it', place: true },
+  { id: 'beach', sing: 'beach', plural: 'beaches', look: 'place', kind: 'thing', pron: 'it', place: true },
+  { id: 'forest', sing: 'forest', plural: 'forests', look: 'place', kind: 'thing', pron: 'it', place: true },
+  { id: 'house', sing: 'house', plural: 'houses', look: 'place', kind: 'thing', pron: 'it', place: true },
+  { id: 'hill', sing: 'hill', plural: 'hills', look: 'place', kind: 'thing', pron: 'it', place: true },
+  { id: 'tree', sing: 'tree', plural: 'trees', look: 'place', kind: 'thing', pron: 'it', place: true },
+  { id: 'bridge', sing: 'bridge', plural: 'bridges', look: 'place', kind: 'thing', pron: 'it', place: true },
 ];
 
 export interface NameDef { id: string; look: LookId; pron: Pron3 }
@@ -117,6 +128,8 @@ export const ABILITIES: Record<LookId, VerbId[]> = {
   ball: ['roll', 'bounce', 'fall'],
   apple: ['roll', 'fall'],
   cake: ['fall'], box: ['fall'], book: ['fall'], flower: ['fall'],
+  word: ['run', 'walk', 'jump', 'swim', 'fly', 'roll', 'bounce', 'dance', 'sleep', 'sit', 'hide', 'sing', 'laugh', 'cry', 'fall', 'chase', 'kick', 'eat', 'hug', 'find', 'push'],
+  place: [],
 };
 
 export const LIVING: LookId[] = ['dog', 'cat', 'bird', 'frog', 'fish', 'rabbit', 'turtle', 'robot', 'girl', 'boy', 'me', 'you'];

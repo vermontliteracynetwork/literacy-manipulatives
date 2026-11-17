@@ -5,8 +5,8 @@ import { GRAMMAR_SYMBOL_INFO, TENSE_SYMBOLS, type SymbolWordClass } from '../../
 import { buildUtterance } from '../../lib/tts';
 import {
   analyze, baseChoices, choicesFor, EMPTY_CONTEXT, exampleFill, findWords, formulaWords, KIND_CLASS, KIND_LABEL, needsPick, nextContext,
-  phraseChoices, rollAll, rollToken, storyFormulas, uid,
-  type Analysis, type Kind, type SentenceState, type StoryContext, type StoryFormula, type Token, type WordHit,
+  BOOK_KINDS, bookWords, dictWords, drawn, phraseChoices, storyFormulas, uid,
+  type Analysis, type BookWord, type Kind, type SentenceState, type StoryContext, type StoryFormula, type Token, type WordHit,
 } from '../../lib/story/grammar';
 import { jobsOfWord, loadEngine } from '../../lib/grammarEngine';
 import { drawExportFrame, drawScene, EXPORT_H, EXPORT_W, HI, makeClip, SH, SW, WIDE, wordAt, type Assets, type Clip } from '../../lib/story/render';
@@ -40,6 +40,7 @@ const SYMBOLS: { kind: Kind; cls: SymbolWordClass; name: string; note: string }[
   { kind: 'pronoun', cls: 'pronoun', name: 'Pronoun', note: 'I, you, he, she, it, we, they' },
   { kind: 'verb', cls: 'verb', name: 'Verb', note: 'Action word' },
   { kind: 'adverb', cls: 'adverb', name: 'Adverb', note: 'How, when or where' },
+  { kind: 'prep', cls: 'preposition', name: 'Preposition', note: 'on, at, in, to, with, from' },
   { kind: 'phrase', cls: 'preposition', name: 'Prepositional phrase', note: 'to the park, under the bridge' },
   { kind: 'conj', cls: 'conjunction', name: 'Conjunction', note: 'and, but, so, because' },
   { kind: 'interjection', cls: 'interjection', name: 'Interjection', note: 'Wow! Oops!' },
@@ -118,7 +119,7 @@ function shelfOf(f: StoryFormula): number {
   if (f.kinds.includes('not')) return 4;
   if (f.kinds.includes('conj')) return 6;
   if (f.kinds.includes('be') && !f.kinds.includes('verb')) return 3;
-  if (f.kinds.includes('phrase')) return 2;
+  if (f.kinds.includes('phrase') || f.kinds.includes('prep')) return 2;
   if (/^(B,|PRP,)?S2/.test(f.code)) return 1;
   return 0;
 }
@@ -129,29 +130,46 @@ const CLASS_KIND: Partial<Record<SymbolWordClass, Kind>> = {
 };
 
 const PER_PAGE = 12;
+const TAB_NAME: Partial<Record<Kind, string>> = {
+  noun: 'Nouns', propernoun: 'Names', pronoun: 'Pronouns', verb: 'Verbs', adjective: 'Adjectives', adverb: 'Adverbs',
+  article: 'Articles', prep: 'Prepositions', phrase: 'Phrases', conj: 'Joining', interjection: 'Wow words',
+};
+type Tab = 'all' | Kind;
 
-// The word book: every word that fits a blank, in ABC order, a page at a time.
-function WordBook({ st, idx, ctx, onPick, onRoll, onRemove, onClose }: {
-  st: SentenceState; idx: number; ctx: StoryContext; onPick: (patch: Partial<Token>) => void; onRoll: () => void; onRemove: () => void; onClose: () => void;
+// The word book (her requests 2026-11-17): every word in ABC order, a page at a time, with a tab for each part of
+// speech and one search over all the words. Opened from a word, it starts on that word's tab, showing only words
+// that fit there; picking a word from another tab changes the slot to that part of speech.
+function WordBook({ slot, onPick, onRemove, onClose }: {
+  slot: { st: SentenceState; idx: number; ctx: StoryContext } | null;
+  onPick: (w: BookWord) => void; onRemove?: () => void; onClose: () => void;
 }) {
-  const tok = st.tokens[idx];
-  const cls = KIND_CLASS[tok.kind];
+  const tok = slot ? slot.st.tokens[slot.idx] : null;
+  const [tab, setTab] = useState<Tab>(tok && (BOOK_KINDS.includes(tok.kind) || tok.kind === 'phrase') ? tok.kind : 'all');
+  const dictSize = dictWords('noun').length;
   const [q, setQ] = useState('');
   const [page, setPage] = useState(0);
-  const items = useMemo(() => {
-    const list = tok.kind === 'phrase'
-      ? phraseChoices(st, idx, ctx).map((c) => ({ key: `${c.value}|${c.place}`, label: `${c.value} the ${c.place}`, patch: { value: c.value, place: c.place } as Partial<Token> }))
-      : (tok.kind === 'conj' ? baseChoices('conj') : choicesFor(st, idx, ctx)).map((c) => ({ key: c.value, label: c.label, patch: { value: c.value } as Partial<Token> }));
-    return list.sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
-  }, [st, idx, ctx, tok.kind]);
   const needle = q.trim().toLowerCase();
+  const view: Tab = needle ? 'all' : tab;
+  const items = useMemo((): BookWord[] => {
+    let list: BookWord[];
+    if (view === 'all') list = BOOK_KINDS.filter((k) => k !== 'phrase').flatMap((k) => bookWords(k));
+    else if (slot && tok && view === tok.kind) {
+      list = tok.kind === 'phrase'
+        ? phraseChoices(slot.st, slot.idx, slot.ctx).map((c) => ({ kind: 'phrase' as Kind, value: c.value, place: c.place, label: `${c.value} the ${c.place}` }))
+        : (tok.kind === 'conj' ? baseChoices('conj') : choicesFor(slot.st, slot.idx, slot.ctx)).map((c) => ({ kind: tok.kind, value: c.value, label: c.label }));
+      // Then every other dictionary word for this part of speech.
+      const seen = new Set(list.map((w) => w.label.toLowerCase()));
+      list = [...list, ...bookWords(tok.kind).filter((w) => !drawn(w) && !seen.has(w.label.toLowerCase()))];
+    } else list = bookWords(view);
+    return list.sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()) || a.kind.localeCompare(b.kind));
+  }, [view, slot, tok, dictSize]);
   const shown = needle ? items.filter((i) => i.label.toLowerCase().includes(needle)) : items;
   const pages = Math.max(1, Math.ceil(shown.length / PER_PAGE));
   const pg = Math.min(page, pages - 1);
-  const current = tok.kind === 'phrase' ? `${tok.value}|${tok.place}` : tok.value;
   const firstOf = (letter: string) => shown.findIndex((i) => i.label.toLowerCase().startsWith(letter));
-  const typeName = tok.kind === 'phrase' ? 'prepositional phrase' : GRAMMAR_SYMBOL_INFO[cls].name.toLowerCase();
+  const isCurrent = (w: BookWord) => !!tok && w.kind === tok.kind && w.value === tok.value && (w.kind !== 'phrase' || w.place === tok.place);
   const dict = needle && !shown.length ? jobsOfWord(needle) : [];
+  const title = tok ? 'Change the word' : 'Word book';
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -161,15 +179,23 @@ function WordBook({ st, idx, ctx, onPick, onRoll, onRemove, onClose }: {
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, [onClose, pages]);
+  const tabs: Tab[] = ['all', ...BOOK_KINDS, ...(tok?.kind === 'phrase' ? ['phrase' as Kind] : [])];
   return (
     <div className="sm-modal" role="dialog" aria-modal="true" aria-labelledby="sm-book-title" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="sm-book">
         <header className="sm-book-head">
-          <img src={symbolUrl(cls)} alt="" />
-          <h2 id="sm-book-title">Pick {/^[aeiou]/.test(typeName) ? 'an' : 'a'} {typeName}</h2>
+          <h2 id="sm-book-title">{title}</h2>
           <button type="button" className="sm-mini" onClick={onClose} aria-label="Close">×</button>
         </header>
-        <input className="sm-book-search" type="search" value={q} autoFocus onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder={`Search the ${typeName}s`} aria-label={`Search the ${typeName}s`} />
+        <input className="sm-book-search" type="search" value={q} autoFocus onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Search all the words" aria-label="Search all the words" />
+        <div className="sm-book-tabs" role="tablist" aria-label="Parts of speech">
+          {tabs.map((k) => (
+            <button key={k} type="button" role="tab" aria-selected={view === k} className={view === k ? 'on' : ''} onClick={() => { setTab(k); setQ(''); setPage(0); }}>
+              {k !== 'all' && <img src={symbolUrl(KIND_CLASS[k])} alt="" draggable={false} />}
+              {k === 'all' ? 'All' : TAB_NAME[k]}
+            </button>
+          ))}
+        </div>
         <nav className="sm-letters" aria-label="Jump to a letter">
           {'abcdefghijklmnopqrstuvwxyz'.split('').map((l) => {
             const at = firstOf(l);
@@ -179,16 +205,22 @@ function WordBook({ st, idx, ctx, onPick, onRoll, onRemove, onClose }: {
         <div className="sm-pages">
           <button type="button" className="sm-turn" onClick={() => setPage(Math.max(0, pg - 1))} disabled={pg === 0} aria-label="Previous page">‹</button>
           <ul className="sm-page-words">
-            {shown.slice(pg * PER_PAGE, pg * PER_PAGE + PER_PAGE).map((i) => (
-              <li key={i.key}>
-                <button type="button" className={i.key === current ? 'on' : ''} onClick={() => onPick(i.patch)} style={{ ['--c' as string]: GRAMMAR_SYMBOL_INFO[cls].color }}>{i.label}</button>
-              </li>
-            ))}
+            {shown.slice(pg * PER_PAGE, pg * PER_PAGE + PER_PAGE).map((w) => {
+              const cls = KIND_CLASS[w.kind];
+              return (
+                <li key={`${w.kind}|${w.value}|${w.place ?? ''}`}>
+                  <button type="button" className={`${isCurrent(w) ? 'on' : ''}${drawn(w) ? ' live' : ''}`} onClick={() => onPick(w)} style={{ ['--c' as string]: GRAMMAR_SYMBOL_INFO[cls].color }} title={GRAMMAR_SYMBOL_INFO[cls].name}>
+                    {view === 'all' && <img src={symbolUrl(cls)} alt="" draggable={false} />}
+                    {w.label}
+                  </button>
+                </li>
+              );
+            })}
             {!shown.length && (
               <li className="sm-book-none">
                 {dict.length
-                  ? <>&ldquo;{q.trim()}&rdquo; is {dict.map((c) => `${/^[aeiou]/i.test(GRAMMAR_SYMBOL_INFO[c].name) ? 'an' : 'a'} ${GRAMMAR_SYMBOL_INFO[c].name.toLowerCase()}`).join(' or ')}{dict.includes(cls) ? ', but the video can\'t draw it yet. Pick a word like it.' : `, not ${/^[aeiou]/.test(typeName) ? 'an' : 'a'} ${typeName}.`}</>
-                  : 'No words here match that.'}
+                  ? <>&ldquo;{q.trim()}&rdquo; is {dict.map((c) => `${/^[aeiou]/i.test(GRAMMAR_SYMBOL_INFO[c].name) ? 'an' : 'a'} ${GRAMMAR_SYMBOL_INFO[c].name.toLowerCase()}`).join(' or ')}, but the video can&apos;t draw it yet. Pick a word like it from the {dict.map((c) => TAB_NAME[CLASS_KIND[c] ?? 'noun']).join(' or ')} tab.</>
+                  : 'No words match that.'}
               </li>
             )}
           </ul>
@@ -196,9 +228,9 @@ function WordBook({ st, idx, ctx, onPick, onRoll, onRemove, onClose }: {
         </div>
         <footer className="sm-book-foot">
           <span>Page {pg + 1} of {pages}</span>
+          <span className="sm-legend"><i /> moves in the video; other words show on a sign</span>
           <span className="sm-grow" />
-          <button type="button" className="btn btn-sm" onClick={onRoll}><Die /> Surprise me</button>
-          <button type="button" className="btn btn-sm" onClick={onRemove}>Remove word</button>
+          {onRemove && <button type="button" className="btn btn-sm" onClick={onRemove}>Remove word</button>}
         </footer>
       </div>
     </div>
@@ -211,6 +243,18 @@ export function StoryMaker() {
   const [rows, setRows] = useState<Row[]>(() => [newRow()]);
   const [active, setActive] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // The menu's width: drag the bar on its right edge (remembered on this device).
+  const [sideW, setSideW] = useState(() => { try { return Number(localStorage.getItem('sm-side-w')) || 300; } catch { return 300; } });
+  useEffect(() => { try { localStorage.setItem('sm-side-w', String(Math.round(sideW))); } catch { /* not remembered */ } }, [sideW]);
+  const startSideResize = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const x0 = e.clientX;
+    const w0 = sideW;
+    const move = (ev: PointerEvent) => setSideW(Math.max(220, Math.min(560, w0 + ev.clientX - x0)));
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
   const [open, setOpen] = useState({ formulas: true, symbols: true });
   const [fq, setFq] = useState('');
   const [shelf, setShelf] = useState<number | null>(0);
@@ -503,9 +547,9 @@ export function StoryMaker() {
     .map(({ f }) => f);
   const hits = useMemo(() => findWords(wq), [wq]);
   const dictTypes = engineOk && wq.trim() && !hits.length ? jobsOfWord(wq.trim()) : [];
-  const addHit = (h: WordHit) => updateRow(act, (s) => {
+  const addHit = (h: WordHit & { place?: string }) => updateRow(act, (s) => {
     const blank = s.tokens.findIndex((x) => x.kind === h.kind && !x.value);
-    const tokens = blank >= 0 ? s.tokens.map((x, j) => (j === blank ? { ...x, value: h.value } : x)) : [...s.tokens, { id: uid(), kind: h.kind, value: h.value }];
+    const tokens = blank >= 0 ? s.tokens.map((x, j) => (j === blank ? { ...x, value: h.value, place: h.place } : x)) : [...s.tokens, { id: uid(), kind: h.kind, value: h.value, place: h.place }];
     return { ...s, tokens, tense: h.tense ?? s.tense };
   });
 
@@ -545,7 +589,7 @@ export function StoryMaker() {
 
       <div className="sm-shell">
         {sidebarOpen && (
-          <aside className="lm-sidebar sm-sidebar" aria-label="Materials">
+          <aside className="lm-sidebar sm-sidebar" aria-label="Materials" style={{ width: sideW, flex: `0 0 ${sideW}px` }}>
             <Category label="Sentence Formulas" color="#C0D6F5" open={open.formulas} onToggle={() => setOpen((o) => ({ ...o, formulas: !o.formulas }))}>
               <input className="lm-tray-search" type="search" value={fq} onChange={(e) => setFq(e.target.value)} placeholder="Search a code, word or sentence" aria-label="Search formulas" />
               <div className="sm-shelves">
@@ -564,7 +608,6 @@ export function StoryMaker() {
                         <div className="sm-formula-list">
                     {list.map((f) => (
                       <div key={`${f.code}|${f.kinds.join(' ')}|${f.fixed.join(' ')}`} className="sm-fcard">
-                        <button type="button" className="sm-plus" onClick={() => tapFormula(f)} aria-label={`Add ${f.code}: ${f.example}`} title="Add">+</button>
                         <div
                           role="button"
                           tabIndex={0}
@@ -578,6 +621,7 @@ export function StoryMaker() {
                           <span className="sm-fex">{f.example}</span>
                           <span className="sm-fline"><strong>{f.code}</strong> {formulaWords(f)}</span>
                         </div>
+                            <button type="button" className="sm-plus" onClick={() => tapFormula(f)} aria-label={`Add ${f.code}: ${f.example}`} title="Add">+</button>
                       </div>
                     ))}
                         </div>
@@ -590,6 +634,7 @@ export function StoryMaker() {
             </Category>
 
             <Category label="Grammar Symbols" color="#E5B9E0" open={open.symbols} onToggle={() => setOpen((o) => ({ ...o, symbols: !o.symbols }))}>
+              <button type="button" className="sm-open-book" onClick={() => setPicker({ row: act, index: -1 })}>Open the word book</button>
               <input className="lm-tray-search" type="search" value={wq} onChange={(e) => setWq(e.target.value)} placeholder="Type a word to find its symbol" aria-label="Find a word" />
               {wq.trim() ? (
                 <div className="sm-hits">
@@ -620,6 +665,21 @@ export function StoryMaker() {
               )}
             </Category>
           </aside>
+        )}
+        {sidebarOpen && (
+          <div
+            className="sm-vsplit"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize the menu"
+            aria-valuenow={Math.round(sideW)}
+            tabIndex={0}
+            onPointerDown={startSideResize}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowLeft') { e.preventDefault(); setSideW((w) => Math.max(220, w - 24)); }
+              if (e.key === 'ArrowRight') { e.preventDefault(); setSideW((w) => Math.min(560, w + 24)); }
+            }}
+          ><span /></div>
         )}
 
         <main className="sm-main" ref={mainRef}>
@@ -716,7 +776,6 @@ export function StoryMaker() {
                                 {punct && <span className="sm-punct">{punct}</span>}
                               </span>
                               <span className="sm-wtools">
-                                {needsPick(tok.kind) && <button type="button" onClick={() => updateRow(r, (st) => rollToken(st, i, d.before))} aria-label={`Roll a new ${KIND_LABEL[tok.kind]}`} title="Roll"><Die /></button>}
                                 <button type="button" onClick={() => updateRow(r, (st) => ({ ...st, tokens: st.tokens.filter((_, j) => j !== i) }))} aria-label={`Remove ${label}`} title="Remove">×</button>
                               </span>
                             </span>
@@ -744,7 +803,6 @@ export function StoryMaker() {
                           </button>
                         ))}
                       </span>
-                      <button type="button" className="sm-mini" onClick={() => updateRow(r, (st) => rollAll(st, d.before))} disabled={!s.tokens.length} aria-label={`Roll every word in sentence ${r + 1}`} title="Roll every word"><Die /></button>
                       <button type="button" className="sm-mini" onClick={() => speak(a.text)} disabled={a.status !== 'ok'} aria-label={`Read sentence ${r + 1} aloud`} title="Read aloud">🔈</button>
                       {a.canContract && <button type="button" className={`sm-mini sm-wide${s.contract ? ' on' : ''}`} aria-pressed={s.contract} onClick={() => updateRow(r, (st) => ({ ...st, contract: !st.contract }))} title="Contraction">n&apos;t</button>}
                       <button type="button" className="sm-mini" onClick={() => removeRow(r)} aria-label={`Delete sentence ${r + 1}`} title="Delete">×</button>
@@ -763,14 +821,16 @@ export function StoryMaker() {
         </main>
       </div>
 
-      {picker && rows[picker.row]?.s.tokens[picker.index] && (
+      {picker && (picker.index < 0 || rows[picker.row]?.s.tokens[picker.index]) && (
         <WordBook
-          st={rows[picker.row].s}
-          idx={picker.index}
-          ctx={data[picker.row]?.before ?? EMPTY_CONTEXT}
-          onPick={(patch) => { setToken(picker.row, picker.index, patch); setPicker(null); }}
-          onRoll={() => { const p = picker; updateRow(p.row, (st) => rollToken(st, p.index, data[p.row]?.before ?? EMPTY_CONTEXT)); setPicker(null); }}
-          onRemove={() => { const p = picker; updateRow(p.row, (st) => ({ ...st, tokens: st.tokens.filter((_, j) => j !== p.index) })); setPicker(null); }}
+          slot={picker.index >= 0 ? { st: rows[picker.row].s, idx: picker.index, ctx: data[picker.row]?.before ?? EMPTY_CONTEXT } : null}
+          onPick={(w) => {
+            const p = picker;
+            if (p.index >= 0) setToken(p.row, p.index, { kind: w.kind, value: w.value, place: w.place });
+            else addHit({ kind: w.kind, value: w.value, label: w.label, place: w.place });
+            setPicker(null);
+          }}
+          onRemove={picker.index >= 0 ? () => { const p = picker; updateRow(p.row, (st) => ({ ...st, tokens: st.tokens.filter((_, j) => j !== p.index) })); setPicker(null); } : undefined}
           onClose={() => setPicker(null)}
         />
       )}
@@ -781,7 +841,7 @@ export function StoryMaker() {
             <h2 id="sm-help-title">How Story Maker works</h2>
             <ol className="sm-steps">
               <li><span>1</span><div><strong>Pick a formula.</strong> Find a formula with the search, the symbol buttons or the sort, then drag it onto the page or click its <strong>+</strong>. It comes filled in with its example sentence. You can also drag single grammar symbols in and snap them together.</div></li>
-              <li><span>2</span><div><strong>Change any word.</strong> Click a word to open its word book: every word that fits, in ABC order, a page at a time. Or type a word in Grammar Symbols to find its symbol, even if you don't know its part of speech. The dice only pick words the video can act out.</div></li>
+              <li><span>2</span><div><strong>Change any word.</strong> Click a word to open its word book: every word that fits, in ABC order, a page at a time. Use the tabs to look through one part of speech, or search every word at once. Or type a word in Grammar Symbols to find its symbol, even if you don't know its part of speech.</div></li>
               <li><span>3</span><div><strong>Watch the meaning.</strong> Every word changes the video: <em>quickly</em> runs fast, <em>slowly</em> creeps, <em>big</em> grows, <em>sad</em> brings a rain cloud.</div></li>
               <li><span>4</span><div><strong>Choose the time.</strong> Past, Present or Future changes the verb and the look of the video. Drop a tense symbol on a sentence, or click one beside it.</div></li>
               <li><span>5</span><div><strong>Make a story.</strong> Each sentence is its own line; drag ⠿ to put them in a new order. He, she, it and they keep talking about the same characters. Click 🔈 to hear a sentence, Play to watch the story, and Save video to download it.</div></li>
@@ -815,12 +875,3 @@ export function StoryMaker() {
   );
 }
 
-function Die() {
-  return (
-    <svg className="sm-die" viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="3" y="3" width="18" height="18" rx="4" fill="#fff" stroke="currentColor" strokeWidth="2" />
-      <circle cx="8" cy="8" r="1.6" fill="currentColor" /><circle cx="16" cy="16" r="1.6" fill="currentColor" />
-      <circle cx="12" cy="12" r="1.6" fill="currentColor" /><circle cx="16" cy="8" r="1.6" fill="currentColor" /><circle cx="8" cy="16" r="1.6" fill="currentColor" />
-    </svg>
-  );
-}

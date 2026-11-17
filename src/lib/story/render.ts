@@ -2,7 +2,8 @@
 // for the screen and for the saved video. Every frame is worked out from the clock alone, so the preview, the Play
 // button and the saved video always match.
 import type { ActorSpec, Analysis, GroupModel, StoryContext, Word } from './grammar';
-import { verbById, type LookId, type PrepId, type Tense, type VerbId } from './words';
+import { type LookId, type PrepId, type Tense, type VerbId } from './words';
+import { isDict, plainWord, verbById } from './grammar';
 
 export const SW = 144;
 export const SH = 128;
@@ -141,6 +142,8 @@ const BASE_PAL: Record<LookId, Pal> = {
   box: { main: '#c48a4a', dark: '#8d5f2e', light: '#e8c088' },
   book: { main: '#3949ab', dark: '#283593', light: '#ffffff' },
   flower: { main: '#f06292', dark: '#c2185b', light: '#ffd54f' },
+  word: { main: '#d9b27c', dark: '#8d6236', light: '#f3dfb8' },
+  place: { main: '#000000', dark: '#000000', light: '#000000' },
 };
 const K = '#1d1d27';
 
@@ -268,6 +271,13 @@ function drawLook(c: Ctx, look: LookId, pal: Pal, p: Pose) {
     case 'flower':
       R(c, 19, 22, 2, 9, '#43a047'); R(c, 21, 25, 3, 2, '#43a047'); R(c, 16, 25, 3, 2, '#43a047');
       R(c, 17, 14, 6, 2, main); R(c, 16, 16, 8, 4, main); R(c, 17, 20, 6, 2, main); R(c, 19, 17, 2, 2, light);
+      break;
+    case 'word':
+      // A dictionary word the video has no picture for: a little wooden sign with the word on it.
+      R(c, 18, 20, 4, 11, dark);
+      R(c, 3, 7, 34, 14, dark); R(c, 4, 8, 32, 12, main); R(c, 4, 8, 32, 2, light);
+      break;
+    case 'place':
       break;
   }
 }
@@ -429,7 +439,7 @@ function mkDraw(spec: ActorSpec, x: number, y: number, extra: Partial<Draw> = {}
   return {
     spec, look: spec.look, x, y, scale: scaleOf({ ...spec, adjs }), facing: 1, rot: 0, alpha: 1,
     pose: { moving: false, phase: 0, mood, eyesClosed: adjs.includes('sleepy') },
-    tint, label: spec.name ?? spec.tag, ...extra,
+    tint, label: spec.look === 'word' ? spec.word : undefined, ...extra,
   };
 }
 
@@ -593,9 +603,9 @@ function groupFrame(f: Frame, g: GroupModel, gi: number, clip: Clip, t: number) 
 
   const push = (d: Draw, i: number, adjsForFx: string[], intensity: number) => {
     adjFx(f, d, adjsForFx, t + i * 0.37, intensity);
-    if (d.label) {
-      const lx = d.x; const ly = d.y - 31 * d.scale * (d.squash ?? 1); const label = d.label;
-      f.hi.push((h) => tag(h, lx, ly, label));
+    if (d.label && d.look === 'word') {
+      const lx = d.x; const ly = d.y - 17 * d.scale; const label = d.label; const sc = d.scale;
+      f.hi.push((h) => signText(h, lx, ly, label, sc));
     }
     f.draws.push(d);
   };
@@ -741,6 +751,12 @@ function groupFrame(f: Frame, g: GroupModel, gi: number, clip: Clip, t: number) 
       if (verb === 'roll') d.rot = (d.x / 6) * (spec.look === 'ball' || spec.look === 'apple' ? 1 : 0.5);
       if (quiet) d.squash = 0.94;
       if (loud && ta > 0) f.shake = Math.max(f.shake, 1);
+    } else if (motion === 'static' && isDict(verb)) {
+      // A dictionary verb the video has no motion for: a happy little bounce and the word.
+      const base = sp ?? { x: centerX, y: G.ground };
+      d.x = base.x + spread(i); d.y = base.y + lane - Math.abs(Math.sin(ta * 4 * speedOf(g, spec))) * 3;
+      d.pose.moving = true; d.pose.phase = ta * 1.5;
+      if (i === 0 && ta > 0 && (ta % 2.4) < 1.6) bubble(f, d.x + 6, d.y - 30 * d.scale, plainWord(verb), 28);
     } else if (motion === 'static') {
       const base = sp ?? { x: centerX, y: G.ground };
       d.x = base.x + spread(i); d.y = base.y + lane;
@@ -884,20 +900,20 @@ function groupFrame(f: Frame, g: GroupModel, gi: number, clip: Clip, t: number) 
 
 const MOVING_PREPS_SET = new Set<string>(['to', 'into', 'over', 'across', 'through', 'up', 'from']);
 
-function tag(h: Ctx, x: number, y: number, label: string) {
+/** The word written on a dictionary word's sign. */
+function signText(h: Ctx, x: number, y: number, label: string, scale: number) {
   const fam = getComputedStyle(document.documentElement).getPropertyValue('--lm-font') || 'sans-serif';
   h.save();
-  h.font = `700 22px ${fam}`;
-  const w = h.measureText(label).width + 18;
-  const bx = clamp(x * HI - w / 2, 4 - EX * HI, (SW + EX) * HI - w - 4);
-  const by = Math.max(4, y * HI - 40);
-  h.fillStyle = label === 'ME' || label === 'YOU' ? '#fdd835' : '#ffffff';
-  h.strokeStyle = '#1d1d27'; h.lineWidth = 3;
-  roundRect(h, bx, by, w, 30, 15); h.fill(); h.stroke();
-  h.fillStyle = '#1d1d27'; h.textAlign = 'center'; h.textBaseline = 'middle';
-  h.fillText(label, bx + w / 2, by + 16);
+  let size = 26 * scale;
+  h.font = `800 ${size}px ${fam}`;
+  const max = 30 * HI * scale;
+  const w = h.measureText(label).width;
+  if (w > max) { size *= max / w; h.font = `800 ${size}px ${fam}`; }
+  h.fillStyle = '#3b2412'; h.textAlign = 'center'; h.textBaseline = 'middle';
+  h.fillText(label, x * HI, y * HI);
   h.restore();
 }
+
 
 function roundRect(h: Ctx, x: number, y: number, w: number, hh: number, r: number) {
   h.beginPath();

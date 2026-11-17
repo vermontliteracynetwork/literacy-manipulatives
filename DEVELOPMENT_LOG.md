@@ -1147,3 +1147,33 @@ each with a model sentence, its symbol and a count: Who + Action (The frog jumps
 eats a worm.), Where it happens (The cat hid under the bed.), Is, am, are, was, were (The turtle is slow.), Not
 sentences, Wow! sentences, and Joined with and, but, so. One shelf is open at a time (tap a shelf to open it); on each
 shelf the shortest formulas come first. Searching opens every shelf with a match.
+
+## 2026-11-17: One engine for everything (Symbolic Grammar Engine 1.3.0); Story Maker words from the dictionary
+
+Her requests: "We need to have one defined dictionary and logic base that will run the independent work dashboard and
+all literacy manipulatives apps" and "my symbolic grammar engine needs to be what is updated and what is continuously
+referencing/editing/changing/improving for all these".
+
+**The engine (github.com/vermontliteracynetwork/symbolic-grammar-engine, 1.3.0, commit e73481f) now holds:** her master
+formula list ("All Formulas": `MASTER_FORMULAS`, imported by its `scripts/import-master-list.py`), `FORMULA_LIST` read
+from it, `MASTER_CARDS` (every master-list formula as a card, with her printed card picture when there is one), place
+phrases coded PRP, and one dictionary: `wordsOfType()` lists the dictionary's words by grammar symbol with the same
+`jobsOfWord()` that reads every sentence (WordNet, the closed word groups, dictionaryapi.dev), plus `verbForms`,
+`pluralOf`, `ingOf`. Its tests check all of it before any build. This site pins that commit; its `src/lib/writer`
+files are one-line pointers to the engine again (the site-only copies are gone). The dictionary links she sent
+(wordset, dictionaryapi.dev, the open source English dictionary) are noted for the engine: dictionaryapi.dev is
+already its live lookup; adding wordset's word list to the engine is the next step if she wants more words.
+
+**Story Maker now uses it:**
+- Single prepositions are their own slot (on, at, in, to, with, from... 46 from the dictionary), followed by any
+  noun, name or pronoun ("The cat sat on the mat.", "Luna lives in Texas."). Her master-list formulas use them as she
+  wrote them, and every formula fills in with its exact model sentence (58 formulas).
+- Places are nouns (at the park, on the hill); any preposition can go before a place or a person, animal or thing,
+  and the video shows the closest thing it can draw.
+- Any dictionary word can go in a sentence. Words with their own picture move in the video; any other word shows on a
+  little wooden sign (nouns), as a word bubble (verbs), and its forms come from the engine (paint, painted, painting).
+- The word book: one search over every word, and a tab for each part of speech (Nouns, Names, Pronouns, Verbs,
+  Adjectives, Adverbs, Articles, Prepositions, Joining, Wow words); a green dot marks words that move in the video.
+  "Open the word book" in Grammar Symbols adds a word to the current sentence.
+- No dice anywhere; the + sits small in each formula card's top right corner; the menu's width drags (remembered);
+  name tags are gone from the video.
