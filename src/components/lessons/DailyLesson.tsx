@@ -66,6 +66,8 @@ function SidePane({ id, side, width, label, children }: { id: string; side: 'lef
 }
 
 // A name that is renamed in place: double-click it, type, and press Enter (Escape keeps the old name).
+const KIND_ORDER: TabKind[] = ['goal', 'review', 'instruction', 'practice', 'application', 'assessment'];
+
 function EditableText({ value, onSave }: { value: string; onSave: (v: string) => void }) {
   const [edit, setEdit] = useState(false);
   const [v, setV] = useState(value);
@@ -161,7 +163,14 @@ export function DailyLesson() {
   const updateActivity = (id: string, patch: Partial<Activity>) => mapTabs((t) => ({ ...t, sections: t.sections.map((s) => ({ ...s, activities: s.activities.map((a) => (a.id === id ? { ...a, ...patch } : a)) })) }));
   const toggle = (id: string) => setOpen((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
-  const addTab = (kind: TabKind) => { const t = newTab(kind, lesson.focus); change((l) => ({ ...l, tabs: kind === 'goal' ? [t, ...l.tabs] : [...l.tabs, t] })); setOpen((o) => new Set(o).add(t.id)); };
+  // A new part goes in its place in the default order (her rule 2026-11-18: "review, instruction, practice, assessment
+  // should always be the default order"): after the last part of the same kind or of a kind that comes before it.
+  const addTab = (kind: TabKind) => {
+    const t = newTab(kind, lesson.focus);
+    const rank = (k: TabKind) => KIND_ORDER.indexOf(k);
+    change((l) => { const tabs = [...l.tabs]; let at = 0; tabs.forEach((x, i) => { if (rank(x.kind) <= rank(kind)) at = i + 1; }); tabs.splice(at, 0, t); return { ...l, tabs }; });
+    setOpen((o) => new Set(o).add(t.id));
+  };
   // A card picked in the daily plan goes into that part of the lesson (its last subheader).
   const addFromPlan = (tid: string, preset: string) => {
     const a = newActivity(preset, lesson.focus);
