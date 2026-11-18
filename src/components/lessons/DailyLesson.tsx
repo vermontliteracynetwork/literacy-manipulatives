@@ -224,7 +224,6 @@ export function DailyLesson() {
   const [preview, setPreview] = useState<number | null>(null);
   const [spTall, setSpTall] = useState(false);
   const [spWork, setSpWork] = useState<Record<string, Resp>>({});
-  const [spFlag, setSpFlag] = useState('');
   // The iPad frame shrinks to fit this window, so the preview never needs a scroll bar either.
   const [spScale, setSpScale] = useState(1);
   useEffect(() => {
@@ -544,8 +543,8 @@ export function DailyLesson() {
             <button type="button" className="btn btn-sm" onClick={() => setPreview(null)}>Close preview</button>
           </div>
           <div className={`ln-sp-ipad${spTall ? ' tall' : ''}`} style={{ transform: `scale(${spScale})`, marginBottom: (spTall ? 1052 : 796) * (spScale - 1) }}>
-            <StudentScreen lesson={lesson} stop={stops[preview]} done={stops.slice(0, preview).map((x) => x.activity.id)} progress={lesson.progress} name="Student" teacherResp={{}}
-              resp={spWork[stops[preview].activity.id] ?? {}} setResp={(r) => setSpWork((m) => ({ ...m, [stops[preview].activity.id]: r }))} flag={spFlag} onFlag={setSpFlag} />
+            <StudentScreen lesson={lesson} stop={stops[preview]} done={stops.slice(0, preview).map((x) => x.activity.id)} progress={lesson.progress} teacherResp={{}}
+              resp={spWork[stops[preview].activity.id] ?? {}} setResp={(r) => setSpWork((m) => ({ ...m, [stops[preview].activity.id]: r }))} />
           </div>
         </div>
       )}

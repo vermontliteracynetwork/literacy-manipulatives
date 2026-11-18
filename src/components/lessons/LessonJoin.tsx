@@ -23,11 +23,9 @@ export function LessonJoin() {
   const [name, setName] = useState('');
   const [work, setWork] = useState<Record<string, Resp>>(readWork);
   const [, setReady] = useState(0);
-  const [flag, setFlag] = useState('');
-  const sendFlag = (f: string) => { setFlag(f); s.sendWork('__flag', { flag: f }, true); };
   // Each time the teacher moves to an activity a student already worked on, their work goes to the teacher again.
   const at = s.pos?.at ?? null;
-  useEffect(() => { if (at && work[at]) s.sendWork(at, work[at], true); if (flag === 'done') setFlag(''); }, [at]);
+  useEffect(() => { if (at && work[at]) s.sendWork(at, work[at], true); }, [at]);
   useEffect(() => { document.title = 'Lesson'; void loadEngine().then(() => setReady((n) => n + 1)).catch(() => undefined); }, []);
   useEffect(() => { if (fromUrl && code.length === 4) void s.checkCode(code); }, []);
   useEffect(() => { try { sessionStorage.setItem(WORK_KEY, JSON.stringify(work)); } catch { /* kept in memory */ } }, [work]);
@@ -62,18 +60,17 @@ export function LessonJoin() {
   const pos = s.pos;
   const stop = lesson && pos?.at ? stopsOf(lesson).find((x) => x.activity.id === pos.at) : undefined;
   if (!lesson || !stop || !pos) return <div className="ln-join"><div className="ln-join-card"><h1>Hi, {s.name}!</h1><p>Your teacher will start the lesson soon.</p></div></div>;
-  return <StudentScreen lesson={lesson} stop={stop} done={pos.done} progress={pos.progress} name={s.name} teacherResp={pos.teacherResp}
-    resp={work[stop.activity.id] ?? {}} setResp={(r) => { setWork((w) => ({ ...w, [stop.activity.id]: r })); s.sendWork(stop.activity.id, r); }} flag={flag} onFlag={sendFlag} />;
+  return <StudentScreen lesson={lesson} stop={stop} done={pos.done} progress={pos.progress} teacherResp={pos.teacherResp}
+    resp={work[stop.activity.id] ?? {}} setResp={(r) => { setWork((w) => ({ ...w, [stop.activity.id]: r })); s.sendWork(stop.activity.id, r); }} />;
 }
 
 // What a student sees on their iPad. The teacher's "Preview as student" shows this same screen.
-export function StudentScreen({ lesson, stop, done, progress, name, teacherResp, resp, setResp, flag, onFlag }: {
-  lesson: Lesson; stop: Stop; done: string[]; progress: 'bar' | 'checklist'; name: string; teacherResp: Resp; resp: Resp; setResp: (r: Resp) => void; flag: string; onFlag: (f: string) => void;
+export function StudentScreen({ lesson, stop, done, progress, teacherResp, resp, setResp }: {
+  lesson: Lesson; stop: Stop; done: string[]; progress: 'bar' | 'checklist'; teacherResp: Resp; resp: Resp; setResp: (r: Resp) => void;
 }) {
   const a = stop.activity;
   const mine = a.access === 'do';
   const quiet = stop.tab.kind === 'assessment';
-  const sendFlag = onFlag;
   return (
     <div className="ln ln-student">
       <Progress lesson={lesson} at={a.id} done={done} view={progress} />
@@ -84,20 +81,8 @@ export function StudentScreen({ lesson, stop, done, progress, name, teacherResp,
         {mine
           ? <ActivityView key={a.id} a={a} lesson={lesson} quiet={quiet} resp={resp} interactive set={setResp} />
           : <ActivityView key={a.id} a={a} lesson={lesson} quiet={quiet} resp={teacherResp} interactive={false} set={() => {}} />}
-        {mine && <button type="button" className={`btn ln-big ln-done-btn${flag === 'done' ? ' on' : ''}`} onClick={() => sendFlag(flag === 'done' ? '' : 'done')}>{flag === 'done' ? 'Done! (tap to keep working)' : "I'm done"}</button>}
        </Fit>
       </main>
-      <footer className="ln-student-foot">
-        <span>{name}</span>        <button type="button" className={`btn ln-help${flag === 'help' ? ' on' : ''}`} aria-pressed={flag === 'help'} onClick={() => sendFlag(flag === 'help' ? '' : 'help')}>{flag === 'help' ? 'Help is coming' : 'I need help'}</button>
-        <button type="button" className={`btn ln-help${flag === 'break' ? ' on' : ''}`} aria-pressed={flag === 'break'} onClick={() => sendFlag(flag === 'break' ? '' : 'break')}>{flag === 'break' ? "I'm back" : 'I need a break'}</button>
-      </footer>
-      {flag === 'break' && (
-        <div className="ln-break" role="dialog" aria-label="Break">
-          <p className="ln-break-big">Take a break.</p>
-          <p>Breathe in slowly. Breathe out slowly. Your teacher knows.</p>
-          <button type="button" className="btn btn-primary ln-big" onClick={() => sendFlag('')}>I'm ready</button>
-        </div>
-      )}
     </div>
   );
 }
