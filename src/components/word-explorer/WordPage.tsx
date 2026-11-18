@@ -1,3 +1,4 @@
+import { WordJobsCard } from './WordJobs';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Icon } from '../Icon';
 import { BAND_NAMES, PosTag, SpeakButton, Spoken, StatusTag, TapWord, wordCount } from './parts';
@@ -33,7 +34,7 @@ const PRESET_TABS: Record<Preset, Tab[]> = {
   thesaurus: ['dictionary', 'thesaurus', 'pictures'],
 };
 
-export function WordPage({ word, teacher, note, initialTab, preset = 'full' }: { word: string; teacher: boolean; note?: string; initialTab?: string; preset?: Preset }) {
+export function WordPage({ word, teacher, note, initialTab, preset = 'full', onJobs }: { word: string; teacher: boolean; note?: string; initialTab?: string; preset?: Preset; onJobs?: () => void }) {
   const tabs = TABS.filter((t) => teacher || PRESET_TABS[preset].includes(t.id));
   const simple = !teacher && preset === 'simple';
   const [entry, setEntry] = useState<WordEntry | null | undefined>(undefined);
@@ -76,7 +77,7 @@ export function WordPage({ word, teacher, note, initialTab, preset = 'full' }: {
           </div>
         </nav>
         <div role="tabpanel" id={`wx-panel-${tab}`} aria-labelledby={`wx-tab-${tab}`} className="wx-panel">
-          {tab === 'dictionary' && <DictionaryTab entry={shown} teacher={teacher} simple={simple} />}
+          {tab === 'dictionary' && <DictionaryTab entry={shown} teacher={teacher} simple={simple} onJobs={onJobs} />}
           {tab === 'thesaurus' && <ThesaurusTab entry={shown} teacher={teacher} />}
           {tab === 'sounds' && <SoundsTab entry={shown} teacher={teacher} />}
           {tab === 'parts' && <WordPartsTab entry={shown} teacher={teacher} />}
@@ -131,7 +132,7 @@ function WordHeader({ entry, teacher, posPick, onPos }: { entry: WordEntry; teac
   );
 }
 
-function DictionaryTab({ entry, teacher, simple }: { entry: WordEntry; teacher: boolean; simple: boolean }) {
+function DictionaryTab({ entry, teacher, simple, onJobs }: { entry: WordEntry; teacher: boolean; simple: boolean; onJobs?: () => void }) {
   const senses = entry.senses.filter((s) => visibleTo(s.definition.status, teacher));
   const showFacts = visibleTo(entry.status, teacher);
   const synonyms = uniq(senses.flatMap((s) => s.synonyms.map((x) => x.wordId))).slice(0, 10);
@@ -174,6 +175,7 @@ function DictionaryTab({ entry, teacher, simple }: { entry: WordEntry; teacher: 
             <div className="wx-chips">{antonyms.map((w) => <TapWord key={w} word={w} />)}</div>
           </section>
         )}
+        {onJobs && <WordJobsCard word={entry.headword} onJobs={onJobs} />}
         <section className="wx-side-card wx-sources">
           <h2 className="wx-h3">Sources</h2>
           <ul>{sources.map((p) => <li key={p.source}><SourceLine p={p} /></li>)}</ul>

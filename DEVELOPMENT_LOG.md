@@ -1263,3 +1263,10 @@ alignment with the Symbolic Grammar curriculum.
 - Her answer ("yes add word tiles to the writing activities. both"), shipped the same day:
   - Word tiles in every writing box (Write activities, Procedure A You do, the quick check). Students choose "Type it" or "Word tiles" (the Practice Activities Bank rule: response mode is the learner's choice). Tiles go in lowercase; the "Aa" capital letter button and the punctuation tiles stay the student's job, with Undo and Clear. The tiles come from the teacher's word list for the activity, or kid-friendly words for each symbol of the formula. Edit fields: Word tiles, Start with word tiles, Turn word tiles off.
   - Practice and Application formula pickers show only the formulas taught in the lesson's Instruction tabs ("Use only formulas already taught in Instruction"), unless the activity is set to Cumulative review.
+
+## 2026-11-18: Word Jobs moved into Word Explorer
+
+Her request: "add the word jobs to the word explorer, remove word jobs as its own app."
+- Word Jobs is now a Word Explorer page (`/words?view=jobs`), with a Word Jobs button in Word Explorer's top bar and on its start page. Its words open in Word Explorer.
+- Every word page with a word that can do more than one job shows a "Word jobs" card: its jobs (most common first) and the rule card for telling them apart, with a link to all word jobs.
+- The Word Jobs card is gone from the tools dashboard; `/word-jobs` links go to the new page. Files moved to `src/components/word-explorer/WordJobs.tsx` and `wordJobs.css`.

@@ -26,7 +26,7 @@ const TOOLS: Tool[] = [
   },
   {
     title: 'Word Explorer',
-    description: 'A dictionary and thesaurus: hear a word, see what it means with her grammar symbols, and hop to words like it.',
+    description: 'A dictionary and thesaurus: hear a word, see what it means with her grammar symbols, and hop to words like it. Word Jobs shows every word that can be more than one part of speech, with the rule for telling them apart.',
     href: '/words',
     image: '/dashboard/word-explorer.png',
     tags: ['Student-facing', 'Vocabulary'],
@@ -65,13 +65,6 @@ const TOOLS: Tool[] = [
     href: '/story',
     image: '/dashboard/story-maker.svg',
     tags: ['Student-facing', 'Teacher tool', 'Formulas'],
-  },
-  {
-    title: 'Word Jobs',
-    description: 'Every common word that can be more than one part of speech, with a rule card for each pair (noun or verb, adjective or noun...) and a sentence checker that shows why each word got its job.',
-    href: '/word-jobs',
-    image: '/dashboard/word-jobs.svg',
-    tags: ['Teacher tool', 'Parts of speech'],
   },
 ];
 

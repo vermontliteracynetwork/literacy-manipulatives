@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { HomeButton } from '../HomeButton';
 import { GRAMMAR_SYMBOL_INFO, type SymbolWordClass } from '../../lib/grammarSymbols';
-import { loadEngine, readText, readWithWhy } from '../../lib/grammarEngine';
+import { jobsDetail, loadEngine, readText, readWithWhy } from '../../lib/grammarEngine';
 import { JOB_RULES, multiJobWords, type JobRule, type MultiJobWord } from '../../lib/wordsByType';
-import './wordJobs.css';
 
-// Word Jobs (her request 2026-11-17: "remember how important the part of speech logic is for our curriculum ... a list
+// Word Jobs, a page of Word Explorer (her request 2026-11-18: "add the word jobs to the word explorer, remove word
+// jobs as its own app"; first built 2026-11-17 as its own tool: "remember how important the part of speech logic is for our curriculum ... a list
 // view for words that have multiple functions in parts of speech, so we can create rules on how to know what type it
 // is"). Every common word that can do more than one job, from the Symbolic Grammar Engine (the same logic every program
 // uses), with the engine's rule card for each pair of jobs and a sentence checker that shows why each word got its job.
@@ -48,7 +47,28 @@ function RuleCard({ r }: { r: JobRule }) {
   );
 }
 
-export function WordJobs() {
+// On a word's page: the jobs this word can do, and the rule card for telling them apart.
+export function WordJobsCard({ word, onJobs }: { word: string; onJobs: () => void }) {
+  const d = jobsDetail(word);
+  if (!d || d.all.length < 2) return null;
+  const rules = JOB_RULES.filter((r) => r.jobs.every((j) => d.all.includes(j)));
+  return (
+    <section className="wx-side-card wj-card" aria-label="Word jobs">
+      <h2 className="wx-h3">Word jobs</h2>
+      <p>"{word}" can do more than one job:</p>
+      <span className="wj-jobs">{d.all.map((j) => <span key={j} className={`wj-chip${d.common.includes(j) ? '' : ' rare'}`}><Sym c={j} size={20} />{name(j)}{!d.common.includes(j) && <small> less common</small>}</span>)}</span>
+      {rules.map((r) => (
+        <div key={r.title} className="wj-card-rule">
+          <p><strong>{r.title}</strong></p>
+          <ul>{r.rules.map((x) => <li key={x}>{x}</li>)}</ul>
+        </div>
+      ))}
+      <button type="button" className="wx-btn" onClick={onJobs}>All word jobs</button>
+    </section>
+  );
+}
+
+export function WordJobs({ onOpen }: { onOpen: (word: string) => void }) {
   const [list, setList] = useState<MultiJobWord[] | null>(null);
   const [pair, setPair] = useState<number | null>(null);
   const [q, setQ] = useState('');
@@ -74,9 +94,8 @@ export function WordJobs() {
 
   return (
     <div className="wj-page">
-      <header className="lm-toolbar wj-toolbar">
-        <HomeButton />
-        <h1 className="lm-sidebar-title">Word Jobs</h1>
+      <header className="wj-head">
+        <h1 className="wx-h2">Word Jobs</h1>
         <span className="wj-sub">Words that can be more than one part of speech, and how to tell which job they are doing</span>
       </header>
       <main className="wj-main">
@@ -115,7 +134,7 @@ export function WordJobs() {
               <tbody>
                 {rows.slice(0, shown).map((w) => (
                   <tr key={w.word}>
-                    <th scope="row"><a href={`/words?w=${encodeURIComponent(w.word)}`}>{w.word}</a></th>
+                    <th scope="row"><a href={`/words?w=${encodeURIComponent(w.word)}`} onClick={(e) => { e.preventDefault(); onOpen(w.word); }}>{w.word}</a></th>
                     <td>
                       <span className="wj-jobs">
                         {w.jobs.map((j) => (

@@ -11,6 +11,8 @@ import { SettingsDialog } from './SettingsDialog';
 import { WordOfDayCard } from './WordOfDay';
 import { Browse, type BrowseMode } from './Browse';
 import { SourcesPage } from './SourcesPage';
+import { WordJobs } from './WordJobs';
+import './wordJobs.css';
 import { startList } from '../../lib/word-explorer/lists';
 import { HomeButton } from '../HomeButton';
 import { loadIndex, onIndex, indexReady } from '../../lib/word-explorer/data';
@@ -24,7 +26,7 @@ import { myWords, subscribeMyWords } from '../../lib/writer/myWords';
 // the center panel, which changes in place. Engines live in src/lib/word-explorer (UI-free).
 
 type Page = { kind: 'home' } | { kind: 'word'; word: string; note?: string; tab?: string } | { kind: 'results'; query: string }
-  | { kind: 'browse'; mode?: BrowseMode } | { kind: 'sources' };
+  | { kind: 'browse'; mode?: BrowseMode } | { kind: 'sources' } | { kind: 'jobs' };
 
 function pageFromUrl(): Page {
   const p = new URLSearchParams(window.location.search);
@@ -35,6 +37,7 @@ function pageFromUrl(): Page {
   const view = p.get('view');
   if (view === 'browse') return { kind: 'browse' };
   if (view === 'sources') return { kind: 'sources' };
+  if (view === 'jobs') return { kind: 'jobs' };
   // The Word List Maker is its own tool now (/lists); old links still work.
   if (view === 'lists' || view === 'list') { window.location.replace(`/lists${p.get('l') ? `?l=${encodeURIComponent(p.get('l')!)}` : ''}`); }
   return { kind: 'home' };
@@ -44,6 +47,7 @@ function urlFor(page: Page) {
   if (page.kind === 'results') return `/words?q=${encodeURIComponent(page.query)}`;
   if (page.kind === 'browse') return '/words?view=browse';
   if (page.kind === 'sources') return '/words?view=sources';
+  if (page.kind === 'jobs') return '/words?view=jobs';
   return '/words';
 }
 
@@ -102,16 +106,17 @@ export function WordExplorer() {
         <SayButtons on={settings.sayButtons}>
           <div className="wx" data-theme={settings.theme} data-size={settings.textSize} data-spacing={settings.spacing} data-lines={settings.lineSpacing} data-font={settings.font} data-buttons={settings.buttonSize} data-calm={settings.calm ? 'on' : 'off'} data-motion={settings.reduceMotion ? 'reduce' : 'full'}>
             <a className="wx-skip" href="#wx-main">Skip to the word</a>
-            <Header onHome={() => go({ kind: 'home' })} onSearch={runSearch} onSettings={() => setShowSettings(true)} onBrowse={() => go({ kind: 'browse' })} />
+            <Header onHome={() => go({ kind: 'home' })} onSearch={runSearch} onSettings={() => setShowSettings(true)} onBrowse={() => go({ kind: 'browse' })} onJobs={() => go({ kind: 'jobs' })} />
             <Trail trail={trail} current={page.kind === 'word' ? page.word : null}
               onHome={() => go({ kind: 'home' })}
               onPick={(w, i) => { setTrail((t) => t.slice(0, i + 1)); setPage({ kind: 'word', word: w }); window.history.pushState(null, '', urlFor({ kind: 'word', word: w })); }} />
             <main id="wx-main" ref={mainRef} tabIndex={-1} className="wx-main">
               {page.kind === 'home' && <Home onSearch={runSearch} settings={settings} onOpen={openWord} onBrowse={(m) => go({ kind: 'browse', mode: m })} onLists={() => window.location.assign('/lists')} />}
-              {page.kind === 'word' && <WordPage key={`${page.word}-${page.tab ?? ''}`} word={page.word} note={page.note} initialTab={page.tab} teacher={settings.teacherView} preset={settings.preset} />}
+              {page.kind === 'word' && <WordPage key={`${page.word}-${page.tab ?? ''}`} onJobs={() => go({ kind: 'jobs' })} word={page.word} note={page.note} initialTab={page.tab} teacher={settings.teacherView} preset={settings.preset} />}
               {page.kind === 'results' && <Results result={search(page.query)} />}
               {page.kind === 'browse' && <Browse key={page.mode ?? 'az'} initialMode={page.mode} view={settings.browseView} onView={(v) => update({ ...settings, browseView: v })} />}
               {page.kind === 'sources' && <SourcesPage teacher={settings.teacherView} />}
+              {page.kind === 'jobs' && <WordJobs onOpen={openWord} />}
             </main>
             {showSettings && <SettingsDialog settings={settings} onChange={update} onClose={() => setShowSettings(false)} />}
             <MainMenu />
@@ -143,7 +148,7 @@ type Recognizer = { lang: string; interimResults: boolean; maxAlternatives: numb
 const Recognition = typeof window === 'undefined' ? undefined
   : ((window as unknown as Record<string, unknown>).SpeechRecognition ?? (window as unknown as Record<string, unknown>).webkitSpeechRecognition) as (new () => Recognizer) | undefined;
 
-function Header({ onHome, onSearch, onSettings, onBrowse }: { onHome: () => void; onSearch: (q: string) => void; onSettings: () => void; onBrowse: () => void }) {
+function Header({ onHome, onSearch, onSettings, onBrowse, onJobs }: { onHome: () => void; onSearch: (q: string) => void; onSettings: () => void; onBrowse: () => void; onJobs: () => void }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -200,6 +205,7 @@ function Header({ onHome, onSearch, onSettings, onBrowse }: { onHome: () => void
         </button>
       </form>
       <button type="button" className="wx-btn" onClick={onBrowse}><Icon name="book" size={22} /><span>Browse</span></button>
+      <button type="button" className="wx-btn" onClick={onJobs}><Icon name="menu" size={22} /><span>Word Jobs</span></button>
       <a className="wx-btn" href="/lists"><Icon name="menu" size={22} /><span>Word Lists</span></a>
       <button type="button" className="wx-btn" onClick={onSettings}><Icon name="gear" size={22} /><span>Settings</span></button>
       {voiceMsg && <p className="wx-voice-msg" role="status">{voiceMsg}</p>}
@@ -250,6 +256,7 @@ function Home({ onSearch, settings, onOpen, onBrowse, onLists }: { onSearch: (q:
           <button type="button" className="wx-btn" onClick={() => onBrowse('pictures')}><Icon name="image" size={22} /><span>By picture</span></button>
           <button type="button" className="wx-btn" onClick={() => onBrowse('sounds')}><Icon name="speaker" size={22} /><span>By sound</span></button>
           <button type="button" className="wx-btn" onClick={onLists}><Icon name="menu" size={22} /><span>Make a word list</span></button>
+          <a className="wx-btn" href="/words?view=jobs"><Icon name="menu" size={22} /><span>Word jobs</span></a>
         </div>
       </section>
       <section className="wx-card">

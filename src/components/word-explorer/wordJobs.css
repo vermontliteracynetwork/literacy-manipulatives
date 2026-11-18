@@ -1,7 +1,11 @@
-.wj-page { min-height: 100dvh; background: var(--paper); color: var(--ink); font-family: var(--lm-font); }
+.wj-page { color: inherit; }
+.wj-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.wj-head h1 { margin: 0; }
+.wj-card .wj-jobs { margin: 6px 0; }
+.wj-card-rule ul { margin: 4px 0 8px; padding-left: 20px; }
 .wj-toolbar h1 { margin: 0; }
 .wj-sub { color: #4A5D70; font-size: 0.95rem; }
-.wj-main { max-width: 1100px; margin: 0 auto; padding: 16px 20px 40px; display: flex; flex-direction: column; gap: 14px; }
+.wj-main { max-width: 1100px; margin: 0 auto; padding: 0 0 40px; display: flex; flex-direction: column; gap: 14px; }
 .wj-sym { width: var(--s, auto); object-fit: contain; vertical-align: middle; }
 .wj-check { background: #fff; border: 2px solid var(--ink); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .wj-check input, .wj-list-head input { font: inherit; font-size: 1.05rem; padding: 8px 12px; border: 2px solid var(--content-border); border-radius: 10px; }
