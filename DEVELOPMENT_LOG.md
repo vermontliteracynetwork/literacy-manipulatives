@@ -1260,3 +1260,6 @@ alignment with the Symbolic Grammar curriculum.
   - No auto capital letter, autocorrect or spell check in the sentence boxes (they would do the skill for the student).
   - Bigger targets: word search cells 44px, a labeled 3-column symbol palette for mark-ups, larger progress dots.
   - The teacher can switch an activity between "Students watch" and "Students do it" while presenting.
+- Her answer ("yes add word tiles to the writing activities. both"), shipped the same day:
+  - Word tiles in every writing box (Write activities, Procedure A You do, the quick check). Students choose "Type it" or "Word tiles" (the Practice Activities Bank rule: response mode is the learner's choice). Tiles go in lowercase; the "Aa" capital letter button and the punctuation tiles stay the student's job, with Undo and Clear. The tiles come from the teacher's word list for the activity, or kid-friendly words for each symbol of the formula. Edit fields: Word tiles, Start with word tiles, Turn word tiles off.
+  - Practice and Application formula pickers show only the formulas taught in the lesson's Instruction tabs ("Use only formulas already taught in Instruction"), unless the activity is set to Cumulative review.

@@ -3,14 +3,13 @@ import type React from 'react';
 import type { SymbolWordClass } from 'symbolic-grammar-engine';
 import { GRAMMAR_SYMBOL_INFO, TENSE_SYMBOLS } from '../../lib/grammarSymbols';
 import { MASTER_FORMULAS } from '../../lib/writer/masterList';
-import { wordsOfType } from '../../lib/wordsByType';
 import { speak, stopSpeaking } from '../../lib/word-explorer/speech';
 import { FormulaSymbols } from '../SentenceFormulas';
 import { TemplateEditor, TemplateView } from '../procedures/TemplatePages';
 import LiteracyManipulatives from '../../LiteracyManipulatives';
 import {
   SYMBOL_ORDER, checkWritten, codeOf, formulaLabel, formulaRow, formulaSlots, num, sortSetup, splitArrow, splitBar, splitEq, str, strs, symbolByName,
-  symbolName, symbolsOfSentence, syms, tensesOf, wordFits, type Resp, type SentenceResult,
+  symbolName, symbolOf, symbolsOfSentence, syms, tensesOf, wordFits, type Resp, type SentenceResult,
 } from '../../lib/lessons/check';
 import { ENGINE_FIELDS, type Activity, type Field, type Lesson } from '../../lib/lessons/types';
 import type { PageData, PageKind } from '../../lib/procedures/types';
@@ -65,6 +64,72 @@ function CheckLine({ r }: { r: SentenceResult | null }) {
 function seeded(seed: string) { let h = 2166136261; for (const ch of seed) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return () => { h += 0x6d2b79f5; let t = h; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function shuffle<T>(list: T[], seed: string): T[] { const r = seeded(seed); const a = [...list]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 const wordsOf = (s: string) => s.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+
+// A sentence box that a student fills by typing or with word tiles (her Practice Activities Bank rule, 2026-11-18:
+// the response mode is the learner's choice). Tiles come from the teacher's word list, or the engine picks words for
+// each symbol of the formula. The capital letter and the punctuation stay the student's job: tiles go in lowercase,
+// with an "Aa" capital letter button and punctuation tiles.
+function SentenceBox({ a, value, onChange, interactive, codes, label, done, placeholder = 'Write your sentence' }: {
+  a: Activity; value: string; onChange: (v: string) => void; interactive: boolean; codes: string[]; label: string; done?: { onBlur: () => void }; placeholder?: string;
+}) {
+  const allowed = a.data.noTiles !== true;
+  const [tiles, setTiles] = useState(allowed && a.data.tilesFirst === true);
+  const bank = useMemo(() => {
+    const own = strs(a.data.tiles).map((w) => w.trim()).filter(Boolean);
+    const groups = new Map<SymbolWordClass, string[]>();
+    if (own.length) {
+      for (const w of own) { const c = symbolOf(w) ?? 'noun'; groups.set(c, [...(groups.get(c) ?? []), w]); }
+    } else {
+      const r = seeded(`${a.id}-tiles`);
+      const slots = [...new Set(codes.flatMap((c) => formulaSlots(c)).map((x) => symbolByName(x) ?? (x === 'propernoun' ? 'propernoun' : undefined)).filter(Boolean) as SymbolWordClass[])];
+      for (const c of slots.length ? slots : (['article', 'noun', 'verb'] as SymbolWordClass[])) {
+        const b = bankFor(c);
+        const pick = new Set<string>();
+        for (let k = 0; k < 40 && pick.size < Math.min(6, b.length); k++) pick.add(b[Math.floor(r() * b.length)]);
+        groups.set(c, [...pick].sort());
+      }
+    }
+    return [...groups.entries()].sort((x, y) => SYMBOL_ORDER.indexOf(x[0]) - SYMBOL_ORDER.indexOf(y[0]));
+  }, [a.id, JSON.stringify(a.data.tiles), codes.join(',')]);
+  const add = (w: string) => { const t = value.replace(/\s+$/, ''); onChange(/[.!?]$/.test(t) ? t : t ? `${t} ${w}` : w); };
+  const punct = (m: string) => { const t = value.replace(/\s*[.!?]$/, '').trim(); if (t) { onChange(`${t}${m}`); done?.onBlur(); } };
+  const capital = () => { const t = value.trimStart(); if (t) onChange(t[0] === t[0].toUpperCase() ? `${t[0].toLowerCase()}${t.slice(1)}` : `${t[0].toUpperCase()}${t.slice(1)}`); };
+  const undo = () => { const t = value.trim(); if (/[.!?]$/.test(t)) onChange(t.slice(0, -1)); else onChange(t.split(/\s+/).slice(0, -1).join(' ')); };
+  return (
+    <div className="ln-sbox">
+      {allowed && interactive && (
+        <div className="ln-mode" role="radiogroup" aria-label="How I answer">
+          <button type="button" role="radio" aria-checked={!tiles} className={`ln-mode-btn${!tiles ? ' on' : ''}`} onClick={() => setTiles(false)}>Type it</button>
+          <button type="button" role="radio" aria-checked={tiles} className={`ln-mode-btn${tiles ? ' on' : ''}`} onClick={() => setTiles(true)}>Word tiles</button>
+        </div>
+      )}
+      {!tiles ? (
+        <input {...NOAUTO} {...done} className="ln-input ln-sentence" readOnly={!interactive} value={value} placeholder={placeholder} aria-label={label} onChange={(e) => onChange(e.target.value)} />
+      ) : (
+        <div className="ln-tilebox">
+          <div className="ln-answer" aria-label={label} aria-live="polite">
+            {value.trim() ? <span className="ln-built">{value}</span> : <span className="ln-empty">Tap the word tiles in order</span>}
+            {value.trim() && <Say text={value} label="Read my sentence" />}
+          </div>
+          <div className="ln-tile-tools">
+            <button type="button" className="ln-card ln-tool" disabled={!interactive || !value.trim()} onClick={capital} aria-label="Capital letter">Aa</button>
+            {['.', '?', '!'].map((m) => <button key={m} type="button" className="ln-card ln-tool" disabled={!interactive || !value.trim()} onClick={() => punct(m)} aria-label={m === '.' ? 'Period' : m === '?' ? 'Question mark' : 'Exclamation point'}>{m}</button>)}
+            <button type="button" className="ln-card ln-tool" disabled={!interactive || !value.trim()} onClick={undo}>Undo</button>
+            <button type="button" className="ln-card ln-tool" disabled={!interactive || !value.trim()} onClick={() => onChange('')}>Clear</button>
+          </div>
+          <div className="ln-bank">
+            {bank.map(([c, words]) => (
+              <div key={c} className="ln-bank-group">
+                <Sym c={c} size={34} label />
+                <div className="ln-bank-words">{words.map((w) => <button key={w} type="button" className="ln-card" disabled={!interactive} onClick={() => add(w)}>{w}</button>)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ---------- the activity screen ----------
 export function ActivityView(p: ViewProps) {
@@ -357,8 +422,8 @@ function Write(p: ViewProps) {
         return (
           <div key={i} className="ln-line">
             {dictate[i] && <Say text={dictate[i]} label={`Listen to sentence ${i + 1}`} />}
-            <input {...NOAUTO} {...seen.done(`w${i}`)} className="ln-input ln-sentence" readOnly={!interactive} value={lines[i] ?? ''} placeholder="Write your sentence" aria-label={`Sentence ${i + 1}`}
-              onChange={(e) => { const next = [...lines]; next[i] = e.target.value; set({ ...resp, lines: next }); }} />
+            <SentenceBox a={a} codes={want} done={seen.done(`w${i}`)} interactive={interactive} value={lines[i] ?? ''} label={`Sentence ${i + 1}`}
+              onChange={(v) => { const next = [...lines]; next[i] = v; set({ ...resp, lines: next }); }} />
             {seen.show(`w${i}`) ? <CheckLine r={res} /> : mode !== 'none' && <span className="ln-hint">Capital letter at the start. Punctuation at the end.</span>}
           </div>
         );
@@ -569,12 +634,21 @@ function TicTacToe({ a, resp, set, interactive }: ViewProps) {
   );
 }
 
+// Kid-friendly words for tiles and Formula Fishing (verbs in the present, the way her first formulas use them).
+// A teacher's own word list for an activity replaces these.
 const BANK: Partial<Record<SymbolWordClass, string[]>> = {
-  article: ['the', 'a', 'an'], noun: ['dog', 'cat', 'frog', 'pizza', 'robot', 'tree'], propernoun: ['Max', 'Rosa', 'Tom'], pronoun: ['he', 'she', 'they', 'it'],
-  verb: ['jumps', 'runs', 'sings', 'naps', 'eats', 'dances'], adjective: ['big', 'silly', 'green', 'tiny'], adverb: ['fast', 'slowly', 'loudly'],
-  preposition: ['on', 'under', 'by'], conjunction: ['and', 'but'],
+  article: ['the', 'a', 'an'],
+  noun: ['dog', 'cat', 'frog', 'bird', 'fish', 'pig', 'robot', 'pizza', 'tree', 'ball', 'apple', 'owl', 'egg', 'duck', 'bear', 'cake'],
+  propernoun: ['Max', 'Rosa', 'Tom', 'Mia', 'Leo', 'Ava'],
+  pronoun: ['he', 'she', 'they', 'it', 'we', 'I'],
+  verb: ['jumps', 'runs', 'sings', 'naps', 'eats', 'dances', 'swims', 'hops', 'reads', 'sleeps', 'plays', 'flies'],
+  adjective: ['big', 'small', 'silly', 'green', 'tiny', 'happy', 'red', 'fast'],
+  adverb: ['fast', 'slowly', 'loudly', 'quietly', 'happily', 'up'],
+  preposition: ['on', 'under', 'by', 'in', 'over', 'at'],
+  conjunction: ['and', 'but', 'or', 'because'],
+  interjection: ['wow', 'oh', 'yay'],
 };
-function bankFor(c: SymbolWordClass): string[] { try { const l = wordsOfType(c); if (l.length > 20) return l.slice(0, 400); } catch { /* lists still loading */ } return BANK[c] ?? ['word']; }
+const bankFor = (c: SymbolWordClass): string[] => BANK[c] ?? ['word'];
 function Fishing({ a, resp, set, interactive }: ViewProps) {
   const codes = strs(a.data.formulas).length ? strs(a.data.formulas) : ['S1.A'];
   const done = strs(resp.done);
@@ -703,7 +777,7 @@ function ProcA(p: ViewProps) {
           {(strs(d.youDo).length ? strs(d.youDo) : ['Write a sentence for the formula.']).map((q, i) => (
             <div key={i} className="ln-line">
               <p className="ln-prompt">{q} <Say text={q} /></p>
-              <input {...NOAUTO} {...seen.done(`y${i}`)} className="ln-input ln-sentence" readOnly={!interactive} value={lines[i] ?? ''} aria-label={q} onChange={(e) => { const n = [...lines]; n[i] = e.target.value; set({ ...resp, lines: n }); }} />
+              <SentenceBox a={a} codes={[code]} done={seen.done(`y${i}`)} interactive={interactive} value={lines[i] ?? ''} label={q} onChange={(v) => { const n = [...lines]; n[i] = v; set({ ...resp, lines: n }); }} />
               {seen.show(`y${i}`) && <CheckLine r={checkWritten(lines[i] ?? '', [code])} />}
             </div>
           ))}
@@ -729,7 +803,7 @@ function Assess({ a, resp, set, interactive, teacher }: ViewProps) {
         <div key={i} className="ln-line">
           <p className="ln-prompt"><span className="ln-num">{i + 1}</span> {q} <Say text={q} /></p>
           {code && <Strip code={code} />}
-          <input {...NOAUTO} className="ln-input ln-sentence" readOnly={!interactive} value={lines[i] ?? ''} aria-label={`Item ${i + 1}`} onChange={(e) => { const n = [...lines]; n[i] = e.target.value; set({ ...resp, lines: n }); }} />
+          <SentenceBox a={a} codes={code ? [code] : []} interactive={interactive} value={lines[i] ?? ''} label={`Item ${i + 1}`} onChange={(v) => { const n = [...lines]; n[i] = v; set({ ...resp, lines: n }); }} />
           {teacher && <CheckLine r={checkWritten(lines[i] ?? '', code ? [code] : [], code ? 'formula' : 'sentence')} />}
         </div>
       ))}
@@ -758,9 +832,10 @@ export function SymbolPicker({ value, onChange }: { value: SymbolWordClass[]; on
     </div>
   );
 }
-export function FormulaPicker({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+export function FormulaPicker({ value, onChange, only }: { value: string[]; onChange: (v: string[]) => void; only?: string[] }) {
   const [q, setQ] = useState('');
-  const hits = q.trim() ? FORMULA_OPTIONS.filter((o) => o.label.toLowerCase().includes(q.toLowerCase())).slice(0, 12) : [];
+  const pool = only ? FORMULA_OPTIONS.filter((o) => only.includes(o.value)) : FORMULA_OPTIONS;
+  const hits = only && !q.trim() ? pool.filter((o) => !value.includes(o.value)) : q.trim() ? pool.filter((o) => o.label.toLowerCase().includes(q.toLowerCase())).slice(0, 12) : [];
   return (
     <div className="ln-fpicker">
       <div className="ln-chips">{value.map((c) => <span key={c} className="ln-chip" title={formulaLabel(c)}>{c}<button type="button" aria-label={`Remove ${c}`} onClick={() => onChange(value.filter((x) => x !== c))}>×</button></span>)}</div>
@@ -781,7 +856,7 @@ async function shrinkPicture(file: File): Promise<string> {
   } finally { URL.revokeObjectURL(url); }
 }
 
-function FieldInput({ f, value, onChange }: { f: Field; value: unknown; onChange: (v: unknown) => void }) {
+function FieldInput({ f, value, onChange, only }: { f: Field; value: unknown; onChange: (v: unknown) => void; only?: string[] }) {
   switch (f.kind) {
     case 'text': return <input value={str(value)} onChange={(e) => onChange(e.target.value)} />;
     case 'textarea': return <textarea rows={3} value={str(value)} onChange={(e) => onChange(e.target.value)} />;
@@ -790,8 +865,8 @@ function FieldInput({ f, value, onChange }: { f: Field; value: unknown; onChange
     case 'bool': return <input type="checkbox" checked={value !== false && value !== undefined} onChange={(e) => onChange(e.target.checked)} />;
     case 'select': return <select value={str(value)} onChange={(e) => onChange(e.target.value)}>{f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>;
     case 'symbols': return <SymbolPicker value={syms(value)} onChange={onChange} />;
-    case 'formulas': return <FormulaPicker value={strs(value)} onChange={onChange} />;
-    case 'formula': return <FormulaPicker value={str(value) ? [str(value)] : []} onChange={(v) => onChange(v[v.length - 1] ?? '')} />;
+    case 'formulas': return <FormulaPicker only={only} value={strs(value)} onChange={onChange} />;
+    case 'formula': return <FormulaPicker only={only} value={str(value) ? [str(value)] : []} onChange={(v) => onChange(v[v.length - 1] ?? '')} />;
     case 'picture': return (
       <span className="ln-pic-field">
         {str(value) && <img src={str(value)} alt="" />}
@@ -802,8 +877,21 @@ function FieldInput({ f, value, onChange }: { f: Field; value: unknown; onChange
   }
 }
 
-export function ActivityEditor({ a, onChange }: { a: Activity; onChange: (patch: Partial<Activity>) => void }) {
+// The formulas taught in the lesson's Instruction tabs. Practice and Application use only these (Practice Activities
+// Bank rule: "Use only formulas already taught in Instruction"), unless the activity is a Cumulative review.
+export function taughtFormulas(lesson: Lesson): string[] {
+  const out = new Set<string>();
+  for (const t of lesson.tabs) if (t.kind === 'instruction') for (const s of t.sections) for (const x of s.activities) {
+    if (str(x.data.formula)) out.add(str(x.data.formula));
+    for (const c of strs(x.data.formulas)) out.add(c);
+  }
+  return [...out];
+}
+
+export function ActivityEditor({ a, onChange, lesson, tabKind }: { a: Activity; onChange: (patch: Partial<Activity>) => void; lesson: Lesson; tabKind: string }) {
   const fields = ENGINE_FIELDS[a.engine];
+  const taught = taughtFormulas(lesson);
+  const only = (tabKind === 'practice' || tabKind === 'application') && a.scope !== 'cumulative' && taught.length ? taught : undefined;
   return (
     <div className="ln-editor">
       <label className="dp-field"><span>Card name</span><input value={a.title} onChange={(e) => onChange({ title: e.target.value })} /></label>
@@ -824,7 +912,8 @@ export function ActivityEditor({ a, onChange }: { a: Activity; onChange: (patch:
       {fields.map((f) => (
         <label key={f.key} className={`dp-field${f.kind === 'bool' ? ' dp-check' : ''}`}>
           <span>{f.label}</span>
-          <FieldInput f={f} value={a.data[f.key]} onChange={(v) => onChange({ data: { ...a.data, [f.key]: v } })} />
+          <FieldInput f={f} only={only} value={a.data[f.key]} onChange={(v) => onChange({ data: { ...a.data, [f.key]: v } })} />
+          {only && (f.kind === 'formulas' || f.kind === 'formula') && <small className="dp-muted">Showing the formulas taught in this lesson's Instruction. To mix in earlier formulas, set Practice type to Cumulative review.</small>}
           {f.help && <small className="dp-muted">{f.help}</small>}
         </label>
       ))}

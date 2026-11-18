@@ -302,3 +302,16 @@ button.ln-prog-dot { width: 24px; height: 24px; }
 .ln-flag-done { background: #e7f6ee; color: #1c6b44; }
 .ln-access { margin-left: 6px; }
 .ln-access.do { background: #e7f6ee; }
+/* Word tiles in every writing box */
+.ln-sbox { flex: 1 1 340px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ln-mode { display: inline-flex; align-self: flex-start; border: 2px solid var(--content-border); border-radius: 999px; overflow: hidden; }
+.ln-mode-btn { min-height: 44px; padding: 6px 16px; border: 0; background: #fff; font: inherit; font-weight: 700; cursor: pointer; color: var(--ink); }
+.ln-mode-btn.on { background: var(--brand-blue); color: #fff; }
+.ln-tilebox { display: flex; flex-direction: column; gap: 8px; }
+.ln-built { font-size: 1.3rem; font-weight: 700; }
+.ln-tile-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.ln-tool { background: var(--brand-cream-soft); min-width: 56px; justify-content: center; }
+.ln-bank { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px; background: #f2f5f8; }
+.ln-bank-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ln-bank-group > .ln-sym { width: 84px; flex: 0 0 auto; }
+.ln-bank-words { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }

@@ -284,7 +284,7 @@ export function DailyLesson() {
             </main>
             <aside className="ln-panel" aria-label="Edit this activity">
               <h2 className="dp-panel-h">Edit this activity</h2>
-              <ActivityEditor a={sel.a} onChange={(patch) => updateActivity(sel.a.id, patch)} />
+              <ActivityEditor a={sel.a} lesson={lesson} tabKind={sel.t.kind} onChange={(patch) => updateActivity(sel.a.id, patch)} />
             </aside>
           </>
         ) : tab ? (
