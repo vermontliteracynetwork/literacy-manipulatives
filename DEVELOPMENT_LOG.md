@@ -1199,3 +1199,20 @@ already its live lookup; adding wordset's word list to the engine is the next st
   every tool uses) when you point to it.
 - Not used: the verachell word lists (their author says they are not accurate enough for teaching); the Cambridge
   word families PDF is copyrighted dictionary content, kept as her reference, not copied into the data.
+
+## 2026-11-18: Only the curriculum is shared (Symbolic Grammar Engine 1.4.0)
+
+Her rule: "The engine for the kids' dashboard should be completely different than the literacy manipulatives app. The
+only thing that should be shared between them is the symbolic grammar engine, because that is a curriculum that I'm
+building that will fuel both of the programs."
+
+- The engine now holds her curriculum only: grammar and tense symbols, her symbol sentence deck, the master formula list
+  and formula codes, the rules for reading a word's job (and the word lists those rules need), her job rules and
+  prepositions list, past/present/future, and the engine checks. See the engine's README, "What belongs here".
+- Moved out of the engine into this app (they are this app's, not the curriculum's):
+  - `src/lib/wordsByType.ts`: `wordsOfType`, `pluralOf`, `ingOf`, `verbForms` (Story Maker's word book and video).
+  - `src/lib/writer/formulas.ts`: the formula cards with this app's printed card pictures (was the engine's `MASTER_CARDS`).
+  - `src/lib/writer/myWords.ts`: the student's "My dictionary" (saved on the device), handed to the engine with
+    `configureEngine({ ownWord })`, loaded first in `src/main.tsx`.
+- Nothing changes on screen. The engine checks pass (120 of 129 master-list sentences coded her way; 9 still to teach).
+- Engine commit 399410b is on the engine's `claude/nice-ptolemy-0zcwly` branch; its `main` push waits for her OK.

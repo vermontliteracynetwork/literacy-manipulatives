@@ -1,3 +1,4 @@
+import './lib/writer/myWords'; // a student's own words reach the engine on every page
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@fontsource/inclusive-sans/400.css';
