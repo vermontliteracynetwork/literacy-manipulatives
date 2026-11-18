@@ -38,10 +38,11 @@ export function SharePanel({ code, status, error, students, access, onSetAccess,
               <button
                 type="button"
                 className="btn btn-sm"
-                onClick={() => { void navigator.clipboard?.writeText(`${link}  Code: ${code}`).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); }); }}
+                onClick={() => { void navigator.clipboard?.writeText(`${link}?code=${code}`).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); }); }}
               >
-                {copied ? 'Copied' : 'Copy link and code'}
+                {copied ? 'Copied' : 'Copy join link'}
               </button>
+              <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: 4, wordBreak: 'break-all' }}>{link}?code={code} opens with the code filled in, so a student only types their name.</div>
             </div>
             <div>
               <div style={{ fontWeight: 800, marginBottom: 4 }}>Students ({students.length})</div>

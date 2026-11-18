@@ -901,3 +901,5 @@ a.btn { text-decoration: none; color: inherit; display: inline-flex; align-items
 
 /* The Home button on every tool (back to the dashboard). */
 .lm-home-btn { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.lm-sidebar-grip { flex: 0 0 8px; margin-left: -6px; cursor: col-resize; touch-action: none; z-index: 3; }
+.lm-sidebar-grip:hover { background: rgba(25, 104, 171, 0.2); }

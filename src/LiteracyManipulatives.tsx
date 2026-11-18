@@ -704,6 +704,17 @@ export default function LiteracyManipulatives({ startInWriter = false, embed }: 
   // Symbol Sentences trays, which also switches every bubble already on the board).
   const [bubbleDefault, setBubbleDefault] = useState<BubbleStyle>('outline');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // The materials column can be dragged wider or narrower by its edge (her request 2026-11-18: "allow resize all
+  // menus/bars/split screens"). Remembered on this computer.
+  const [sidebarW, setSidebarW] = useState<number>(() => { try { return Number(localStorage.getItem('lm-sidebar-w')) || 280; } catch { return 280; } });
+  useEffect(() => { try { localStorage.setItem('lm-sidebar-w', String(Math.round(sidebarW))); } catch { /* not kept */ } }, [sidebarW]);
+  const dragSidebar = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const x0 = e.clientX, w0 = sidebarW;
+    const move = (ev: PointerEvent) => setSidebarW(Math.max(220, Math.min(560, w0 + (embed ? x0 - ev.clientX : ev.clientX - x0))));
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  };
   // A23-ROADMAP Phase 1 (spec's own top priority): one shared TTS-with-
   // synced-word-highlighting engine, mounted once here and passed down to
   // every 🔈 button in this screen (SyncedSpeakButton) instead of each
@@ -2651,7 +2662,7 @@ export default function LiteracyManipulatives({ startInWriter = false, embed }: 
 
       <div className={`lm-shell${embed ? ' lm-shell-right' : ''}`} style={{ flex: 1, minHeight: 0, display: showWriter ? 'none' : undefined }}>
       {sidebarOpen && !studentViewOnly && !embed?.presenting ? (
-        <aside className="lm-sidebar">
+        <aside className="lm-sidebar" style={{ flexBasis: sidebarW }}>
           <Category label="Grammar Symbols" color="#E5B9E0" open={openCategories.shapes} onToggle={() => toggleCategory('shapes')}>
             <TraySearch value={searchFor('shapes')} onChange={setSearch('shapes')} placeholder="Find a grammar symbol" />
             <BubbleToggle value={bubbleDefault} onChange={setAllBubbles} />
@@ -2923,6 +2934,9 @@ export default function LiteracyManipulatives({ startInWriter = false, embed }: 
           </Category>
 
         </aside>
+        ) : null}
+        {sidebarOpen && !studentViewOnly && !embed?.presenting ? (
+        <div className="lm-sidebar-grip" role="separator" aria-orientation="vertical" aria-label="Resize the materials" onPointerDown={dragSidebar} />
       ) : null}
 
       <div className="lm-main">

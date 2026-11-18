@@ -3,8 +3,9 @@ import { useEffect, useState } from 'react';
 import { loadEngine } from 'symbolic-grammar-engine';
 import { ActivityView } from './Activities';
 import { Progress } from './Progress';
+import { Fit } from './Fit';
 import { useLessonStudent } from '../../lib/lessons/live';
-import { stopsOf } from '../../lib/lessons/types';
+import { stopsOf, type Lesson, type Stop } from '../../lib/lessons/types';
 import type { Resp } from '../../lib/lessons/check';
 
 // A student in a Daily Lesson (her request 2026-11-18), on an iPad first: they come here from the join page with
@@ -61,23 +62,33 @@ export function LessonJoin() {
   const pos = s.pos;
   const stop = lesson && pos?.at ? stopsOf(lesson).find((x) => x.activity.id === pos.at) : undefined;
   if (!lesson || !stop || !pos) return <div className="ln-join"><div className="ln-join-card"><h1>Hi, {s.name}!</h1><p>Your teacher will start the lesson soon.</p></div></div>;
+  return <StudentScreen lesson={lesson} stop={stop} done={pos.done} progress={pos.progress} name={s.name} teacherResp={pos.teacherResp}
+    resp={work[stop.activity.id] ?? {}} setResp={(r) => { setWork((w) => ({ ...w, [stop.activity.id]: r })); s.sendWork(stop.activity.id, r); }} flag={flag} onFlag={sendFlag} />;
+}
+
+// What a student sees on their iPad. The teacher's "Preview as student" shows this same screen.
+export function StudentScreen({ lesson, stop, done, progress, name, teacherResp, resp, setResp, flag, onFlag }: {
+  lesson: Lesson; stop: Stop; done: string[]; progress: 'bar' | 'checklist'; name: string; teacherResp: Resp; resp: Resp; setResp: (r: Resp) => void; flag: string; onFlag: (f: string) => void;
+}) {
   const a = stop.activity;
   const mine = a.access === 'do';
   const quiet = stop.tab.kind === 'assessment';
+  const sendFlag = onFlag;
   return (
     <div className="ln ln-student">
-      <Progress lesson={lesson} at={a.id} done={pos.done} view={pos.progress} />
+      <Progress lesson={lesson} at={a.id} done={done} view={progress} />
       <p className={`ln-turn ${mine ? 'do' : 'watch'}`} role="status">{mine ? 'Your turn' : 'Watch and follow along'}</p>
-      <main className="ln-stage" aria-label={a.title}>
+      <main className="ln-stage ln-stage-fit" aria-label={a.title}>
+       <Fit>
         <h1 className="ln-stage-title"><span className="ln-stage-tab">{stop.tab.title}</span> {a.title}</h1>
         {mine
-          ? <ActivityView key={a.id} a={a} lesson={lesson} quiet={quiet} resp={work[a.id] ?? {}} interactive set={(r) => { setWork((w) => ({ ...w, [a.id]: r })); s.sendWork(a.id, r); }} />
-          : <ActivityView key={a.id} a={a} lesson={lesson} quiet={quiet} resp={pos.teacherResp} interactive={false} set={() => {}} />}
+          ? <ActivityView key={a.id} a={a} lesson={lesson} quiet={quiet} resp={resp} interactive set={setResp} />
+          : <ActivityView key={a.id} a={a} lesson={lesson} quiet={quiet} resp={teacherResp} interactive={false} set={() => {}} />}
         {mine && <button type="button" className={`btn ln-big ln-done-btn${flag === 'done' ? ' on' : ''}`} onClick={() => sendFlag(flag === 'done' ? '' : 'done')}>{flag === 'done' ? 'Done! (tap to keep working)' : "I'm done"}</button>}
+       </Fit>
       </main>
       <footer className="ln-student-foot">
-        <span>{s.name}</span>
-        <button type="button" className={`btn ln-help${flag === 'help' ? ' on' : ''}`} aria-pressed={flag === 'help'} onClick={() => sendFlag(flag === 'help' ? '' : 'help')}>{flag === 'help' ? 'Help is coming' : 'I need help'}</button>
+        <span>{name}</span>        <button type="button" className={`btn ln-help${flag === 'help' ? ' on' : ''}`} aria-pressed={flag === 'help'} onClick={() => sendFlag(flag === 'help' ? '' : 'help')}>{flag === 'help' ? 'Help is coming' : 'I need help'}</button>
         <button type="button" className={`btn ln-help${flag === 'break' ? ' on' : ''}`} aria-pressed={flag === 'break'} onClick={() => sendFlag(flag === 'break' ? '' : 'break')}>{flag === 'break' ? "I'm back" : 'I need a break'}</button>
       </footer>
       {flag === 'break' && (

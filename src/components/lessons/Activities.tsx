@@ -5,13 +5,13 @@ import { GRAMMAR_SYMBOL_INFO, TENSE_SYMBOLS } from '../../lib/grammarSymbols';
 import { MASTER_FORMULAS } from '../../lib/writer/masterList';
 import { speak, stopSpeaking } from '../../lib/word-explorer/speech';
 import { FormulaSymbols } from '../SentenceFormulas';
-import { TemplateEditor, TemplateView } from '../procedures/TemplatePages';
+import { TemplateEditor, TemplateView, Timer } from '../procedures/TemplatePages';
 import LiteracyManipulatives from '../../LiteracyManipulatives';
 import {
   SYMBOL_ORDER, checkWritten, codeOf, formulaLabel, formulaRow, formulaSlots, num, sortSetup, splitArrow, splitBar, splitEq, str, strs, symbolByName,
   symbolName, symbolOf, symbolsOfSentence, syms, tensesOf, wordFits, type Resp, type SentenceResult,
 } from '../../lib/lessons/check';
-import { ENGINE_FIELDS, type Activity, type Field, type Lesson } from '../../lib/lessons/types';
+import { ENGINE_FIELDS, TAB_COLOR, type Activity, type Field, type Lesson } from '../../lib/lessons/types';
 import type { PageData, PageKind } from '../../lib/procedures/types';
 
 // Every activity a Daily Lesson can hold, as students see and do it (big, touch first, for iPads), and the form
@@ -137,6 +137,7 @@ export function ActivityView(p: ViewProps) {
   return (
     <div className={`ln-act ln-act-${a.engine}${p.interactive ? '' : ' ln-watch'}`}>
       {a.directions && <p className="ln-directions"><Say text={a.directions} label="Read the directions" /> {a.directions}</p>}
+      {!!a.timer && <div className="ln-timer"><Timer seconds={a.timer} /></div>}
       <Body {...p} />
     </div>
   );
@@ -170,15 +171,29 @@ function Body(p: ViewProps) {
   }
 }
 
+// The daily plan slide (her request 2026-11-18: "rather than goal, have it be a review of the daily plan. this should
+// resemble what the top left menu selection will show"): each part of the lesson in order with its color, as in the
+// lesson plan menu, and its activities under it; today's goal above when the teacher writes one.
 function Goal({ a, lesson }: ViewProps) {
   const d = a.data;
-  const plan = (lesson?.tabs ?? []).filter((t) => t.kind !== 'goal');
+  const plan = (lesson?.tabs ?? []).filter((t) => t.kind !== 'goal' && t.sections.some((s) => s.activities.length));
+  const said = [str(d.goal), ...plan.map((t, i) => `${i + 1}. ${t.title}`)].filter(Boolean).join('. ');
   return (
-    <div className="ln-goal">
-      <p className="ln-goal-label">Today's goal <Say text={str(d.goal)} label="Read the goal" /></p>
-      <p className="ln-goal-text">{str(d.goal)}</p>
+    <div className="ln-dayplan">
+      <p className="ln-goal-label">Today's plan <Say text={said} label="Read today's plan" /></p>
+      {str(d.goal) && <p className="ln-dayplan-goal">{str(d.goal)}</p>}
+      <ol className="ln-dayplan-list">
+        {plan.map((t, i) => (
+          <li key={t.id}>
+            <span className="ln-dayplan-n" style={{ background: TAB_COLOR[t.kind] }}>{i + 1}</span>
+            <span className="ln-dayplan-body">
+              <span className="ln-dayplan-tab">{t.title}</span>
+              {d.agenda !== false && <span className="ln-dayplan-acts">{t.sections.flatMap((s) => s.activities).map((x) => x.title).join(' · ')}</span>}
+            </span>
+          </li>
+        ))}
+      </ol>
       {str(d.closing) && <p className="ln-goal-closing">{str(d.closing)}</p>}
-      {d.agenda !== false && plan.length > 0 && <ol className="ln-plan" aria-label="Today's plan">{plan.map((t) => <li key={t.id}>{t.title}</li>)}</ol>}
     </div>
   );
 }
@@ -270,33 +285,38 @@ function Define({ a, resp, set, interactive }: ViewProps) {
   );
 }
 
+// One column for each symbol, its words going down (her request 2026-11-18: "show word lists in table with columns
+// rather than rows").
 function WordList(p: ViewProps) {
   const { a, resp, set, interactive } = p;
   const seen = useSeen(p);
   const n = Math.max(1, Math.min(8, num(a.data.count, 3)));
+  const cols = syms(a.data.symbols);
   return (
-    <div className="ln-wordlist">
-      {syms(a.data.symbols).map((c) => {
-        const list = strs(resp[c]);
-        return (
-          <div key={c} className="ln-row">
-            <Sym c={c} size={60} label />
-            <div className="ln-words">
-              {Array.from({ length: n }, (_, i) => {
+    <div className="ln-wordlist-wrap">
+      <table className="ln-wordtable">
+        <thead><tr>{cols.map((c) => <th key={c} scope="col"><Sym c={c} size={52} label /></th>)}</tr></thead>
+        <tbody>
+          {Array.from({ length: n }, (_, i) => (
+            <tr key={i}>
+              {cols.map((c) => {
+                const list = strs(resp[c]);
                 const w = list[i] ?? '';
                 const fit = w.trim() && seen.show(`${c}${i}`) ? wordFits(w, c) : null;
                 return (
-                  <label key={i} className="ln-word">
-                    <input {...NOAUTO} {...seen.done(`${c}${i}`)} className="ln-input" readOnly={!interactive} value={w} aria-label={`${symbolName(c)} word ${i + 1}`}
-                      onChange={(e) => { const next = [...list]; next[i] = e.target.value; set({ ...resp, [c]: next }); }} />
-                    {fit && <Mark ok={fit === 'yes' ? true : fit === 'no' ? false : undefined} />}
-                  </label>
+                  <td key={c}>
+                    <span className="ln-word">
+                      <input {...NOAUTO} {...seen.done(`${c}${i}`)} className="ln-input" readOnly={!interactive} value={w} aria-label={`${symbolName(c)} word ${i + 1}`}
+                        onChange={(e) => { const next = [...list]; next[i] = e.target.value; set({ ...resp, [c]: next }); }} />
+                      {fit && <Mark ok={fit === 'yes' ? true : fit === 'no' ? false : undefined} />}
+                    </span>
+                  </td>
                 );
               })}
-            </div>
-          </div>
-        );
-      })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -904,6 +924,12 @@ export function ActivityEditor({ a, onChange, lesson, tabKind }: { a: Activity; 
         </div>
       </div>
       <label className="dp-field"><span>Time</span><input value={a.minutes ?? ''} placeholder="3 min" onChange={(e) => onChange({ minutes: e.target.value })} /></label>
+      <div className="dp-field"><span>Timer</span>
+        <span className="dp-row">
+          <label className="dp-check"><input type="checkbox" checked={!!a.timer} onChange={(e) => onChange({ timer: e.target.checked ? 60 : undefined })} /> On</label>
+          {!!a.timer && <label className="dp-row">Seconds <input type="number" min={5} max={1800} value={a.timer} style={{ width: 90 }} onChange={(e) => onChange({ timer: Math.max(5, Number(e.target.value) || 60) })} /></label>}
+        </span>
+      </div>
       <label className="dp-field"><span>Practice type</span>
         <select value={a.scope ?? ''} onChange={(e) => onChange({ scope: (e.target.value || undefined) as Activity['scope'] })}>
           <option value="">Not set</option><option value="lesson">Lesson-specific (today's formula only)</option><option value="cumulative">Cumulative review (mixed with earlier formulas)</option>

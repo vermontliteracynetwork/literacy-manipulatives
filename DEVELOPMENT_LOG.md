@@ -1270,3 +1270,16 @@ Her request: "add the word jobs to the word explorer, remove word jobs as its ow
 - Word Jobs is now a Word Explorer page (`/words?view=jobs`), with a Word Jobs button in Word Explorer's top bar and on its start page. Its words open in Word Explorer.
 - Every word page with a word that can do more than one job shows a "Word jobs" card: its jobs (most common first) and the rule card for telling them apart, with a link to all word jobs.
 - The Word Jobs card is gone from the tools dashboard; `/word-jobs` links go to the new page. Files moved to `src/components/word-explorer/WordJobs.tsx` and `wordJobs.css`.
+
+## 2026-11-18: Daily Lesson, round two (her notes from using it)
+
+- Join codes appear only after the lesson is first saved and named; Present asks to save first. A saved lesson saves every change by itself ("All changes saved").
+- Every join code can be sent as a link with the code inside it, so a student only types their name: lessons `/lesson?code=1234` (Copy join link in the top bar, Present and Lesson settings), whiteboard `/join?code=1234` (Copy join link in Share). The join page reads `?code=` and skips the code step.
+- Left menu: a Lesson plan box on top (every tab with its color and number of activities; drag to reorder; + adds a tab), then each tab as a dropdown in the whiteboard's colored category style, with a small + in its top right corner to add an activity. Divider lines between items, no green dots, and the Duplicate/Up/Down/Delete buttons are gone (Duplicate tab and Delete tab are on the tab's own page; activities drag to reorder, across subheaders and tabs).
+- The left menu, the right edit panel and the teacher's side panel in Present all resize by dragging their edge and fold away (remembered on this computer). The whiteboard's materials column resizes too, and a whiteboard page in a lesson can be made taller. The plan bar can be hidden on the teacher's screen.
+- The Goal tab is now "Daily plan": its slide is today's plan, laid out like the lesson plan menu (each part in order with its color and its activities), with an optional goal sentence.
+- Word lists are a table: one column per symbol, words going down.
+- A Timer can be turned on for any activity (seconds), and the speed sort timer on "Name it, show the motion, give a word" can be turned on or off.
+- Preview as student: the student's iPad screen (landscape or portrait) for any activity, with Back and Next, without joining as a pretend student. Nothing is sent or saved.
+- The "Students do it" tag is gone from cards and slides; while presenting, "Students work on this on their iPads" is a checkbox in the teacher's side panel.
+- The middle of Edit mode is the presentation slide itself (16:9, what students see when she presents), and every lesson screen (Present, the student iPad, the preview) fits without scrolling: content shrinks to fit instead (`src/components/lessons/Fit.tsx`).

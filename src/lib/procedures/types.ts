@@ -10,7 +10,7 @@ export type PageKind = 'goal' | 'review-symbols' | 'formula' | 'activity' | 'ass
 
 export interface GoalData { agenda: string[]; goal: string; closing?: string }
 export interface ReviewSymbol { cls: SymbolWordClass; motion: string; words: string[] }
-export interface ReviewData { directions: string[]; symbols: ReviewSymbol[]; timerSeconds: number }
+export interface ReviewData { directions: string[]; symbols: ReviewSymbol[]; timerSeconds: number; timerOff?: boolean }
 export interface Block { label: string; lines: string[] }
 export interface FormulaData { lesson: string; name: string; codes: string[]; blocks: Block[] }
 export interface Pile { label: string; cards: string[] }

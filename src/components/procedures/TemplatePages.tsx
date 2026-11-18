@@ -31,7 +31,7 @@ function GoalView({ d }: { d: GoalData }) {
   );
 }
 
-function Timer({ seconds }: { seconds: number }) {
+export function Timer({ seconds }: { seconds: number }) {
   const [left, setLeft] = useState(seconds);
   const [running, setRunning] = useState(false);
   const t = useRef<number | undefined>(undefined);
@@ -71,7 +71,7 @@ function ReviewView({ d, learn }: { d: ReviewData; learn: boolean }) {
           );
         })}
       </div>
-      {d.timerSeconds > 0 && <><p className="dp-small-head">Speed sort</p><Timer seconds={d.timerSeconds} /></>}
+      {d.timerSeconds > 0 && !d.timerOff && <><p className="dp-small-head">Speed sort</p><Timer seconds={d.timerSeconds} /></>}
     </div>
   );
 }
@@ -207,7 +207,8 @@ export function TemplateEditor({ kind, data, onChange }: { kind: PageKind; data:
         </fieldset>
       ))}
       <button type="button" className="btn btn-sm" onClick={() => onChange({ ...d, symbols: [...d.symbols, { cls: 'adjective', motion: '', words: [] }] })}>Add a symbol</button>
-      <Field label="Speed sort timer (seconds, 0 for none)" value={String(d.timerSeconds)} onChange={(v) => onChange({ ...d, timerSeconds: Math.max(0, Number(v.replace(/\D/g, '')) || 0) })} />
+      <label className="dp-check"><input type="checkbox" checked={!d.timerOff} onChange={(e) => onChange({ ...d, timerOff: !e.target.checked })} /> Speed sort timer on</label>
+      {!d.timerOff && <Field label="Speed sort timer (seconds)" value={String(d.timerSeconds)} onChange={(v) => onChange({ ...d, timerSeconds: Math.max(0, Number(v.replace(/\D/g, '')) || 0) })} />}
     </>);
   }
   if (kind === 'formula') {

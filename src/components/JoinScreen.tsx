@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { shareConfigured } from '../lib/share';
 
 // The student side of Share (her picture: Blooket's "Join a Game"): one big code box and an arrow, then a
@@ -6,8 +6,11 @@ import { shareConfigured } from '../lib/share';
 export function JoinScreen({ status, error, onCheckCode, onJoin }: {
   status: string; error?: string | null; onCheckCode: (code: string) => Promise<boolean>; onJoin: (name: string) => void;
 }) {
-  const [code, setCode] = useState('');
+  // A join link with the code in it (/join?code=1234, her request 2026-11-18) skips typing the code.
+  const fromUrl = (new URLSearchParams(window.location.search).get('code') ?? '').replace(/\D/g, '').slice(0, 4);
+  const [code, setCode] = useState(fromUrl);
   const [codeOk, setCodeOk] = useState(false);
+  useEffect(() => { if (fromUrl.length === 4) void onCheckCode(fromUrl).then(setCodeOk); }, []);
   const [name, setName] = useState('');
   const submitCode = async () => {
     if (code.length !== 4) return;

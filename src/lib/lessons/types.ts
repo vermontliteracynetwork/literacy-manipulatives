@@ -11,7 +11,7 @@ import type { Procedure } from '../procedures/types';
 
 export type TabKind = 'goal' | 'review' | 'instruction' | 'practice' | 'application' | 'assessment';
 export const TAB_KINDS: { kind: TabKind; name: string; about: string }[] = [
-  { kind: 'goal', name: 'Goal', about: "A one slide notice of today's goal." },
+  { kind: 'goal', name: 'Daily plan', about: "A one slide review of today's plan (what the lesson plan menu shows), with today's goal." },
   { kind: 'review', name: 'Review', about: "Symbols and formulas from earlier lessons: name it, show the motion, give a word." },
   { kind: 'instruction', name: 'Instruction', about: "Explicit instruction on today's formula set: Procedure A, then a Sentence Pyramid." },
   { kind: 'practice', name: 'Practice', about: 'Teacher and students practice the new formula together, with high support.' },
@@ -39,6 +39,7 @@ export interface Activity {
   directions: string;  // what students read (and hear) at the top
   access: Access;      // view only, or students do it on their iPads
   minutes?: string;
+  timer?: number;      // seconds; a timer on the activity when set (Edit: Timer on or off)
   scope?: 'lesson' | 'cumulative'; // Practice Activities Bank rule: Lesson-specific or Cumulative review
   notes: string;       // teacher only
   data: ActivityData;
@@ -60,6 +61,9 @@ export interface Lesson {
   progress: 'bar' | 'checklist';     // what students see across the top in Present mode
   tabs: Tab[];
 }
+
+// Each tab's color, the same in the lesson plan menu, the dropdowns and the daily plan slide.
+export const TAB_COLOR: Record<TabKind, string> = { goal: '#FBF2BB', review: '#E5B9E0', instruction: '#C5E4ED', practice: '#C9EBD3', application: '#F9D4C0', assessment: '#cbd5e1' };
 
 export const newId = () => Math.random().toString(36).slice(2, 10);
 export const newCode = () => String(1000 + Math.floor(Math.random() * 9000));
@@ -86,8 +90,8 @@ const SYMS = (f: Lesson['focus']): SymbolWordClass[] => (f.symbols.length ? f.sy
 
 export const PRESETS: Preset[] = [
   // Goal
-  { id: 'goal', engine: 'goal', name: 'Goal', about: "Today's goal and plan on one slide.", directions: '', group: 'Goal', tabs: ['goal'], access: 'view',
-    data: () => ({ goal: 'Today I can ', closing: '', agenda: true }) },
+  { id: 'goal', engine: 'goal', name: "Today's plan", about: "Today's plan on one slide: each part of the lesson and its activities.", directions: '', group: 'Daily plan', tabs: ['goal'], access: 'view',
+    data: () => ({ goal: '', closing: '', agenda: true }) },
   { id: 'slide', engine: 'slide', name: 'Slide', about: 'Your own slide: a heading, words and a picture.', directions: '', group: 'Slides', tabs: ['goal', 'review', 'instruction', 'practice', 'application', 'assessment'], access: 'view',
     data: () => ({ heading: '', text: '', bullets: [], picture: '' }) },
   // Symbol review
@@ -214,7 +218,7 @@ export function newActivity(presetId: string, focus: Lesson['focus']): Activity 
 // The fields each engine shows in Edit mode, so every student-facing detail can be changed.
 const F = (key: string, label: string, kind: FieldKind, help?: string, options?: Field['options']): Field => ({ key, label, kind, help, options });
 export const ENGINE_FIELDS: Record<Engine, Field[]> = {
-  goal: [F('goal', "Today's goal (student words)", 'textarea'), F('closing', 'By the end (optional)', 'text'), F('agenda', "Show today's plan (the lesson's tabs)", 'bool')],
+  goal: [F('goal', "Today's goal in student words (optional)", 'textarea'), F('closing', 'By the end (optional)', 'text'), F('agenda', 'Show each activity under its part of the lesson', 'bool')],
   slide: [F('heading', 'Heading', 'text'), F('text', 'Words', 'textarea'), F('bullets', 'List (one per line)', 'lines'), F('picture', 'Picture', 'picture')],
   symbolMatch: [F('symbols', 'Symbols to review', 'symbols')],
   sort: [F('mode', 'Sort under', 'select', undefined, [{ value: 'symbols', label: 'Symbols' }, { value: 'formulas', label: 'Formulas' }, { value: 'labels', label: 'My own labels' }]),
@@ -252,7 +256,7 @@ function section(title: string, presetIds: string[], focus: Lesson['focus']): Se
 export function newTab(kind: TabKind, focus: Lesson['focus']): Tab {
   const t = (title: string, sections: Section[]): Tab => ({ id: newId(), kind, title, notes: '', sections });
   switch (kind) {
-    case 'goal': return t('Goal', [section('Goal', ['goal'], focus)]);
+    case 'goal': return t('Daily plan', [section("Today's plan", ['goal'], focus)]);
     case 'review': return t('Review', [
       section('Symbol review', ['name-motion', 'symbol-dnd', 'word-sort', 'define-pos', 'word-list'], focus),
       section('Formula review', ['formula-dnd', 'own-sentence', 'picture-sentence'], focus),
