@@ -65,6 +65,58 @@ function SidePane({ id, side, width, label, children }: { id: string; side: 'lef
   );
 }
 
+// A name that is renamed in place: double-click it, type, and press Enter (Escape keeps the old name).
+function EditableText({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [edit, setEdit] = useState(false);
+  const [v, setV] = useState(value);
+  if (!edit) return <span className="ln-editable" title="Double-click to rename" onDoubleClick={(e) => { e.stopPropagation(); setV(value); setEdit(true); }}>{value}</span>;
+  const done = (save: boolean) => { setEdit(false); if (save && v.trim() && v.trim() !== value) onSave(v.trim()); };
+  return <input className="ln-rename" autoFocus value={v} aria-label="New name" onClick={(e) => e.stopPropagation()} onChange={(e) => setV(e.target.value)} onBlur={() => done(true)}
+    onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); }} />;
+}
+
+// The daily plan: one row for each part of the lesson, with every activity that fits it as a card that scrolls sideways
+// (her request 2026-11-18: "look more like the menus on netflix with side scroll"). Picking a card adds it to that part,
+// and it shows in the lesson plan on the left; a picked card opens it, and its x takes it out again.
+function DailyPlanView({ lesson, onAdd, onOpen, onRemove, onAddTab, onCatalog }: {
+  lesson: Lesson; onAdd: (tabId: string, preset: string) => void; onOpen: (activityId: string) => void; onRemove: (activityId: string) => void; onAddTab: (k: TabKind) => void; onCatalog: (tabId: string) => void;
+}) {
+  return (
+    <main className="ln-main ln-dp">
+      <div className="ln-dp-head">
+        <h1 className="ln-dp-title">Daily plan</h1>
+        <p className="ln-muted">Pick the activities for each part of today's lesson. They show in the lesson plan on the left, in order.</p>
+      </div>
+      {!lesson.tabs.some((t) => t.kind === 'goal') && (
+        <div className="ln-dp-start"><button type="button" className="btn btn-sm" onClick={() => onAddTab('goal')}>Add a "Today's plan" slide at the start</button></div>
+      )}
+      {lesson.tabs.map((t) => {
+        const picked = t.sections.flatMap((x) => x.activities);
+        const presets = PRESETS.filter((p) => p.tabs.includes(t.kind) && p.id !== 'whiteboard').sort((x, y) => Number(x.id === 'slide') - Number(y.id === 'slide'));
+        const extra = picked.filter((x) => !presets.some((p) => p.id === x.preset));
+        return (
+          <section key={t.id} className="ln-dp-row" aria-label={t.title}>
+            <h2 className="ln-dp-row-h"><span className="ln-plan-dot" style={{ background: TAB_COLOR[t.kind] }} />{t.title}<span className="ln-plan-n">{picked.length} picked</span></h2>
+            <div className="ln-dp-scroll">
+              {[...extra.map((x) => ({ id: x.preset, name: x.title, about: x.about, act: x })), ...presets.map((p) => ({ id: p.id, name: p.name, about: p.about, act: picked.find((x) => x.preset === p.id) }))].map((c, i) => (
+                <div key={`${c.id}-${i}`} className={`ln-dp-card${c.act ? ' picked' : ''}`} style={{ ['--tab' as string]: TAB_COLOR[t.kind] }}>
+                  <button type="button" className="ln-dp-card-btn" onClick={() => (c.act ? onOpen(c.act.id) : onAdd(t.id, c.id))} aria-label={c.act ? `Open ${c.name}` : `Add ${c.name} to ${t.title}`}>
+                    <span className="ln-dp-card-name">{c.name}</span>
+                    <span className="ln-dp-card-about">{c.about}</span>
+                    <span className="ln-dp-card-foot">{c.act ? 'In the plan ✓' : '+ Add'}</span>
+                  </button>
+                  {c.act && <button type="button" className="ln-dp-x" aria-label={`Take ${c.name} out of the plan`} title="Take it out of the plan" onClick={() => onRemove(c.act!.id)}>×</button>}
+                </div>
+              ))}
+              <button type="button" className="ln-dp-card ln-dp-more" onClick={() => onCatalog(t.id)}><span className="ln-dp-card-name">More activities</span><span className="ln-dp-card-about">Search every activity</span></button>
+            </div>
+          </section>
+        );
+      })}
+    </main>
+  );
+}
+
 function Modal({ title, onClose, wide, children }: { title: string; onClose: () => void; wide?: boolean; children: React.ReactNode }) {
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
   return (
@@ -83,6 +135,8 @@ export function DailyLesson() {
   const [mode, setMode] = useState<Mode>('edit');
   const [tabId, setTabId] = useState(lesson.tabs[0]?.id ?? '');
   const [actId, setActId] = useState<string | null>(null);
+  // The daily plan (her request 2026-11-18): the lesson plan's main screen, a row of activity cards for each part.
+  const [planView, setPlanView] = useState(true);
   const [open, setOpen] = useState<Set<string>>(() => new Set(lesson.tabs.slice(0, 2).map((t) => t.id)));
   const [dialog, setDialog] = useState<null | 'library' | 'save' | 'settings' | 'reports' | { catalog: string }>(null);
   const [msg, setMsg] = useState('');
@@ -107,7 +161,17 @@ export function DailyLesson() {
   const updateActivity = (id: string, patch: Partial<Activity>) => mapTabs((t) => ({ ...t, sections: t.sections.map((s) => ({ ...s, activities: s.activities.map((a) => (a.id === id ? { ...a, ...patch } : a)) })) }));
   const toggle = (id: string) => setOpen((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
-  const addTab = (kind: TabKind) => { const t = newTab(kind, lesson.focus); change((l) => ({ ...l, tabs: [...l.tabs, t] })); setTabId(t.id); setActId(null); setOpen((o) => new Set(o).add(t.id)); };
+  const addTab = (kind: TabKind) => { const t = newTab(kind, lesson.focus); change((l) => ({ ...l, tabs: kind === 'goal' ? [t, ...l.tabs] : [...l.tabs, t] })); setOpen((o) => new Set(o).add(t.id)); };
+  // A card picked in the daily plan goes into that part of the lesson (its last subheader).
+  const addFromPlan = (tid: string, preset: string) => {
+    const a = newActivity(preset, lesson.focus);
+    change((l) => ({ ...l, tabs: l.tabs.map((t) => {
+      if (t.id !== tid) return t;
+      const sections = t.sections.length ? t.sections : [{ id: newId(), title: t.title, activities: [] }];
+      return { ...t, sections: sections.map((x, i) => (i === sections.length - 1 ? { ...x, activities: [...x.activities, a] } : x)) };
+    }) }));
+    setOpen((o) => new Set(o).add(tid));
+  };
   const dupTab = (t: Tab) => { const c = copyTab(t); change((l) => { const tabs = [...l.tabs]; tabs.splice(tabs.findIndex((x) => x.id === t.id) + 1, 0, c); return { ...l, tabs }; }); setTabId(c.id); setActId(null); setOpen((o) => new Set(o).add(c.id)); };
   const delTab = (t: Tab) => { if (lesson.tabs.length <= 1 || !window.confirm(`Delete the tab "${t.title}" and its activities?`)) return; change((l) => ({ ...l, tabs: l.tabs.filter((x) => x.id !== t.id) })); setTabId(lesson.tabs.find((x) => x.id !== t.id)!.id); setActId(null); };
   const reorderTab = (from: number, to: number) => change((l) => { if (from === to) return l; const tabs = [...l.tabs]; const [m] = tabs.splice(from, 1); tabs.splice(to, 0, m); return { ...l, tabs }; });
@@ -303,64 +367,62 @@ export function DailyLesson() {
           <div className="ln-nav">
             <section className="lm-category ln-plan-box" aria-label="Lesson plan">
               <div className="lm-category-header ln-cat-head" style={{ background: '#FBF2BB' }}>
-                <span>Lesson plan</span>
-                <select className="ln-plus-select" value="" aria-label="Add a tab" title="Add a tab" onChange={(e) => { if (e.target.value) addTab(e.target.value as TabKind); }}>
+                <button type="button" className={`ln-cat-btn${planView && !actId ? ' on' : ''}`} onClick={() => { setPlanView(true); setActId(null); }} title="Open the daily plan">
+                  <span>Lesson plan</span>
+                </button>
+                <select className="ln-plus-select" value="" aria-label="Add a part of the lesson" title="Add a part of the lesson" onChange={(e) => { if (e.target.value) addTab(e.target.value as TabKind); }}>
                   <option value="">+</option>
                   {TAB_KINDS.map((k) => <option key={k.kind} value={k.kind}>{k.name}</option>)}
                 </select>
               </div>
               <ol className="ln-plan-list">
-                {lesson.tabs.map((t, ti) => (
-                  <li key={t.id} draggable onDragStart={(e) => { e.dataTransfer.setData('text/ln-tab', String(ti)); e.dataTransfer.effectAllowed = 'move'; }}
-                    onDragOver={(e) => { if (e.dataTransfer.types.includes('text/ln-tab')) { e.preventDefault(); e.currentTarget.classList.add('drop'); } }}
-                    onDragLeave={(e) => e.currentTarget.classList.remove('drop')}
-                    onDrop={(e) => { e.currentTarget.classList.remove('drop'); const from = Number(e.dataTransfer.getData('text/ln-tab')); if (!Number.isNaN(from)) reorderTab(from, ti); }}>
-                    <span className="ln-grip" aria-hidden>⋮⋮</span>
-                    <button type="button" className={`ln-plan-item${t.id === tab?.id ? ' on' : ''}`} onClick={() => { setTabId(t.id); setActId(null); setOpen((o) => new Set(o).add(t.id)); }}>
-                      <span className="ln-plan-dot" style={{ background: TAB_COLOR[t.kind] }} />{t.title}<span className="ln-plan-n">{t.sections.reduce((n, x) => n + x.activities.length, 0)}</span>
-                    </button>
-                  </li>
-                ))}
-              </ol>
-              <p className="ln-plan-tip">Drag to reorder.</p>
-            </section>
-            {lesson.tabs.map((t) => {
-              const isOpen = open.has(t.id);
-              return (
-                <section key={t.id} className={`lm-category ln-tab${t.id === tab?.id ? ' on' : ''}`}>
-                  <div className="lm-category-header ln-cat-head" style={{ background: TAB_COLOR[t.kind] }}>
-                    <button type="button" className="ln-cat-btn" aria-expanded={isOpen} onClick={() => { setTabId(t.id); setActId(null); if (!isOpen || t.id === tab?.id) toggle(t.id); }}>
-                      <span>{t.title}</span><span aria-hidden="true">{isOpen ? '▾' : '▸'}</span>
-                    </button>
-                    <button type="button" className="ln-plus" aria-label={`Add an activity to ${t.title}`} title="Add an activity" onClick={() => {
-                      setTabId(t.id); setActId(null);
-                      const last = t.sections[t.sections.length - 1];
-                      if (last) setDialog({ catalog: last.id });
-                      else { const sec = { id: newId(), title: tabKindName(t.kind), activities: [] }; updateTab(t.id, { sections: [sec] }); setDialog({ catalog: sec.id }); }
-                    }}>+</button>
-                  </div>
-                  {isOpen && (
-                    <div className="ln-tab-body">
-                      {t.sections.map((sec) => (
-                        <div key={sec.id} className="ln-sec">
-                          <p className="ln-sec-title">{sec.title}</p>
-                          <ul onDragOver={(e) => { if (e.dataTransfer.types.includes('text/ln-act')) e.preventDefault(); }} onDrop={(e) => { const id = e.dataTransfer.getData('text/ln-act'); if (id) moveActivityTo(id, sec.id, null); }}>
-                            {sec.activities.map((x) => (
-                              <li key={x.id} draggable onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.setData('text/ln-act', x.id); e.dataTransfer.effectAllowed = 'move'; }}
-                                onDragOver={(e) => { if (e.dataTransfer.types.includes('text/ln-act')) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('drop'); } }}
-                                onDragLeave={(e) => e.currentTarget.classList.remove('drop')}
-                                onDrop={(e) => { e.stopPropagation(); e.currentTarget.classList.remove('drop'); const id = e.dataTransfer.getData('text/ln-act'); if (id && id !== x.id) moveActivityTo(id, sec.id, x.id); }}>
-                                <button type="button" className={`ln-item${x.id === actId ? ' on' : ''}`} onClick={() => { setTabId(t.id); setActId(x.id); }}>{x.title}</button>
-                              </li>
-                            ))}
-                          </ul>
+                {lesson.tabs.map((t, ti) => {
+                  const isOpen = open.has(t.id);
+                  const count = t.sections.reduce((n, x) => n + x.activities.length, 0);
+                  return (
+                    <li key={t.id} className="ln-plan-row">
+                      <div className="ln-plan-head" draggable onDragStart={(e) => { e.dataTransfer.setData('text/ln-tab', String(ti)); e.dataTransfer.effectAllowed = 'move'; }}
+                        onDragOver={(e) => { if (e.dataTransfer.types.includes('text/ln-tab')) { e.preventDefault(); e.currentTarget.classList.add('drop'); } }}
+                        onDragLeave={(e) => e.currentTarget.classList.remove('drop')}
+                        onDrop={(e) => { e.currentTarget.classList.remove('drop'); const from = Number(e.dataTransfer.getData('text/ln-tab')); if (!Number.isNaN(from)) reorderTab(from, ti); }}>
+                        <span className="ln-grip" aria-hidden>⋮⋮</span>
+                        <button type="button" className="ln-caret-btn" aria-expanded={isOpen} aria-label={isOpen ? `Close ${t.title}` : `Open ${t.title}`} onClick={() => toggle(t.id)}>{isOpen ? '▾' : '▸'}</button>
+                        <span className="ln-plan-dot" style={{ background: TAB_COLOR[t.kind] }} />
+                        <span className={`ln-plan-item${!planView && !actId && t.id === tab?.id ? ' on' : ''}`} role="button" tabIndex={0}
+                          onClick={() => { setTabId(t.id); setActId(null); setPlanView(false); setOpen((o) => new Set(o).add(t.id)); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) { setTabId(t.id); setActId(null); setPlanView(false); } }}>
+                          <EditableText value={t.title} onSave={(v) => updateTab(t.id, { title: v })} />
+                        </span>
+                        <span className="ln-plan-n">{count}</span>
+                      </div>
+                      {isOpen && (
+                        <div className="ln-plan-sub">
+                          {count === 0 && <p className="ln-plan-empty">Nothing yet. Add activities in the daily plan.</p>}
+                          {t.sections.map((sec) => (
+                            <div key={sec.id} className="ln-sec">
+                              {t.sections.length > 1 && <p className="ln-sec-title"><EditableText value={sec.title} onSave={(v) => updateSection(t.id, sec.id, { title: v })} /></p>}
+                              <ul onDragOver={(e) => { if (e.dataTransfer.types.includes('text/ln-act')) e.preventDefault(); }} onDrop={(e) => { const id = e.dataTransfer.getData('text/ln-act'); if (id) moveActivityTo(id, sec.id, null); }}>
+                                {sec.activities.map((x) => (
+                                  <li key={x.id} draggable onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.setData('text/ln-act', x.id); e.dataTransfer.effectAllowed = 'move'; }}
+                                    onDragOver={(e) => { if (e.dataTransfer.types.includes('text/ln-act')) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('drop'); } }}
+                                    onDragLeave={(e) => e.currentTarget.classList.remove('drop')}
+                                    onDrop={(e) => { e.stopPropagation(); e.currentTarget.classList.remove('drop'); const id = e.dataTransfer.getData('text/ln-act'); if (id && id !== x.id) moveActivityTo(id, sec.id, x.id); }}>
+                                    <span role="button" tabIndex={0} className={`ln-item${x.id === actId ? ' on' : ''}`} onClick={() => { setTabId(t.id); setActId(x.id); setPlanView(false); }} onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) { setTabId(t.id); setActId(x.id); } }}>
+                                      <EditableText value={x.title} onSave={(v) => updateActivity(x.id, { title: v })} />
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
-              );
-            })}
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+              <p className="ln-plan-tip">Double-click a name to rename it. Drag to reorder.</p>
+            </section>
           </div>
         </SidePane>
 
@@ -394,6 +456,9 @@ export function DailyLesson() {
               </div>
             </SidePane>
           </>
+        ) : planView ? (
+          <DailyPlanView lesson={lesson} onAdd={addFromPlan} onOpen={(id) => { setActId(id); setPlanView(false); }} onRemove={(id) => mapTabs((t) => ({ ...t, sections: t.sections.map((x) => ({ ...x, activities: x.activities.filter((y) => y.id !== id) })) }))}
+            onAddTab={addTab} onCatalog={(tid) => { const t = lesson.tabs.find((x) => x.id === tid); if (!t) return; setTabId(tid); const last = t.sections[t.sections.length - 1]; if (last) setDialog({ catalog: last.id }); else { const sec = { id: newId(), title: t.title, activities: [] }; updateTab(tid, { sections: [sec] }); setDialog({ catalog: sec.id }); } }} />
         ) : tab ? (
           <main className="ln-main ln-cards-page">
             <div className="ln-tab-edit">

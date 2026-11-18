@@ -11,7 +11,7 @@ import type { Procedure } from '../procedures/types';
 
 export type TabKind = 'goal' | 'review' | 'instruction' | 'practice' | 'application' | 'assessment';
 export const TAB_KINDS: { kind: TabKind; name: string; about: string }[] = [
-  { kind: 'goal', name: 'Daily plan', about: "A one slide review of today's plan (what the lesson plan menu shows), with today's goal." },
+  { kind: 'goal', name: "Today's plan", about: "A one slide review of today's plan (what the lesson plan menu shows), with today's goal." },
   { kind: 'review', name: 'Review', about: "Symbols and formulas from earlier lessons: name it, show the motion, give a word." },
   { kind: 'instruction', name: 'Instruction', about: "Explicit instruction on today's formula set: Procedure A, then a Sentence Pyramid." },
   { kind: 'practice', name: 'Practice', about: 'Teacher and students practice the new formula together, with high support.' },
@@ -253,25 +253,17 @@ export const ENGINE_FIELDS: Record<Engine, Field[]> = {
 function section(title: string, presetIds: string[], focus: Lesson['focus']): Section {
   return { id: newId(), title, activities: presetIds.map((p) => newActivity(p, focus)) };
 }
+// A new part of the lesson starts empty: the teacher picks its activities in the daily plan (her request
+// 2026-11-18: "only show the selected options from the lesson plan"). The Daily plan part starts with its slide.
 export function newTab(kind: TabKind, focus: Lesson['focus']): Tab {
-  const t = (title: string, sections: Section[]): Tab => ({ id: newId(), kind, title, notes: '', sections });
-  switch (kind) {
-    case 'goal': return t('Daily plan', [section("Today's plan", ['goal'], focus)]);
-    case 'review': return t('Review', [
-      section('Symbol review', ['name-motion', 'symbol-dnd', 'word-sort', 'define-pos', 'word-list'], focus),
-      section('Formula review', ['formula-dnd', 'own-sentence', 'picture-sentence'], focus),
-    ]);
-    case 'instruction': return t('Instruction', [section('New formula', ['procedure-a', 'sentence-pyramid'], focus)]);
-    case 'practice': return t('Practice', [section('Practice together', [], focus)]);
-    case 'application': return t('Application', [section('On your own', [], focus)]);
-    case 'assessment': return t('Assessment', [section('Quick check', ['quick-check'], focus)]);
-  }
+  const name = tabKindName(kind);
+  return { id: newId(), kind, title: name, notes: '', sections: [section(name, kind === 'goal' ? ['goal'] : [], focus)] };
 }
 export function blankLesson(): Lesson {
   const focus: Lesson['focus'] = { symbols: ['article', 'noun', 'verb'], formulas: ['S1.A'] };
   return {
     v: 2, id: newId(), title: 'New lesson', folderId: null, updatedAt: new Date().toISOString(), focus, progress: 'bar',
-    tabs: (['goal', 'review', 'instruction', 'practice', 'assessment'] as TabKind[]).map((k) => newTab(k, focus)),
+    tabs: (['review', 'instruction', 'practice', 'assessment'] as TabKind[]).map((k) => newTab(k, focus)),
   };
 }
 

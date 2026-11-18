@@ -1283,3 +1283,10 @@ Her request: "add the word jobs to the word explorer, remove word jobs as its ow
 - Preview as student: the student's iPad screen (landscape or portrait) for any activity, with Back and Next, without joining as a pretend student. Nothing is sent or saved.
 - The "Students do it" tag is gone from cards and slides; while presenting, "Students work on this on their iPads" is a checkbox in the teacher's side panel.
 - The middle of Edit mode is the presentation slide itself (16:9, what students see when she presents), and every lesson screen (Present, the student iPad, the preview) fits without scrolling: content shrinks to fit instead (`src/components/lessons/Fit.tsx`).
+
+## 2026-11-18: Daily plan merged into the lesson plan
+
+Her request: "merge day plan with lesson plan. renaming should occur when the text in the header menus is double clicked and then when i press enter it should save. the lesson plan on the left is all should be navigation and it should open sub menu for all the specific activities. change the daily plan to look more like the menus on netflix with side scroll ... if i add them to the daily plan, they should appear in the lesson plan on the left. instead of the left dropdowns showing all options, only show the selected options from the lesson plan."
+- The left menu is one Lesson plan: each part of the lesson (Review, Instruction, Practice, Assessment...) with a caret that opens its picked activities. Drag parts and activities to reorder; double-click any name (part, subheader, activity) to rename it, Enter saves, Escape cancels. The + adds a part.
+- Clicking "Lesson plan" opens the Daily plan: a row for each part, with every activity that fits it as a card in a sideways-scrolling row. "+ Add" puts it in that part (and in the lesson plan on the left); a picked card shows "In the plan", opens it, and its x takes it out. "More activities" searches the whole catalog.
+- New lessons start with empty parts (Review, Instruction, Practice, Assessment): only what she picks shows on the left. The "Today's plan" slide is optional ("Add a Today's plan slide at the start").
