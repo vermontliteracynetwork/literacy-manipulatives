@@ -1216,3 +1216,36 @@ building that will fuel both of the programs."
     `configureEngine({ ownWord })`, loaded first in `src/main.tsx`.
 - Nothing changes on screen. The engine checks pass (120 of 129 master-list sentences coded her way; 9 still to teach).
 - Engine commit 399410b is on the engine's `claude/nice-ptolemy-0zcwly` branch; its `main` push waits for her OK.
+
+## 2026-11-18: Daily Lesson (the Daily Procedure rebuilt)
+
+Her request: tabs on the left (Goal, Review, Instruction, Practice, Assessment) that open to subheaders and
+activities; the same activities as square cards on the right (name and a short description); tabs work like their
+own slide decks and can be duplicated; Edit mode edits every detail students see; Present (learn) mode is full
+screen for students, with her notes only on her side, a progress bar or checklist across the top; students join on
+the regular join page with a code that belongs to the lesson, sign in with their name, follow what she shows, and do
+the activities she opened for them; she sees their work live, like the whiteboard; each share keeps a report of every
+student's answers. No preset lesson yet (she will make one). Claudia reviews the instructional design; Beth checks the
+alignment with the Symbolic Grammar curriculum.
+
+- `/procedure` (and `/lessons`) opens the Daily Lesson; `/lesson` is the student view. The tools dashboard card is
+  now "Daily Lesson".
+- `src/lib/lessons/types.ts`: the lesson model (tabs, sections, activities), the activity catalog and each
+  activity's edit fields. New lessons start with Goal, Review (Symbol review: Name it, show the motion, give a word;
+  Symbol drag and drop; Word sort; Define each part of speech; Word list for each part of speech. Formula review:
+  Formula drag and drop; Create your own sentence; Picture sentence), Instruction (Procedure A, Sentence Pyramid),
+  Practice and Assessment (Quick check). Application is available as a tab (it is part 5 of her Daily Lesson
+  Structure).
+- The catalog is her Practice Activities Bank (every activity in it, each on the engine that fits: sort, build,
+  write, fill, pyramid, edit, time, choice, mark-up, tic-tac-toe, fishing, word search, memory, pull a block) plus
+  Procedures A to E and a whiteboard page. Each activity can be labeled Lesson-specific or Cumulative review.
+- `src/lib/lessons/check.ts`: every check goes through the Symbolic Grammar Engine (a word's job with `fitsJob`, a
+  sentence's formula code, past/present/future with `tenseVersions`), plus capital letter and punctuation. The quick
+  check shows students no marks (no modeling); the teacher sees the scores.
+- `src/lib/lessons/live.ts`: sharing on the same Supabase channels as the whiteboard. The teacher's presence says
+  app "lesson", so the join page (`src/lib/share.ts` checkCode) sends students to `/lesson?code=...`. The join page
+  title is now "Join". Each lesson keeps its own 4-digit code (Lesson settings can give it a new one).
+- `src/lib/lessons/reports.ts`: every share is a report of each student's work by name, kept in this browser with
+  the lesson; Reports opens them, prints them or downloads a spreadsheet.
+- Earlier Daily Procedures open as lessons (each phase becomes a tab, each page an activity that looks and edits the
+  same).

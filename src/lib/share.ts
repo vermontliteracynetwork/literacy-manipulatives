@@ -19,7 +19,7 @@ const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 export const shareConfigured = !!(url && anonKey);
 
 let client: SupabaseClient | null = null;
-function getClient(): SupabaseClient | null {
+export function getClient(): SupabaseClient | null {
   if (!shareConfigured) return null;
   client ??= createClient(url!, anonKey!, { auth: { persistSession: false } });
   return client;
@@ -90,7 +90,7 @@ function useSendFocus(channelRef: React.MutableRefObject<RealtimeChannel | null>
 
 // Joins a channel and waits until Supabase confirms it (or says why not), instead of waiting forever.
 // Resolves to null when joined, or a short reason a teacher can act on.
-function joinChannel(ch: RealtimeChannel, waitMs = 10000): Promise<string | null> {
+export function joinChannel(ch: RealtimeChannel, waitMs = 10000): Promise<string | null> {
   return new Promise((resolve) => {
     let done = false;
     const finish = (r: string | null) => { if (!done) { done = true; resolve(r); } };
@@ -307,6 +307,9 @@ export function useStudentSession<P extends { instanceId: string }, S extends { 
     if (problem) { await supa.removeChannel(ch); setError(problem); setStatus('error'); return false; }
     for (let i = 0; i < 20 && !teacherHere; i++) await pause(150);
     if (!teacherHere) { await supa.removeChannel(ch); setStatus('not-found'); return false; }
+    // The join page is for every shared app (her request 2026-11-18): a Daily Lesson's code opens the lesson.
+    const host = Object.entries(ch.presenceState()).find(([k]) => k.startsWith('teacher-'))?.[1] as unknown as { app?: string }[] | undefined;
+    if (host?.[0]?.app === 'lesson') { await supa.removeChannel(ch); window.location.assign(`/lesson?code=${code}`); return false; }
     channelRef.current = ch;
     setStatus('idle');
     return true;

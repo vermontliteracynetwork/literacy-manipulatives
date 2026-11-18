@@ -25,6 +25,14 @@
       "destination": "/index.html"
     },
     {
+      "source": "/lesson",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/lessons",
+      "destination": "/index.html"
+    },
+    {
       "source": "/lists",
       "destination": "/index.html"
     },

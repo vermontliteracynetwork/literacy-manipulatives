@@ -17,7 +17,7 @@ export function JoinScreen({ status, error, onCheckCode, onJoin }: {
     <div className="lm-join">
       <a className="lm-join-back" href="/" aria-label="Back to the welcome screen">←</a>
       <div className="lm-join-center">
-        <h1 className="lm-join-title">Join a Board</h1>
+        <h1 className="lm-join-title">Join</h1>
         {!shareConfigured ? (
           <p className="lm-join-msg">Joining isn't set up yet. Ask your teacher.</p>
         ) : !codeOk ? (
@@ -43,7 +43,7 @@ export function JoinScreen({ status, error, onCheckCode, onJoin }: {
             <button type="submit" className="lm-join-go" disabled={!name.trim()} aria-label="Join">→</button>
           </form>
         )}
-        {status === 'not-found' && !codeOk && <p className="lm-join-msg">No board with that code right now. Check the code with your teacher.</p>}
+        {status === 'not-found' && !codeOk && <p className="lm-join-msg">Nothing is shared with that code right now. Check the code with your teacher.</p>}
         {status === 'error' && <p className="lm-join-msg">{error ?? "Couldn't connect. Check the internet and try again."}</p>}
       </div>
     </div>

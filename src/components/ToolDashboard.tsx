@@ -46,8 +46,8 @@ const TOOLS: Tool[] = [
     tags: ['Teacher tool', 'Formulas'],
   },
   {
-    title: 'Daily Procedure',
-    description: 'A lesson as steps, one page each: Goal, Review symbols, each formula, Practice and Assessment. Edit it, then present it in Learn mode while you share your screen. Save it in folders.',
+    title: 'Daily Lesson',
+    description: 'Build a lesson in tabs (Goal, Review, Instruction, Practice, Assessment), each holding activity cards from the Practice Activities Bank. Present it full screen; students join with the lesson\'s code, follow along on their iPads and do the activities you open for them. See their work live and keep a report.',
     href: '/procedure',
     image: '/dashboard/daily-procedure.png',
     tags: ['Teacher tool', 'Lessons'],
