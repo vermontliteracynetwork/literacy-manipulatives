@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type React from 'react';
 import type { SymbolWordClass } from 'symbolic-grammar-engine';
 import { GRAMMAR_SYMBOL_INFO, TENSE_SYMBOLS } from '../../lib/grammarSymbols';
 import { MASTER_FORMULAS } from '../../lib/writer/masterList';
@@ -18,7 +19,16 @@ import type { PageData, PageKind } from '../../lib/procedures/types';
 // that edits every detail of it in Edit mode. `interactive` is false when students only watch (they then see the
 // teacher's own moves on the activity), and in the teacher's small previews of each student's work.
 
-export interface ViewProps { a: Activity; resp: Resp; set: (r: Resp) => void; interactive: boolean; lesson?: Lesson; teacher?: boolean }
+export interface ViewProps { a: Activity; resp: Resp; set: (r: Resp) => void; interactive: boolean; lesson?: Lesson; teacher?: boolean; quiet?: boolean }
+// Marks show only after a student finishes a field (leaves it or taps Enter), never while they are still typing
+// (Claudia's review, 2026-11-18). The teacher always sees them. On an Assessment tab (quiet) students see no marks.
+function useSeen(p: ViewProps) {
+  const [seen, setSeen] = useState<Set<string>>(new Set());
+  const show = (k: string) => !!p.teacher || (!p.quiet && seen.has(k));
+  const done = (k: string) => ({ onBlur: () => setSeen((x) => new Set(x).add(k)), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter') setSeen((x) => new Set(x).add(k)); } });
+  return { show, done };
+}
+const NOAUTO = { autoCapitalize: 'off', autoCorrect: 'off', spellCheck: false } as const;
 
 // ---------- small shared parts ----------
 export function Say({ text, label = 'Read it aloud' }: { text: string; label?: string }) {
@@ -47,7 +57,7 @@ function CheckLine({ r }: { r: SentenceResult | null }) {
     <span className="ln-checks">
       <span className={r.capital ? 'yes' : 'no'}>Capital letter</span>
       <span className={r.punctuation ? 'yes' : 'no'}>Punctuation</span>
-      {r.formula != null && <span className={r.formula ? 'yes' : 'no'}>Formula {r.code ? `(${r.code})` : ''}</span>}
+      {r.formula != null && <span className={r.formula ? 'yes' : 'ask'}>{r.formula ? `Formula ${r.code}` : 'Formula: show your teacher'}</span>}
     </span>
   );
 }
@@ -121,7 +131,7 @@ function Slide({ a }: ViewProps) {
 }
 
 // Tap a card, then tap where it goes (works the same with a finger, a mouse or a keyboard).
-function SymbolMatch({ a, resp, set, interactive }: ViewProps) {
+function SymbolMatch({ a, resp, set, interactive, quiet, teacher }: ViewProps) {
   const s = syms(a.data.symbols);
   const [held, setHeld] = useState<SymbolWordClass | null>(null);
   const placed = new Set(Object.values(resp) as string[]);
@@ -136,7 +146,7 @@ function SymbolMatch({ a, resp, set, interactive }: ViewProps) {
         {s.map((c) => {
           const got = resp[c] as SymbolWordClass | undefined;
           return (
-            <button key={c} type="button" disabled={!interactive} className={`ln-target${got ? (got === c ? ' right' : ' wrong') : ''}`}
+            <button key={c} type="button" disabled={!interactive} className={`ln-target${got ? (quiet && !teacher ? ' picked' : got === c ? ' right' : ' wrong') : ''}`}
               onClick={() => { if (held) { set({ ...Object.fromEntries(Object.entries(resp).filter(([, v]) => v !== held)), [c]: held }); setHeld(null); } else if (got) { const n = { ...resp }; delete n[c]; set(n); } }}>
               <span className="ln-target-name">{symbolName(c)}</span>
               <span className="ln-target-slot">{got ? <Sym c={got} size={60} /> : <span className="ln-empty">Tap a symbol, then tap here</span>}</span>
@@ -148,7 +158,7 @@ function SymbolMatch({ a, resp, set, interactive }: ViewProps) {
   );
 }
 
-function Sort({ a, resp, set, interactive }: ViewProps) {
+function Sort({ a, resp, set, interactive, quiet, teacher }: ViewProps) {
   const { cats, items } = useMemo(() => sortSetup(a.data), [a.data]);
   const [held, setHeld] = useState<number | null>(null);
   const order = useMemo(() => shuffle(items.map((_, i) => i), a.id), [items, a.id]);
@@ -168,7 +178,7 @@ function Sort({ a, resp, set, interactive }: ViewProps) {
             </button>
             <div className="ln-col-cards" onClick={() => put(c.id)}>
               {items.map((it, i) => (resp[i] === c.id ? (
-                <button key={i} type="button" disabled={!interactive} className={`ln-card small ${it.cat ? (it.cat === c.id ? 'right' : 'wrong') : ''}`} onClick={(e) => { e.stopPropagation(); const n = { ...resp }; delete n[i]; set(n); }}>{it.text}</button>
+                <button key={i} type="button" disabled={!interactive} className={`ln-card small ${it.ok.length && (!quiet || teacher) ? (it.ok.includes(c.id) ? 'right' : 'wrong') : ''}`} onClick={(e) => { e.stopPropagation(); const n = { ...resp }; delete n[i]; set(n); }}>{it.text}</button>
               ) : null))}
             </div>
           </div>
@@ -186,7 +196,7 @@ function Define({ a, resp, set, interactive }: ViewProps) {
       {syms(a.data.symbols).map((c) => (
         <div key={c} className="ln-row">
           <Sym c={c} size={64} label />
-          <textarea className="ln-input" rows={2} readOnly={!interactive} value={str(resp[c])} placeholder="It means..." aria-label={`What does ${symbolName(c)} mean?`} onChange={(e) => set({ ...resp, [c]: e.target.value })} />
+          <textarea {...NOAUTO} className="ln-input" rows={2} readOnly={!interactive} value={str(resp[c])} placeholder="It means..." aria-label={`What does ${symbolName(c)} mean?`} onChange={(e) => set({ ...resp, [c]: e.target.value })} />
           {shown && <p className="ln-model">{models.get(c) || GRAMMAR_SYMBOL_INFO[c]?.label}</p>}
         </div>
       ))}
@@ -195,7 +205,9 @@ function Define({ a, resp, set, interactive }: ViewProps) {
   );
 }
 
-function WordList({ a, resp, set, interactive }: ViewProps) {
+function WordList(p: ViewProps) {
+  const { a, resp, set, interactive } = p;
+  const seen = useSeen(p);
   const n = Math.max(1, Math.min(8, num(a.data.count, 3)));
   return (
     <div className="ln-wordlist">
@@ -207,10 +219,10 @@ function WordList({ a, resp, set, interactive }: ViewProps) {
             <div className="ln-words">
               {Array.from({ length: n }, (_, i) => {
                 const w = list[i] ?? '';
-                const fit = w.trim() ? wordFits(w, c) : null;
+                const fit = w.trim() && seen.show(`${c}${i}`) ? wordFits(w, c) : null;
                 return (
                   <label key={i} className="ln-word">
-                    <input className="ln-input" readOnly={!interactive} value={w} autoCapitalize="off" aria-label={`${symbolName(c)} word ${i + 1}`}
+                    <input {...NOAUTO} {...seen.done(`${c}${i}`)} className="ln-input" readOnly={!interactive} value={w} aria-label={`${symbolName(c)} word ${i + 1}`}
                       onChange={(e) => { const next = [...list]; next[i] = e.target.value; set({ ...resp, [c]: next }); }} />
                     {fit && <Mark ok={fit === 'yes' ? true : fit === 'no' ? false : undefined} />}
                   </label>
@@ -229,6 +241,11 @@ function Memory({ a, resp, set, interactive }: ViewProps) {
   const cards = useMemo(() => shuffle(pairs.flatMap((_, i) => [{ pair: i, side: 's' as const }, { pair: i, side: 'w' as const }]), a.id), [a.id, pairs.length]);
   const found = new Set(strs(resp.found).map(Number));
   const up = (resp.up as number[] | undefined) ?? [];
+  useEffect(() => {
+    if (!interactive || up.length !== 2) return;
+    const t = window.setTimeout(() => set({ ...resp, up: [] }), 1400);
+    return () => window.clearTimeout(t);
+  }, [up.join(','), interactive]);
   const flip = (k: number) => {
     if (up.includes(k) || found.has(cards[k].pair)) return;
     if (up.length >= 2) { set({ ...resp, up: [k] }); return; }
@@ -252,7 +269,9 @@ function Memory({ a, resp, set, interactive }: ViewProps) {
   );
 }
 
-function Pull({ a, resp, set, interactive }: ViewProps) {
+function Pull(p: ViewProps) {
+  const { a, resp, set, interactive } = p;
+  const seen = useSeen(p);
   const deck = str(a.data.deck) === 'formulas' ? strs(a.data.formulas) : syms(a.data.symbols);
   const pulls = Math.max(1, num(a.data.pulls, 5));
   const pulled = strs(resp.pulled), answers = strs(resp.answers);
@@ -262,11 +281,11 @@ function Pull({ a, resp, set, interactive }: ViewProps) {
     <div className="ln-pull">
       {pulled.map((b, i) => {
         const ans = answers[i] ?? '';
-        const ok = !ans.trim() ? undefined : isF ? checkWritten(ans, [b])?.ok : wordFits(ans, b as SymbolWordClass) === 'yes';
+        const ok = !ans.trim() || !seen.show(`p${i}`) ? undefined : isF ? !!checkWritten(ans, [b])?.ok : wordFits(ans, b as SymbolWordClass) !== 'no';
         return (
           <div key={i} className="ln-row ln-block">
             <span className="ln-jenga">{isF ? <Strip code={b} /> : <Sym c={b as SymbolWordClass} size={56} label />}</span>
-            <input className="ln-input" readOnly={!interactive} value={ans} placeholder={isF ? 'Write a sentence' : 'Name a word'} aria-label="Your answer"
+            <input {...NOAUTO} {...seen.done(`p${i}`)} className="ln-input" readOnly={!interactive} value={ans} placeholder={isF ? 'Write a sentence' : 'Name a word'} aria-label="Your answer"
               onChange={(e) => { const n = [...answers]; n[i] = e.target.value; set({ ...resp, answers: n }); }} />
             <Mark ok={ok} />
           </div>
@@ -277,12 +296,12 @@ function Pull({ a, resp, set, interactive }: ViewProps) {
   );
 }
 
-function Build({ a, resp, set, interactive }: ViewProps) {
+function Build({ a, resp, set, interactive, quiet, teacher }: ViewProps) {
   const items = strs(a.data.items).filter(Boolean);
   if (str(a.data.unit) === 'sentences') {
     const order = strs(resp.order);
     const left = shuffle(items, a.id).filter((s) => !order.includes(s));
-    const ok = order.length === items.length ? order.every((s, i) => s === items[i]) : undefined;
+    const ok = order.length === items.length && (!quiet || teacher) ? order.every((s, i) => s === items[i]) : undefined;
     return (
       <div className="ln-build">
         <ol className="ln-answer-list">{order.map((s, i) => <li key={i}><button type="button" disabled={!interactive} className="ln-card" onClick={() => set({ ...resp, order: order.filter((x) => x !== s) })}>{s}</button></li>)}</ol>
@@ -301,7 +320,7 @@ function Build({ a, resp, set, interactive }: ViewProps) {
         const tiles = shuffle(target.map((w, k) => `${k}:${w}`), `${a.id}-${i}`).filter((t) => !mine.includes(t));
         const code = codeOf(model || s);
         const done = mine.length === target.length;
-        const ok = done ? mine.map((t) => t.slice(t.indexOf(':') + 1)).join(' ') === target.join(' ') : undefined;
+        const ok = done && (!quiet || teacher) ? mine.map((t) => t.slice(t.indexOf(':') + 1)).join(' ') === target.join(' ') : undefined;
         return (
           <div key={i} className="ln-build-item">
             {a.data.showStrip !== false && code && <Strip code={code} />}
@@ -317,7 +336,9 @@ function Build({ a, resp, set, interactive }: ViewProps) {
   );
 }
 
-function Write({ a, resp, set, interactive, teacher }: ViewProps) {
+function Write(p: ViewProps) {
+  const { a, resp, set, interactive, teacher } = p;
+  const seen = useSeen(p);
   const d = a.data;
   const n = Math.max(1, Math.min(10, num(d.lines, 1)));
   const lines = strs(resp.lines);
@@ -336,9 +357,9 @@ function Write({ a, resp, set, interactive, teacher }: ViewProps) {
         return (
           <div key={i} className="ln-line">
             {dictate[i] && <Say text={dictate[i]} label={`Listen to sentence ${i + 1}`} />}
-            <input className="ln-input ln-sentence" readOnly={!interactive} value={lines[i] ?? ''} placeholder="Write your sentence" aria-label={`Sentence ${i + 1}`}
+            <input {...NOAUTO} {...seen.done(`w${i}`)} className="ln-input ln-sentence" readOnly={!interactive} value={lines[i] ?? ''} placeholder="Write your sentence" aria-label={`Sentence ${i + 1}`}
               onChange={(e) => { const next = [...lines]; next[i] = e.target.value; set({ ...resp, lines: next }); }} />
-            <CheckLine r={res} />
+            {seen.show(`w${i}`) ? <CheckLine r={res} /> : mode !== 'none' && <span className="ln-hint">Capital letter at the start. Punctuation at the end.</span>}
           </div>
         );
       })}
@@ -350,7 +371,7 @@ function Write({ a, resp, set, interactive, teacher }: ViewProps) {
 
 const BLANK = /\[([a-z ]+)\]/gi;
 function blanksIn(text: string) { const out: SymbolWordClass[] = []; text.replace(BLANK, (_, k: string) => { out.push(symbolByName(k) ?? 'noun'); return ''; }); return out; }
-function BlankText({ text, values, onChange, interactive, prefix }: { text: string; values: Resp; onChange: (k: string, v: string) => void; interactive: boolean; prefix: string }) {
+function BlankText({ text, values, onChange, interactive, prefix, seen }: { text: string; values: Resp; onChange: (k: string, v: string) => void; interactive: boolean; prefix: string; seen: ReturnType<typeof useSeen> }) {
   const parts = text.split(BLANK);
   let k = -1;
   return (
@@ -361,11 +382,11 @@ function BlankText({ text, values, onChange, interactive, prefix }: { text: stri
         const cls = symbolByName(part) ?? 'noun';
         const key = `${prefix}${k}`;
         const v = str(values[key]);
-        const fit = v.trim() ? wordFits(v, cls) : null;
+        const fit = v.trim() && seen.show(key) ? wordFits(v, cls) : null;
         return (
           <span key={i} className="ln-blank">
             <Sym c={cls} size={30} />
-            <input className="ln-input ln-blank-in" readOnly={!interactive} value={v} aria-label={`A word for ${symbolName(cls)}`} autoCapitalize="off" onChange={(e) => onChange(key, e.target.value)} />
+            <input {...NOAUTO} {...seen.done(key)} className="ln-input ln-blank-in" readOnly={!interactive} value={v} aria-label={`A word for ${symbolName(cls)}`} onChange={(e) => onChange(key, e.target.value)} />
             {fit && <Mark ok={fit === 'yes' ? true : fit === 'no' ? false : undefined} />}
           </span>
         );
@@ -375,18 +396,22 @@ function BlankText({ text, values, onChange, interactive, prefix }: { text: stri
 }
 const fillText = (text: string, values: Resp, prefix: string) => { let k = -1; return text.replace(BLANK, (m) => { k++; return str(values[`${prefix}${k}`]) || m; }); };
 
-function Fill({ a, resp, set, interactive }: ViewProps) {
+function Fill(p: ViewProps) {
+  const { a, resp, set, interactive } = p;
+  const seen = useSeen(p);
   const story = str(a.data.story);
   const done = blanksIn(story).every((_, k) => str(resp[`b${k}`]).trim());
   return (
     <div className="ln-fill">
-      <p className="ln-story"><BlankText text={story} values={resp} prefix="b" interactive={interactive} onChange={(k, v) => { const n = { ...resp, [k]: v }; set({ ...n, story: fillText(story, n, 'b') }); }} /></p>
+      <p className="ln-story"><BlankText seen={seen} text={story} values={resp} prefix="b" interactive={interactive} onChange={(k, v) => { const n = { ...resp, [k]: v }; set({ ...n, story: fillText(story, n, 'b') }); }} /></p>
       {done && <p className="ln-story-done">{fillText(story, resp, 'b')} <Say text={fillText(story, resp, 'b')} label="Read my silly story" /></p>}
     </div>
   );
 }
 
-function Pyramid({ a, resp, set, interactive, teacher }: ViewProps) {
+function Pyramid(p: ViewProps) {
+  const { a, resp, set, interactive, teacher } = p;
+  const seen = useSeen(p);
   const given = strs(a.data.lines).filter(Boolean);
   const reveal = a.data.reveal !== false && !a.data.studentWrites;
   const shown = reveal ? Math.max(1, num(resp.shown, 1)) : given.length;
@@ -399,8 +424,8 @@ function Pyramid({ a, resp, set, interactive, teacher }: ViewProps) {
       {rows.map((r, k) => (
         <div key={`${r.kind}${r.i}`} className="ln-pyr-row" style={{ width: `${Math.min(100, 40 + (60 * (k + 1)) / Math.max(total, 1))}%` }}>
           {r.kind === 'given'
-            ? <span className="ln-pyr-text"><BlankText text={r.l} values={resp} prefix={`p${r.i}_`} interactive={interactive} onChange={(key, v) => set({ ...resp, [key]: v })} /> <Say text={fillText(r.l, resp, `p${r.i}_`)} /></span>
-            : <input className="ln-input ln-sentence" readOnly={!interactive} value={r.l} placeholder={k === 0 ? 'Start your sentence' : 'Add one more part'} aria-label={`Line ${k + 1}`}
+            ? <span className="ln-pyr-text"><BlankText seen={seen} text={r.l} values={resp} prefix={`p${r.i}_`} interactive={interactive} onChange={(key, v) => set({ ...resp, [key]: v })} /> <Say text={fillText(r.l, resp, `p${r.i}_`)} /></span>
+            : <input {...NOAUTO} className="ln-input ln-sentence" readOnly={!interactive} value={r.l} placeholder={k === 0 ? 'Start your sentence' : 'Add one more part'} aria-label={`Line ${k + 1}`}
                 onChange={(e) => { const n = [...mine]; n[r.i] = e.target.value; set({ ...resp, lines: n }); }} />}
         </div>
       ))}
@@ -409,16 +434,18 @@ function Pyramid({ a, resp, set, interactive, teacher }: ViewProps) {
   );
 }
 
-function Edit({ a, resp, set, interactive }: ViewProps) {
+function Edit(p: ViewProps) {
+  const { a, resp, set, interactive } = p;
+  const seen = useSeen(p);
   return (
     <div className="ln-edit">
       {strs(a.data.items).map(splitArrow).map(([wrong, right], i) => {
         const v = resp[i] == null ? wrong : str(resp[i]);
-        const ok = resp[i] == null ? undefined : right ? v.trim() === right.trim() : checkWritten(v, [], 'sentence')?.ok;
+        const ok = resp[i] == null || !seen.show(`e${i}`) ? undefined : right ? v.trim() === right.trim() : checkWritten(v, [], 'sentence')?.ok;
         return (
           <div key={i} className="ln-line">
             <p className="ln-wrong">{wrong} <Say text={wrong} /></p>
-            <input className="ln-input ln-sentence" readOnly={!interactive} value={v} aria-label={`Fix sentence ${i + 1}`} onChange={(e) => set({ ...resp, [i]: e.target.value })} />
+            <input {...NOAUTO} {...seen.done(`e${i}`)} className="ln-input ln-sentence" readOnly={!interactive} value={v} aria-label={`Fix sentence ${i + 1}`} onChange={(e) => set({ ...resp, [i]: e.target.value })} />
             <Mark ok={ok} />
           </div>
         );
@@ -427,7 +454,9 @@ function Edit({ a, resp, set, interactive }: ViewProps) {
   );
 }
 
-function Time({ a, resp, set, interactive }: ViewProps) {
+function Time(p: ViewProps) {
+  const { a, resp, set, interactive } = p;
+  const seen = useSeen(p);
   return (
     <div className="ln-time">
       {strs(a.data.sentences).filter(Boolean).map((s, i) => {
@@ -438,11 +467,11 @@ function Time({ a, resp, set, interactive }: ViewProps) {
             <p className="ln-prompt">{s} <Say text={s} /></p>
             {(['past', 'present', 'future'] as const).map((t) => {
               const v = str(mine[t]);
-              const ok = !v.trim() || !key ? undefined : v.trim().replace(/[.!?]$/, '').toLowerCase() === key[t].trim().replace(/[.!?]$/, '').toLowerCase();
+              const ok = !v.trim() || !key || !seen.show(`t${i}${t}`) ? undefined : v.trim().replace(/[.!?]$/, '').toLowerCase() === key[t].trim().replace(/[.!?]$/, '').toLowerCase();
               return (
                 <label key={t} className="ln-row ln-tense">
                   <span className="ln-sym"><img src={TENSE_SYMBOLS[t].imageUrl} alt="" width={44} height={44} /><span>{TENSE_SYMBOLS[t].name}</span></span>
-                  <input className="ln-input ln-sentence" readOnly={!interactive} value={v} aria-label={`${TENSE_SYMBOLS[t].name}`} onChange={(e) => set({ ...resp, [i]: { ...mine, [t]: e.target.value } })} />
+                  <input {...NOAUTO} {...seen.done(`t${i}${t}`)} className="ln-input ln-sentence" readOnly={!interactive} value={v} aria-label={`${TENSE_SYMBOLS[t].name}`} onChange={(e) => set({ ...resp, [i]: { ...mine, [t]: e.target.value } })} />
                   <Mark ok={ok} />
                 </label>
               );
@@ -454,7 +483,7 @@ function Time({ a, resp, set, interactive }: ViewProps) {
   );
 }
 
-function Choice({ a, resp, set, interactive }: ViewProps) {
+function Choice({ a, resp, set, interactive, quiet, teacher }: ViewProps) {
   return (
     <div className="ln-choice">
       {strs(a.data.items).map(splitBar).map(([q, opts = '', answer = ''], i) => {
@@ -465,7 +494,7 @@ function Choice({ a, resp, set, interactive }: ViewProps) {
             <p className="ln-prompt">{q} {a.data.speak !== false && <Say text={q} />}</p>
             <div className="ln-options">
               {options.map((o) => (
-                <button key={o} type="button" disabled={!interactive} className={`ln-option${mine === o ? (answer ? (o === answer ? ' right' : ' wrong') : ' picked') : ''}`} onClick={() => set({ ...resp, [i]: o })}>{o}</button>
+                <button key={o} type="button" disabled={!interactive || (quiet && !teacher && !!mine)} className={`ln-option${mine === o ? (answer && (!quiet || teacher) ? (o === answer ? ' right' : ' wrong') : ' picked') : ''}`} onClick={() => set({ ...resp, [i]: o })}>{o}</button>
               ))}
             </div>
           </div>
@@ -475,7 +504,7 @@ function Choice({ a, resp, set, interactive }: ViewProps) {
   );
 }
 
-function Markup({ a, resp, set, interactive }: ViewProps) {
+function Markup({ a, resp, set, interactive, quiet }: ViewProps) {
   const [open, setOpen] = useState<string | null>(null);
   return (
     <div className="ln-markup">
@@ -489,11 +518,11 @@ function Markup({ a, resp, set, interactive }: ViewProps) {
               const id = `${i}-${j}`;
               return (
                 <span key={j} className="ln-mk">
-                  <button type="button" disabled={!interactive} className={`ln-mk-word${got ? (got === w.cls ? ' right' : ' wrong') : ''}`} onClick={() => setOpen(open === id ? null : id)}>{w.word}</button>
+                  <button type="button" disabled={!interactive} className={`ln-mk-word${got && !quiet ? (got === w.cls || wordFits(w.word, got) === 'yes' ? ' right' : ' wrong') : got ? ' picked' : ''}`} onClick={() => setOpen(open === id ? null : id)}>{w.word}</button>
                   <span className="ln-mk-sym">{got ? <Sym c={got} size={36} /> : <span className="ln-empty">?</span>}</span>
                   {open === id && (
                     <span className="ln-palette" role="menu">
-                      {SYMBOL_ORDER.map((c) => <button key={c} type="button" role="menuitem" aria-label={symbolName(c)} onClick={() => { set({ ...resp, [i]: { ...mine, [j]: c } }); setOpen(null); }}><Sym c={c} size={36} /></button>)}
+                      {SYMBOL_ORDER.map((c) => <button key={c} type="button" role="menuitem" onClick={() => { set({ ...resp, [i]: { ...mine, [j]: c } }); setOpen(null); }}><Sym c={c} size={34} label /></button>)}
                     </span>
                   )}
                 </span>
@@ -528,10 +557,10 @@ function TicTacToe({ a, resp, set, interactive }: ViewProps) {
       </div>
       {open != null && !squares[open] && (
         <div className="ln-line">
-          <input className="ln-input ln-sentence" readOnly={!interactive} autoFocus value={str(drafts[open])} placeholder={`A sentence for ${codes[open % codes.length]}`} aria-label="Your sentence"
+          <input {...NOAUTO} className="ln-input ln-sentence" readOnly={!interactive} autoFocus value={str(drafts[open])} placeholder={`A sentence for ${codes[open % codes.length]}`} aria-label="Your sentence"
             onChange={(e) => set({ ...resp, drafts: { ...drafts, [open]: e.target.value } })} />
           <CheckLine r={checkWritten(str(drafts[open]), [codes[open % codes.length]])} />
-          <button type="button" className="btn btn-primary" disabled={!interactive || !checkWritten(str(drafts[open]), [codes[open % codes.length]])?.ok}
+          <button type="button" className="btn btn-primary" disabled={!interactive || !(() => { const r = checkWritten(str(drafts[open]), [codes[open % codes.length]]); return r?.capital && r.punctuation; })()}
             onClick={() => { set({ ...resp, squares: { ...squares, [open]: str(drafts[open]) } }); setOpen(null); }}>Claim the square</button>
         </div>
       )}
@@ -562,6 +591,7 @@ function Fishing({ a, resp, set, interactive }: ViewProps) {
   }, [a.id, done.length, code]);
   const placed = strs(resp.placed);
   const next = slots[placed.length];
+  const [why, setWhy] = useState('');
   const full = placed.length === slots.length && slots.length > 0;
   const sentence = (() => { const s = placed.map((id) => hand.find((h) => h.id === id)?.w ?? '').join(' '); return s ? `${s[0].toUpperCase()}${s.slice(1)}.` : ''; })();
   if (done.length >= goal) return <div className="ln-fishing"><p className="ln-result yes">You finished {goal} formulas!</p><ul className="ln-bullets">{done.map((s, i) => <li key={i}>{s}</li>)}</ul></div>;
@@ -571,11 +601,12 @@ function Fishing({ a, resp, set, interactive }: ViewProps) {
       <div className="ln-answer">{placed.length ? placed.map((id) => <span key={id} className="ln-card">{hand.find((h) => h.id === id)?.w}</span>) : <span className="ln-empty">Play a card for the first symbol</span>}</div>
       <div className="ln-pool">
         {hand.filter((h) => !placed.includes(h.id)).map((h) => (
-          <button key={h.id} type="button" disabled={!interactive || full} className="ln-card ln-fish" onClick={() => { if (h.c === next || wordFits(h.w, next) === 'yes') set({ ...resp, placed: [...placed, h.id] }); }}>
+          <button key={h.id} type="button" disabled={!interactive || full} className="ln-card ln-fish" onClick={() => { if (h.c === next || wordFits(h.w, next) !== 'no') { setWhy(''); set({ ...resp, placed: [...placed, h.id] }); } else setWhy(`"${h.w}" is ${symbolName(h.c).toLowerCase() === 'article' || symbolName(h.c).toLowerCase() === 'adjective' || symbolName(h.c).toLowerCase() === 'adverb' || symbolName(h.c).toLowerCase() === 'interjection' ? 'an' : 'a'} ${symbolName(h.c).toLowerCase()}. Look for ${['article', 'adjective', 'adverb', 'interjection'].includes(next) ? 'an' : 'a'} ${symbolName(next).toLowerCase()}.`); }}>
             <Sym c={h.c} size={26} /> {h.w}
           </button>
         ))}
       </div>
+      {why && <p className="ln-hint" role="status">{why}</p>}
       {full && <p className="ln-story-done">{sentence} <Say text={sentence} label="Read my silly sentence" /> <button type="button" className="btn btn-primary" disabled={!interactive} onClick={() => set({ ...resp, done: [...done, sentence], placed: [] })}>I read it! Next formula</button></p>}
       {!full && interactive && <button type="button" className="btn" onClick={() => set({ ...resp, placed: placed.slice(0, -1) })} disabled={!placed.length}>Take back a card</button>}
       <p className="ln-score">{done.length} of {goal} formulas</p>
@@ -601,16 +632,23 @@ function makeGrid(words: string[], seed: string) {
   for (const row of g) for (let i = 0; i < size; i++) if (!row[i]) row[i] = ABC[Math.floor(r() * ABC.length)];
   return { g, size, at };
 }
-function Search({ a, resp, set, interactive }: ViewProps) {
-  const words = strs(a.data.words).filter(Boolean);
-  const { g, size, at } = useMemo(() => makeGrid(words, a.id), [words.join(','), a.id]);
+function Search(p: ViewProps) {
+  const { a, resp, set, interactive } = p;
+  const seen = useSeen(p);
+  const all = strs(a.data.words).filter(Boolean);
+  const { g, size, at } = useMemo(() => makeGrid(all, a.id), [all.join(','), a.id]);
+  const words = all.filter((w) => at[w.toUpperCase().replace(/[^A-Z]/g, '')]); // a word that did not fit is left off the list
+  const [miss, setMiss] = useState(false);
   const found = strs(resp.found);
   const [first, setFirst] = useState<number | null>(null);
   const lit = new Set(found.flatMap((w) => at[w.toUpperCase()] ?? []));
   const tap = (c: number) => {
+    setMiss(false);
     if (first == null) { setFirst(c); return; }
+    if (first === c) { setFirst(null); return; }
     const hit = Object.entries(at).find(([, cells]) => (cells[0] === first && cells[cells.length - 1] === c) || (cells[0] === c && cells[cells.length - 1] === first));
-    if (hit && !found.includes(hit[0].toLowerCase())) set({ ...resp, found: [...found, hit[0].toLowerCase()] });
+    if (!hit) { setMiss(true); return; } // keep the first letter lit and try another last letter
+    if (!found.includes(hit[0].toLowerCase())) set({ ...resp, found: [...found, hit[0].toLowerCase()] });
     setFirst(null);
   };
   return (
@@ -619,16 +657,19 @@ function Search({ a, resp, set, interactive }: ViewProps) {
       <div className="ln-grid" style={{ gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` }}>
         {g.flat().map((ch, c) => <button key={c} type="button" disabled={!interactive} className={`ln-cell${lit.has(c) ? ' lit' : ''}${first === c ? ' held' : ''}`} onClick={() => tap(c)}>{ch}</button>)}
       </div>
+      {miss && <p className="ln-hint" role="status">Not a word yet. Tap another last letter, or tap the first letter again to start over.</p>}
       <ul className="ln-find">{words.map((w) => <li key={w} className={found.includes(w.toLowerCase()) ? 'yes' : ''}>{w}</li>)}</ul>
       {str(a.data.prompt) && <p className="ln-prompt">{str(a.data.prompt)}</p>}
-      <input className="ln-input ln-sentence" readOnly={!interactive} value={str(resp.sentence)} placeholder="Write your sentence" aria-label="Your sentence" onChange={(e) => set({ ...resp, sentence: e.target.value })} />
-      <CheckLine r={checkWritten(str(resp.sentence), [], 'sentence')} />
+      <input {...NOAUTO} {...seen.done('s')} className="ln-input ln-sentence" readOnly={!interactive} value={str(resp.sentence)} placeholder="Write your sentence" aria-label="Your sentence" onChange={(e) => set({ ...resp, sentence: e.target.value })} />
+      {seen.show('s') && <CheckLine r={checkWritten(str(resp.sentence), [], 'sentence')} />}
     </div>
   );
 }
 
 const STEPS = ['The formula', 'I do', 'We do', 'You do', 'Sentence Check'];
-function ProcA({ a, resp, set, interactive, teacher }: ViewProps) {
+function ProcA(p: ViewProps) {
+  const { a, resp, set, interactive, teacher } = p;
+  const seen = useSeen(p);
   const d = a.data;
   const code = str(d.formula);
   const row = formulaRow(code);
@@ -662,8 +703,8 @@ function ProcA({ a, resp, set, interactive, teacher }: ViewProps) {
           {(strs(d.youDo).length ? strs(d.youDo) : ['Write a sentence for the formula.']).map((q, i) => (
             <div key={i} className="ln-line">
               <p className="ln-prompt">{q} <Say text={q} /></p>
-              <input className="ln-input ln-sentence" readOnly={!interactive} value={lines[i] ?? ''} aria-label={q} onChange={(e) => { const n = [...lines]; n[i] = e.target.value; set({ ...resp, lines: n }); }} />
-              <CheckLine r={checkWritten(lines[i] ?? '', [code])} />
+              <input {...NOAUTO} {...seen.done(`y${i}`)} className="ln-input ln-sentence" readOnly={!interactive} value={lines[i] ?? ''} aria-label={q} onChange={(e) => { const n = [...lines]; n[i] = e.target.value; set({ ...resp, lines: n }); }} />
+              {seen.show(`y${i}`) && <CheckLine r={checkWritten(lines[i] ?? '', [code])} />}
             </div>
           ))}
         </div>
@@ -688,7 +729,7 @@ function Assess({ a, resp, set, interactive, teacher }: ViewProps) {
         <div key={i} className="ln-line">
           <p className="ln-prompt"><span className="ln-num">{i + 1}</span> {q} <Say text={q} /></p>
           {code && <Strip code={code} />}
-          <input className="ln-input ln-sentence" readOnly={!interactive} value={lines[i] ?? ''} aria-label={`Item ${i + 1}`} onChange={(e) => { const n = [...lines]; n[i] = e.target.value; set({ ...resp, lines: n }); }} />
+          <input {...NOAUTO} className="ln-input ln-sentence" readOnly={!interactive} value={lines[i] ?? ''} aria-label={`Item ${i + 1}`} onChange={(e) => { const n = [...lines]; n[i] = e.target.value; set({ ...resp, lines: n }); }} />
           {teacher && <CheckLine r={checkWritten(lines[i] ?? '', code ? [code] : [], code ? 'formula' : 'sentence')} />}
         </div>
       ))}

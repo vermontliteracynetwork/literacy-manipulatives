@@ -10,7 +10,9 @@ import {
   PRESETS, TAB_KINDS, asLesson, blankLesson, copyTab, newActivity, newCode, newId, newTab, stopsOf, tabKindName,
   type Activity, type Lesson, type Section, type Tab, type TabKind,
 } from '../../lib/lessons/types';
-import { summarize, type Resp } from '../../lib/lessons/check';
+import { str, summarize, type Resp } from '../../lib/lessons/check';
+
+const FLAG_NAME: Record<string, string> = { help: 'Needs help', break: 'On a break', done: 'Done' };
 import { useLessonHost, type Pos, type Work } from '../../lib/lessons/live';
 import { readReports, reportCsv, writeReports, type Session } from '../../lib/lessons/reports';
 import { deleteFolder, deleteProcedure, listFolders, listProcedures, saveFolder, saveProcedure } from '../../lib/procedures/library';
@@ -97,6 +99,7 @@ export function DailyLesson() {
   const pos: Pos = { at: mode === 'present' ? stop?.activity.id ?? null : null, tabId: stop?.tab.id ?? null, teacherResp: stop ? teacherResp[stop.activity.id] ?? {} : {}, done, progress: lesson.progress };
   const onWork = useCallback((w: Work) => {
     setLive((m) => ({ ...m, [w.activityId]: { ...m[w.activityId], [w.from]: w } }));
+    if (w.activityId === '__flag') return;
     const s = session.current;
     if (!s) return;
     const st = s.students[w.from] ?? { name: w.name, work: {} };
@@ -150,8 +153,10 @@ export function DailyLesson() {
           <div className="ln-stage-wrap">
             <Progress lesson={lesson} at={a.id} done={done} view={lesson.progress} onPick={(id) => go(stops.findIndex((s) => s.activity.id === id))} />
             <main className="ln-stage" aria-label={a.title}>
-              <h1 className="ln-stage-title"><span className="ln-stage-tab">{stop.tab.title}</span> {a.title}{a.access === 'do' && <span className="ln-badge">Students do it</span>}</h1>
-              <ActivityView key={a.id} a={a} lesson={lesson} resp={teacherResp[a.id] ?? {}} set={(r) => setTeacherResp((m) => ({ ...m, [a.id]: r }))} interactive teacher />
+              <h1 className="ln-stage-title"><span className="ln-stage-tab">{stop.tab.title}</span> {a.title}
+                <button type="button" className={`btn btn-sm ln-access${a.access === 'do' ? ' do' : ''}`} title="Switch what students can do on this activity" onClick={() => updateActivity(a.id, { access: a.access === 'do' ? 'view' : 'do' })}>{a.access === 'do' ? 'Students do it' : 'Students watch'}</button>
+              </h1>
+              <ActivityView key={a.id} a={a} lesson={lesson} quiet={stop.tab.kind === 'assessment'} resp={teacherResp[a.id] ?? {}} set={(r) => setTeacherResp((m) => ({ ...m, [a.id]: r }))} interactive teacher />
             </main>
             <footer className="ln-foot">
               <button type="button" className="btn ln-big" disabled={at === 0} onClick={() => go(at - 1)}>Back</button>
@@ -166,15 +171,21 @@ export function DailyLesson() {
               <h2 className="ln-side-h">Students {host.status === 'live' ? `(${host.students.length})` : ''}</h2>
               {host.status !== 'live' ? <p className="dp-muted">Share with students to see their work live. They join on the join page with the lesson's code.</p>
                 : host.students.length === 0 ? <p className="dp-muted">Waiting for students. They go to {joinUrl} and type {host.code}.</p>
-                : a.access !== 'do' ? <p className="dp-muted">{host.students.map((s) => s.name).join(', ')} are watching. Set this activity to "Students do it" in Edit mode to see their work.</p>
+                : a.access !== 'do' ? (
+                  <div className="ln-work-grid">
+                    <p className="dp-muted">Students are watching. Tap "Students watch" above to let them do this activity.</p>
+                    {host.students.map((st) => { const flag = str(live.__flag?.[st.id]?.resp.flag); return <p key={st.id} className="ln-work-name">{st.name}{flag && <span className={`ln-flag ln-flag-${flag}`}>{FLAG_NAME[flag] ?? flag}</span>}</p>; })}
+                  </div>
+                )
                 : (
                   <div className="ln-work-grid">
                     {host.students.map((st) => {
                       const w = work.find((x) => x.from === st.id);
+                      const flag = str(live.__flag?.[st.id]?.resp.flag);
                       const sum = w ? summarize(a, w.resp) : null;
                       return (
                         <button key={st.id} type="button" className="ln-work" onClick={() => w && setZoom(w)} disabled={!w}>
-                          <span className="ln-work-name">{st.name}{sum?.total ? <span className="ln-work-score">{sum.right} of {sum.total}</span> : null}</span>
+                          <span className="ln-work-name">{st.name}{flag && <span className={`ln-flag ln-flag-${flag}`}>{FLAG_NAME[flag] ?? flag}</span>}{sum?.total ? <span className="ln-work-score">{sum.right} of {sum.total}</span> : null}</span>
                           <span className="ln-work-text">{sum?.text || 'Not started'}</span>
                         </button>
                       );
@@ -186,7 +197,7 @@ export function DailyLesson() {
         </div>
         {zoom && (
           <Modal title={`${zoom.name}: ${a.title}`} onClose={() => setZoom(null)} wide>
-            <div className="ln-zoom"><ActivityView a={a} lesson={lesson} resp={zoom.resp} set={() => {}} interactive={false} teacher /></div>
+            <div className="ln-zoom"><ActivityView a={a} lesson={lesson} quiet={stop.tab.kind === 'assessment'} resp={zoom.resp} set={() => {}} interactive={false} teacher /></div>
           </Modal>
         )}
       </div>

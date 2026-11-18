@@ -276,3 +276,29 @@ button.ln-prog-dot { cursor: pointer; width: 18px; height: 18px; }
 .ln-tab-tools .btn, .ln-crumbs .btn, .ln-section-head .btn { padding: 4px 10px; min-height: 34px; font-size: 0.85rem; }
 .ln-bar .dp-doc-title-input { flex: 0 1 300px; min-width: 160px; }
 .ln-bar .btn { padding: 6px 12px; min-height: 38px; }
+/* Claudia's review: never color alone; bigger targets; calm help and break */
+.ln-card.right::after, .ln-target.right::after, .ln-answer.right::after, .ln-option.right::after, .ln-mk-word.right::after { content: ' ✓'; font-weight: 900; color: #1c6b44; }
+.ln-card.wrong::after, .ln-target.wrong::after, .ln-answer.wrong::after, .ln-option.wrong::after, .ln-mk-word.wrong::after { content: ' Try again'; font-size: 0.75em; font-weight: 800; color: #8a5a00; margin-left: 6px; }
+.ln-target.picked, .ln-mk-word.picked { border-style: solid; border-color: var(--brand-blue); }
+.ln-checks .ask { background: var(--brand-sky-soft); color: var(--brand-blue-dark); }
+.ln-hint { margin: 0; flex-basis: 100%; font-size: 0.95rem; font-weight: 600; color: #3d5a73; }
+.ln-cell { min-width: 44px; min-height: 44px; }
+.ln-grid { width: min(100%, 640px); }
+.ln-ttt-sq .ln-strip .lm-writer-formula-symbols img { width: 36px; height: 36px; }
+.ln-palette { grid-template-columns: repeat(3, 76px); max-width: 92vw; }
+.ln-palette button { width: 76px; height: 70px; }
+.ln-palette .ln-sym { font-size: 0.7rem; }
+button.ln-prog-dot { width: 24px; height: 24px; }
+.ln-turn { margin: 0; padding: 8px 16px; text-align: center; font-weight: 900; font-size: 1.2rem; }
+.ln-turn.do { background: #e7f6ee; color: #1c6b44; }
+.ln-turn.watch { background: var(--brand-sky-soft); color: var(--brand-blue-dark); }
+.ln-student-foot { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.ln-help { min-height: 48px; }
+.ln-help.on, .ln-done-btn.on { background: var(--brand-cream); }
+.ln-done-btn { align-self: flex-start; margin-top: 18px; }
+.ln-break { position: fixed; inset: 0; z-index: 90; background: #eaf4f1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px; text-align: center; font-size: 1.3rem; }
+.ln-break-big { margin: 0; font-size: 2.4rem; font-weight: 800; }
+.ln-flag { font-size: 0.75rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; margin-left: 6px; background: #fff1d6; color: #8a5a00; }
+.ln-flag-done { background: #e7f6ee; color: #1c6b44; }
+.ln-access { margin-left: 6px; }
+.ln-access.do { background: #e7f6ee; }

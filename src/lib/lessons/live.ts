@@ -81,7 +81,9 @@ export function useLessonHost(lesson: Lesson, pos: Pos, onWork: (w: Work) => voi
 }
 
 export function useLessonStudent() {
-  const [status, setStatus] = useState<'idle' | 'checking' | 'ready' | 'joined' | 'not-found' | 'ended' | 'error'>('idle');
+  // 'waiting': the teacher's screen dropped off for a moment (a reload or the Wi-Fi). The student stays in and the
+  // lesson picks up again when the teacher is back; only the teacher ending the share shows "over".
+  const [status, setStatus] = useState<'idle' | 'checking' | 'ready' | 'joined' | 'waiting' | 'not-found' | 'ended' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [pos, setPos] = useState<Pos | null>(null);
@@ -100,7 +102,8 @@ export function useLessonStudent() {
     channel.on('presence', { event: 'sync' }, () => {
       here = Object.keys(channel.presenceState()).some((k) => k.startsWith('teacher-'));
       if (gone.current) { window.clearTimeout(gone.current); gone.current = null; }
-      if (!here && joined.current) gone.current = window.setTimeout(() => { if (joined.current) setStatus('ended'); }, 5000);
+      if (!here && joined.current) gone.current = window.setTimeout(() => { if (joined.current) setStatus((st) => (st === 'ended' ? st : 'waiting')); }, 5000);
+      if (here && joined.current) { setStatus((st) => (st === 'waiting' ? 'joined' : st)); void channel.send({ type: 'broadcast', event: 'hello', payload: {} }); }
     });
     channel.on('broadcast', { event: 'lesson' }, ({ payload }) => setLesson(payload as Lesson));
     channel.on('broadcast', { event: 'pos' }, ({ payload }) => setPos(payload as Pos));
@@ -120,16 +123,24 @@ export function useLessonStudent() {
     const channel = ch.current;
     if (!channel) return;
     setName(n); joined.current = true; setStatus('joined');
+    try { sessionStorage.setItem('lm-lesson-me', JSON.stringify({ code: channel.topic.replace(/^.*lm-board-/, ''), name: n })); } catch { /* not kept */ }
     await channel.track({ role: 'student', name: n });
     await channel.send({ type: 'broadcast', event: 'hello', payload: {} });
   }, []);
 
+  // A reload puts the student straight back in, with the same name.
+  useEffect(() => {
+    let me: { code?: string; name?: string } = {};
+    try { me = JSON.parse(sessionStorage.getItem('lm-lesson-me') ?? '{}'); } catch { /* none */ }
+    const want = new URLSearchParams(window.location.search).get('code');
+    if (me.code && me.name && (!want || want === me.code)) void checkCode(me.code).then((ok) => { if (ok) void join(me.name!); });
+  }, []);
   const timers = useRef<Record<string, number>>({});
-  const sendWork = useCallback((activityId: string, resp: Resp) => {
+  const sendWork = useCallback((activityId: string, resp: Resp, now = false) => {
     window.clearTimeout(timers.current[activityId]);
     timers.current[activityId] = window.setTimeout(() => {
       void ch.current?.send({ type: 'broadcast', event: 'work', payload: { from: studentId, name, activityId, resp } satisfies Work });
-    }, 250);
+    }, now ? 0 : 250);
   }, [name]);
 
   useEffect(() => () => { const c = ch.current; if (c) void getClient()?.removeChannel(c); }, []);

@@ -1249,3 +1249,14 @@ alignment with the Symbolic Grammar curriculum.
   the lesson; Reports opens them, prints them or downloads a spreadsheet.
 - Earlier Daily Procedures open as lessons (each phase becomes a tab, each page an activity that looks and edits the
   same).
+- Claudia's review (instructional design), fixed the same day:
+  - Marks show only after a student finishes a field (leaves it or taps Enter), never while typing; a neutral hint shows until then.
+  - Assessment tabs show students no marks, a choice locks after the first pick, and the answer keys are not sent to student iPads.
+  - A formula the engine reads differently shows "Formula: show your teacher" instead of a miss; tic-tac-toe squares can be claimed with a capital letter and punctuation, and the report lists formulas to check.
+  - A word that can do more than one job counts under any of its symbols (sort and mark-up).
+  - Right and wrong always carry a mark or words, never color alone.
+  - Fishing says why a card does not fit; Word Search keeps the first letter lit after a miss and leaves off a word that did not fit the grid.
+  - Students: "Your turn" or "Watch" banner, "I need help", "I need a break" (a calm break screen) and "I'm done", shown beside their name for the teacher. A reload or Wi-Fi drop waits for the teacher and rejoins with the same name; work is sent again when the teacher returns to an activity.
+  - No auto capital letter, autocorrect or spell check in the sentence boxes (they would do the skill for the student).
+  - Bigger targets: word search cells 44px, a labeled 3-column symbol palette for mark-ups, larger progress dots.
+  - The teacher can switch an activity between "Students watch" and "Students do it" while presenting.

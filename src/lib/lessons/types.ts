@@ -281,8 +281,17 @@ export interface Stop { tab: Tab; section: Section; activity: Activity }
 export const stopsOf = (l: Lesson): Stop[] => l.tabs.flatMap((tab) => tab.sections.flatMap((section) => section.activities.map((activity) => ({ tab, section, activity }))));
 
 // What students receive: the lesson without the teacher's notes.
+// On an Assessment tab the answer keys stay on the teacher's screen too (marks are worked out there).
+function withoutKey(a: Activity): Activity {
+  const d = { ...a.data };
+  const items = Array.isArray(d.items) ? (d.items as string[]) : [];
+  if (a.engine === 'choice') d.items = items.map((l) => l.split('|').slice(0, 2).join('|'));
+  if (a.engine === 'edit') d.items = items.map((l) => l.split('=>')[0]);
+  delete d.model; delete d.models;
+  return { ...a, data: d };
+}
 export function forStudents(l: Lesson): Lesson {
-  return { ...l, tabs: l.tabs.map((t) => ({ ...t, notes: '', sections: t.sections.map((s) => ({ ...s, activities: s.activities.map((a) => ({ ...a, notes: '' })) })) })) };
+  return { ...l, tabs: l.tabs.map((t) => ({ ...t, notes: '', sections: t.sections.map((s) => ({ ...s, activities: s.activities.map((a) => ({ ...(t.kind === 'assessment' ? withoutKey(a) : a), notes: '' })) })) })) };
 }
 
 // An earlier Daily Procedure becomes a lesson: each phase is a tab and each page an activity that looks the same.

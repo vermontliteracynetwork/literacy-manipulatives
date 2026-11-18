@@ -61,7 +61,7 @@ export const syms = (v: unknown): SymbolWordClass[] => strs(v).filter((x): x is 
 
 // The cards of a sort and where each one belongs.
 export interface SortCat { id: string; label: string; cls?: SymbolWordClass; code?: string }
-export function sortSetup(data: Record<string, unknown>): { cats: SortCat[]; items: { text: string; cat: string }[] } {
+export function sortSetup(data: Record<string, unknown>): { cats: SortCat[]; items: { text: string; cat: string; ok: string[] }[] } {
   const mode = str(data.mode) || 'symbols';
   const cats: SortCat[] = mode === 'formulas' ? strs(data.formulas).map((c) => ({ id: c, label: formulaLabel(c), code: c }))
     : mode === 'labels' ? strs(data.labels).map((l) => ({ id: l, label: l }))
@@ -72,7 +72,9 @@ export function sortSetup(data: Record<string, unknown>): { cats: SortCat[]; ite
     if (given) cat = mode === 'symbols' ? (symbolByName(given) ?? given) : given;
     else if (mode === 'symbols') { const jobs = jobsOfWord(text.replace(/[^A-Za-z'-]/g, '')); cat = cats.find((c) => c.cls && jobs.includes(c.cls))?.id ?? jobs[0] ?? ''; }
     else if (mode === 'formulas') cat = codeOf(text);
-    return { text, cat };
+    // A word that can do more than one job may go under any of its symbols ("run" is a noun or a verb).
+    const ok = !given && mode === 'symbols' ? cats.filter((c) => c.cls && wordFits(text, c.cls) === 'yes').map((c) => c.id) : [];
+    return { text, cat, ok: ok.length ? ok : cat ? [cat] : [] };
   });
   return { cats, items };
 }
@@ -87,7 +89,7 @@ export function summarize(a: Activity, resp: Resp | undefined): { text: string; 
       return { text: s.map((c) => `${symbolName(c)}: ${r[c] ? symbolName(r[c] as SymbolWordClass) : '-'}`).join('; '), right, total: s.length };
     }
     case 'sort': {
-      const { items } = sortSetup(d); const right = items.filter((it, i) => r[i] === it.cat).length;
+      const { items } = sortSetup(d); const right = items.filter((it, i) => it.ok.includes(str(r[i]))).length;
       return { text: items.map((it, i) => `${it.text} → ${str(r[i]) || '-'}`).join('; '), right, total: items.length };
     }
     case 'define': return { text: syms(d.symbols).map((c) => `${symbolName(c)}: ${str(r[c]) || '-'}`).join('; ') };
@@ -110,7 +112,8 @@ export function summarize(a: Activity, resp: Resp | undefined): { text: string; 
       const mode = a.engine === 'assess' ? 'formula' : ((str(d.check) || 'formula') as 'formula' | 'sentence' | 'none');
       const res = strs(r.lines).map((l, i) => checkWritten(l, a.engine === 'assess' ? (want[i] ? [want[i]] : []) : want, mode));
       const checked = res.filter(Boolean) as SentenceResult[];
-      return { text: lines.join(' / ') || '-', right: checked.filter((x) => x.ok).length, total: mode === 'none' ? undefined : a.engine === 'assess' ? strs(d.items).length : Math.max(checked.length, num(d.lines, 1)) };
+      const ask = checked.filter((x) => x.formula === false).length;
+      return { text: `${lines.join(' / ') || '-'}${ask ? ` (formula to check: ${ask})` : ''}`, right: checked.filter((x) => x.ok).length, total: mode === 'none' ? undefined : a.engine === 'assess' ? strs(d.items).length : Math.max(checked.length, num(d.lines, 1)) };
     }
     case 'fill': return { text: str(r.story) || '-' };
     case 'pyramid': return { text: strs(r.lines).filter(Boolean).join(' / ') || Object.values(r).map(str).filter(Boolean).join(', ') || '-' };
@@ -125,7 +128,7 @@ export function summarize(a: Activity, resp: Resp | undefined): { text: string; 
     }
     case 'markup': {
       let right = 0, total = 0;
-      const text = strs(d.sentences).map((s, i) => { const key = symbolsOfSentence(s); const mine = (r[i] ?? {}) as Resp; key.forEach((w, j) => { if (mine[j]) { total++; if (mine[j] === w.cls) right++; } }); return key.map((w, j) => `${w.word}(${mine[j] ? symbolName(mine[j] as SymbolWordClass) : '-'})`).join(' '); }).join(' | ');
+      const text = strs(d.sentences).map((s, i) => { const key = symbolsOfSentence(s); const mine = (r[i] ?? {}) as Resp; key.forEach((w, j) => { if (mine[j]) { total++; if (mine[j] === w.cls || wordFits(w.word, mine[j] as SymbolWordClass) === 'yes') right++; } }); return key.map((w, j) => `${w.word}(${mine[j] ? symbolName(mine[j] as SymbolWordClass) : '-'})`).join(' '); }).join(' | ');
       return { text, right, total };
     }
     case 'tictactoe': { const won = Object.values((r.squares ?? {}) as Resp).filter(Boolean).length; return { text: `${won} squares claimed`, right: won, total: 9 }; }

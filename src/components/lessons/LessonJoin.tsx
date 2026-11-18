@@ -22,11 +22,17 @@ export function LessonJoin() {
   const [name, setName] = useState('');
   const [work, setWork] = useState<Record<string, Resp>>(readWork);
   const [, setReady] = useState(0);
+  const [flag, setFlag] = useState('');
+  const sendFlag = (f: string) => { setFlag(f); s.sendWork('__flag', { flag: f }, true); };
+  // Each time the teacher moves to an activity a student already worked on, their work goes to the teacher again.
+  const at = s.pos?.at ?? null;
+  useEffect(() => { if (at && work[at]) s.sendWork(at, work[at], true); if (flag === 'done') setFlag(''); }, [at]);
   useEffect(() => { document.title = 'Lesson'; void loadEngine().then(() => setReady((n) => n + 1)).catch(() => undefined); }, []);
   useEffect(() => { if (fromUrl && code.length === 4) void s.checkCode(code); }, []);
   useEffect(() => { try { sessionStorage.setItem(WORK_KEY, JSON.stringify(work)); } catch { /* kept in memory */ } }, [work]);
 
   if (s.status === 'ended') return <div className="ln-join"><div className="ln-join-card"><h1>The lesson is over</h1><p>Great work today.</p><a className="btn btn-primary ln-big" href="/join">Join again</a></div></div>;
+  if (s.status === 'waiting') return <div className="ln-join"><div className="ln-join-card"><h1>Waiting for your teacher...</h1><p>Stay here. The lesson comes back when your teacher does.</p></div></div>;
   if (s.status !== 'joined') {
     const ready = s.status === 'ready';
     return (
@@ -57,16 +63,30 @@ export function LessonJoin() {
   if (!lesson || !stop || !pos) return <div className="ln-join"><div className="ln-join-card"><h1>Hi, {s.name}!</h1><p>Your teacher will start the lesson soon.</p></div></div>;
   const a = stop.activity;
   const mine = a.access === 'do';
+  const quiet = stop.tab.kind === 'assessment';
   return (
     <div className="ln ln-student">
       <Progress lesson={lesson} at={a.id} done={pos.done} view={pos.progress} />
+      <p className={`ln-turn ${mine ? 'do' : 'watch'}`} role="status">{mine ? 'Your turn' : 'Watch and follow along'}</p>
       <main className="ln-stage" aria-label={a.title}>
         <h1 className="ln-stage-title"><span className="ln-stage-tab">{stop.tab.title}</span> {a.title}</h1>
         {mine
-          ? <ActivityView key={a.id} a={a} lesson={lesson} resp={work[a.id] ?? {}} interactive set={(r) => { setWork((w) => ({ ...w, [a.id]: r })); s.sendWork(a.id, r); }} />
-          : <ActivityView key={a.id} a={a} lesson={lesson} resp={pos.teacherResp} interactive={false} set={() => {}} />}
+          ? <ActivityView key={a.id} a={a} lesson={lesson} quiet={quiet} resp={work[a.id] ?? {}} interactive set={(r) => { setWork((w) => ({ ...w, [a.id]: r })); s.sendWork(a.id, r); }} />
+          : <ActivityView key={a.id} a={a} lesson={lesson} quiet={quiet} resp={pos.teacherResp} interactive={false} set={() => {}} />}
+        {mine && <button type="button" className={`btn ln-big ln-done-btn${flag === 'done' ? ' on' : ''}`} onClick={() => sendFlag(flag === 'done' ? '' : 'done')}>{flag === 'done' ? 'Done! (tap to keep working)' : "I'm done"}</button>}
       </main>
-      <p className="ln-student-foot">{s.name} · {mine ? 'Your turn' : 'Watch and follow along'}</p>
+      <footer className="ln-student-foot">
+        <span>{s.name}</span>
+        <button type="button" className={`btn ln-help${flag === 'help' ? ' on' : ''}`} aria-pressed={flag === 'help'} onClick={() => sendFlag(flag === 'help' ? '' : 'help')}>{flag === 'help' ? 'Help is coming' : 'I need help'}</button>
+        <button type="button" className={`btn ln-help${flag === 'break' ? ' on' : ''}`} aria-pressed={flag === 'break'} onClick={() => sendFlag(flag === 'break' ? '' : 'break')}>{flag === 'break' ? "I'm back" : 'I need a break'}</button>
+      </footer>
+      {flag === 'break' && (
+        <div className="ln-break" role="dialog" aria-label="Break">
+          <p className="ln-break-big">Take a break.</p>
+          <p>Breathe in slowly. Breathe out slowly. Your teacher knows.</p>
+          <button type="button" className="btn btn-primary ln-big" onClick={() => sendFlag('')}>I'm ready</button>
+        </div>
+      )}
     </div>
   );
 }
