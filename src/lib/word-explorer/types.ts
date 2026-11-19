@@ -52,6 +52,7 @@ export interface WordEntry {
   id: string;
   headword: string;
   lemma: string;
+  formOf?: { base: string; note: string }; // a word form or a built word: its base word, and how it relates
   soundOut: string;
   ipa?: string;
   audio?: string;

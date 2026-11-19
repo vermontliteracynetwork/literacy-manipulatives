@@ -497,3 +497,4 @@
 .wx-pos-btn:hover .wx-pos { border-color: var(--primary); }
 .wx-pos-btn.on .wx-pos { background: var(--tint-lavender); border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary); }
 .wx-pos-only { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s2); margin: var(--s2) 0; padding: var(--s2) var(--s3); background: var(--tint-lavender); border-radius: var(--r-tile); }
+.wx-form-of { margin: 4px 0 0; font-size: 1.05rem; }

@@ -38,14 +38,16 @@ function WordCard({ w, pic }: { w: ListWord; pic?: WordPicture }) {
   const parts = partsOf(w);
   const tiles = (parts.length ? parts : []).map((p) => ({ pos: p, file: pic?.by?.[p] ?? (p === 'noun' && !pic?.by ? pic?.file : undefined) }));
   if (pic && !tiles.some((x) => x.file)) tiles.unshift({ pos: parts[0] ?? 'noun', file: pic.file });
+  // A word with a picture shows only its pictures on the card, not grammar symbols (her request 2026-11-19).
+  const shown = tiles.some((x) => x.file) ? tiles.filter((x) => x.file) : tiles;
   return (
     <button type="button" data-nosay className={`wx-wordcard${on ? ' armed' : ''}`} aria-label={on ? `${w.word}. Tap again to open its word page.` : `${w.word}. Tap to hear it, tap twice to open it.`}
       onClick={() => { if (on) { arm(null); open(w.word); } else { read(`card:${w.word}`, w.word); arm(w.word); } }}>
-      {tiles.length > 0 && (
-        <span className={`wx-card-face${tiles.length > 1 ? ' grid' : ''}`}>
-          {tiles.map((x, i) => (
+      {shown.length > 0 && (
+        <span className={`wx-card-face${shown.length > 1 ? ' grid' : ''}`}>
+          {shown.map((x, i) => (
             <span key={`${x.pos}${i}`} className="wx-card-tile" title={x.pos}>
-              {x.file ? <img src={x.file} alt="" /> : <PosSymbol pos={x.pos} size={tiles.length > 1 ? 34 : 56} decorative />}
+              {x.file ? <img src={x.file} alt="" /> : <PosSymbol pos={x.pos} size={shown.length > 1 ? 34 : 56} decorative />}
             </span>
           ))}
         </span>

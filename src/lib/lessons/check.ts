@@ -1,4 +1,4 @@
-import { fitsJob, jobsOfWord, type SymbolWordClass } from 'symbolic-grammar-engine';
+import { BREAKDOWN_FORMULAS, fitsJob, formulaPartsOf, jobsOfWord, type SymbolWordClass } from 'symbolic-grammar-engine';
 import { GRAMMAR_SYMBOL_INFO } from '../grammarSymbols';
 import { tagForCheck } from '../writer/sentenceCheck';
 import { formulaCode, sentenceSlots } from '../writer/formulaMatch';
@@ -19,8 +19,10 @@ export const symbolByName = (raw: string): SymbolWordClass | undefined => {
 };
 
 export const formulaRow = (code: string) => MASTER_FORMULAS.find((m) => m.code === code);
-export const formulaLabel = (code: string) => { const m = formulaRow(code); return m ? `${m.code}: ${m.formula.replace(/ /g, ' + ')}` : code; };
-export const formulaSlots = (code: string): string[] => (formulaRow(code)?.formula.replace(/proper noun/g, 'propernoun').split(/\s+/).filter(Boolean) ?? []);
+// Her Lesson Breakdown is the most current list: a code that is only there still gets its example and parts of speech.
+const breakdownRow = (code: string) => BREAKDOWN_FORMULAS.find((f) => f.code === code);
+export const formulaLabel = (code: string) => { const b = breakdownRow(code); const ex = b?.example ?? formulaRow(code)?.sentence ?? ''; const parts = formulaPartsOf(code, ex); return ex ? `${code} ${ex} (${parts.split(/\s+/).filter(Boolean).join(' + ')})` : code; };
+export const formulaSlots = (code: string): string[] => (formulaRow(code)?.formula ?? formulaPartsOf(code, breakdownRow(code)?.example ?? '')).replace(/proper noun/g, 'propernoun').split(/\s+/).filter(Boolean);
 
 /** Her formula code for a sentence a student wrote. */
 export function codeOf(text: string): string {

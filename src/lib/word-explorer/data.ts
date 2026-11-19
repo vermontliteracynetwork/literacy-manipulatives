@@ -12,6 +12,7 @@ import { formulaFor } from './formula';
 import { phonicsOf } from './phonics';
 import { pictureFor, provenanceOf } from './pictures';
 import { loadWords } from '../writer/spell';
+import { CLOSED_DEFS } from './closedWords';
 
 // Loads the dictionary data built by scripts/build-word-explorer-data.py and turns it into WordEntry records.
 // UI-free.
@@ -139,7 +140,9 @@ function seedSense(word: string, s: SeedSense, i: number): Sense {
 }
 
 function oewnSense(word: string, pos: PartOfSpeech, s: RawSense): Sense {
-  const status: ReviewStatus = statusOf(`${s.id}:sense`, 'draft');
+  // Open English WordNet meanings show to students right away (her request 2026-11-19: "add definitions to all words");
+  // a teacher can still mark one back to draft to hide it.
+  const status: ReviewStatus = statusOf(`${s.id}:sense`, 'approved');
   const examples: Example[] = (s.ex ?? []).filter((t) => !isBlockedText(t)).map((text) => ({ text, formulaCode: formulaFor(text), time: timeOf(text), provenance: [OEWN], status }));
   const near = [...(s.syn ?? []), ...(s.sim ?? []), ...(s.hyp ?? [])].filter((w) => !isBlockedTerm(w));
   const nSyn = s.syn?.length ?? 0, nSim = s.sim?.length ?? 0;
@@ -200,6 +203,10 @@ async function buildEntry(word: string): Promise<WordEntry | null> {
     senses.push(sense);
   });
   for (const p of rw?.parts ?? []) for (const s of p.senses) if (!matched.has(s.id)) senses.push(oewnSense(word, p.pos, s));
+  // Every word gets a meaning (her request 2026-11-19): a word form borrows its base word's meanings, a small grammar
+  // word gets a plain meaning, and a word built from a known word gets a meaning from its parts.
+  let formOf: WordEntry['formOf'];
+  if (!senses.length) { const fb = await fallbackSenses(word); senses.push(...fb.senses); formOf = fb.formOf; }
 
   const [ph, pic] = await Promise.all([phonicsOf(word), pictureFor(word)]);
   if (pic) {
@@ -223,7 +230,7 @@ async function buildEntry(word: string): Promise<WordEntry | null> {
   const soundOut = seed?.soundOut ?? soundOutFromIpa(rw?.ipa);
 
   return {
-    id: word, headword: word, lemma: word, soundOut, ipa: rw?.ipa,
+    id: word, headword: word, lemma: formOf?.base ?? word, formOf, soundOut, ipa: rw?.ipa,
     capitalLetter: jobs[0] === 'propernoun',
     variants: [],
     forms: { value: formsValue, provenance: irregular.length ? [OEWN, ESTIMATE] : [ESTIMATE], status: entryStatus },
@@ -243,4 +250,74 @@ async function buildEntry(word: string): Promise<WordEntry | null> {
     status: entryStatus,
     partsOfSpeech: parts,
   };
+}
+
+// ---------- meanings for words WordNet does not list on their own ----------
+function draftedSense(word: string, pos: PartOfSpeech, def: string, i: number): Sense {
+  const id = `${word}#plain${i}`;
+  return {
+    id, signpost: def.split(/[;,(]/)[0].split(' ').slice(0, 4).join(' '), pos,
+    definition: { value: def, provenance: [DRAFTED], status: statusOf(`${id}:sense`, 'approved') },
+    explanation: { value: '', provenance: [], status: 'draft' }, grammar: { patterns: [] }, examples: [],
+    synonyms: [], antonyms: [], pictures: [], pictureable: false, safetyRating: 'ok', family: [],
+  };
+}
+
+type FormKind = 's' | 'ed' | 'ing' | 'er' | 'est' | 'plural' | 'form';
+function baseCandidates(w: string): [string, FormKind][] {
+  const out: [string, FormKind][] = [];
+  const irr = irregularBase(w);
+  if (irr) out.push([irr, 'form']);
+  const add = (suf: string, rep: string, kind: FormKind) => { if (w.endsWith(suf) && w.length > suf.length + 1) out.push([w.slice(0, -suf.length) + rep, kind]); };
+  add('women', 'woman', 'plural'); add('men', 'man', 'plural'); add('ves', 'f', 'plural'); add('ves', 'fe', 'plural');
+  add('ies', 'y', 's'); add('es', '', 's'); add('s', '', 's');
+  add('ied', 'y', 'ed'); add('ed', '', 'ed'); add('ed', 'e', 'ed'); add('d', '', 'ed');
+  add('ing', '', 'ing'); add('ing', 'e', 'ing'); add('ying', 'ie', 'ing');
+  add('ier', 'y', 'er'); add('iest', 'y', 'est'); add('er', '', 'er'); add('er', 'e', 'er'); add('est', '', 'est'); add('est', 'e', 'est');
+  for (const [suf, kind] of [['ed', 'ed'], ['ing', 'ing'], ['er', 'er'], ['est', 'est']] as const) {
+    const b = w.endsWith(suf) ? w.slice(0, -suf.length) : '';
+    if (b.length > 2 && b[b.length - 1] === b[b.length - 2]) out.push([b.slice(0, -1), kind]);
+  }
+  return out;
+}
+const FORM_NOTE: Record<FormKind, string> = {
+  s: 'more than one, or what he, she or it does', plural: 'more than one', ed: 'in the past', ing: 'the -ing form',
+  er: 'more', est: 'the most', form: 'another form',
+};
+const FORM_POS: Record<FormKind, PartOfSpeech[]> = { s: ['noun', 'verb'], plural: ['noun'], ed: ['verb', 'adjective'], ing: ['verb', 'noun', 'adjective'], er: ['adjective', 'adverb'], est: ['adjective', 'adverb'], form: ['noun', 'verb', 'adjective', 'adverb'] };
+
+// Words built from a known word: un-, re-, -ness, -less, -ful, -y, -able, -er (a person who), -ly.
+const BUILT: { test: RegExp; base: (m: RegExpMatchArray) => string[]; pos: PartOfSpeech; def: (b: string) => string }[] = [
+  { test: /^un(.{3,})$/, base: (m) => [m[1]], pos: 'adjective', def: (b) => `not ${b}` },
+  { test: /^re(.{3,})$/, base: (m) => [m[1]], pos: 'verb', def: (b) => `to ${b} again` },
+  { test: /^(.{3,})ness$/, base: (m) => [m[1], m[1].replace(/i$/, 'y')], pos: 'noun', def: (b) => `being ${b}` },
+  { test: /^(.{3,})less$/, base: (m) => [m[1]], pos: 'adjective', def: (b) => `without ${b}` },
+  { test: /^(.{3,})ful$/, base: (m) => [m[1], m[1].replace(/i$/, 'y')], pos: 'adjective', def: (b) => `full of ${b}` },
+  { test: /^(.{3,})able$/, base: (m) => [m[1], `${m[1]}e`], pos: 'adjective', def: (b) => `able to be ${pastOf(b)}` },
+  { test: /^(.{3,})ly$/, base: (m) => [m[1], m[1].replace(/i$/, 'y')], pos: 'adverb', def: (b) => `in a ${b} way` },
+  { test: /^(.{3,}?)(\w)\2y$/, base: (m) => [m[1] + m[2]], pos: 'adjective', def: (b) => `like ${b}, or full of ${b}` },
+  { test: /^(.{3,})y$/, base: (m) => [m[1], `${m[1]}e`], pos: 'adjective', def: (b) => `like ${b}, or full of ${b}` },
+  { test: /^(.{3,})er$/, base: (m) => [m[1], `${m[1]}e`], pos: 'noun', def: (b) => `a person or thing that ${third(b)}` },
+];
+
+async function fallbackSenses(word: string): Promise<{ senses: Sense[]; formOf?: WordEntry['formOf'] }> {
+  const closed = CLOSED_DEFS[word];
+  if (closed) return { senses: closed.map(([pos, def], i) => draftedSense(word, pos, def, i)) };
+  for (const [base, kind] of baseCandidates(word)) {
+    if (base === word) continue;
+    const rb = await rawWord(base);
+    if (!rb?.parts.length) continue;
+    const parts = rb.parts.filter((p) => FORM_POS[kind].includes(p.pos));
+    const use = parts.length ? parts : rb.parts;
+    const senses = use.flatMap((p) => p.senses.slice(0, 4).map((s) => ({ ...oewnSense(base, p.pos, s), id: `${word}~${s.id}` })));
+    if (senses.length) return { senses, formOf: { base, note: FORM_NOTE[kind] } };
+  }
+  for (const b of BUILT) {
+    const m = word.match(b.test);
+    if (!m) continue;
+    for (const base of b.base(m)) {
+      if ((await rawWord(base))?.parts.length) return { senses: [draftedSense(word, b.pos, b.def(base), 0)], formOf: { base, note: 'made from' } };
+    }
+  }
+  return { senses: [] };
 }

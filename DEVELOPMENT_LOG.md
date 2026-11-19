@@ -1312,3 +1312,11 @@ Her request: a Mad Lib style silly story fill in the blank app, customizable ("s
   - A custom story starts with no words picked; she adds them in Words.
   - Removed: "What students see when you present" (Silly Stories and Daily Lesson), "Short description (on the card)" (every activity), and the extra hint lines in Silly Stories.
   - "Of N" counts each part of speech on its own, so it shows everything the story has room for.
+
+## 2026-11-19: Every word has a meaning; picture-only cards; formulas from her Lesson Breakdown
+
+- Her requests: "add definitions to all words in word explorer. if we have an image, dont show the grammar symbol on the card"; "formula on left should not have the lesson number, but just the formula number, then the example then the parts of speech like this. 'S1.A The dog ran. (article + noun + verb)'"; her newest Lesson Breakdown PDF ("heres most updated"); "dont say procedure code, just name".
+- Word Explorer meanings (`src/lib/word-explorer/data.ts`): about 21,000 words had none (plurals, past forms, -ing, -er/-est, small grammar words). Now a word form shows its base word's meanings with a note ("pushes" is a form of push: more than one, or what he, she or it does); small grammar words (they, because, against, ah...) have plain drafted meanings (`closedWords.ts`); a word built from a known word gets a drafted meaning from its parts (crunchy: like crunch, or full of crunch; un-, re-, -ness, -less, -ful, -able, -ly, -er). WordNet meanings now show to students without waiting for review (a teacher can still set one back to Draft). About 1,000 rare words (mostly adult or technical) still have none.
+- Browse cards: a word with a picture shows only its pictures, no grammar symbol tiles.
+- Symbolic Grammar Engine 1.5.0: her Lesson Breakdown, Units 1-8 and Compositions, is in the engine (`LESSON_BREAKDOWN`, `BREAKDOWN_FORMULAS`, `formulaPartsOf`; 132 formulas; the engine codes 110 of the examples the same way). The formula picker in Daily Lesson and Silly Stories lists every Lesson Breakdown formula as "S1.A The dog ran. (article + noun + verb)", with no lesson numbers; formula strips for codes only in the Breakdown read their parts from the example.
+- Activity names without procedure letters: New formula, Symbol Story, Picture Sentence Builder, Tense Builder, Restating the Question.

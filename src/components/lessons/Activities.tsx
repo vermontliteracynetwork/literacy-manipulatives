@@ -3,7 +3,6 @@ import type React from 'react';
 import { createPortal } from 'react-dom';
 import type { SymbolWordClass } from 'symbolic-grammar-engine';
 import { GRAMMAR_SYMBOL_INFO, TENSE_SYMBOLS } from '../../lib/grammarSymbols';
-import { MASTER_FORMULAS } from '../../lib/writer/masterList';
 import { speak, stopSpeaking } from '../../lib/word-explorer/speech';
 import { pluralOf, verbForms, wordsOfType } from '../../lib/wordsByType';
 import { FormulaSymbols } from '../SentenceFormulas';
@@ -13,7 +12,7 @@ import {
   SYMBOL_ORDER, checkWritten, codeOf, formulaLabel, formulaRow, formulaSlots, num, sortSetup, splitArrow, splitBar, splitEq, str, strs, symbolByName,
   symbolName, symbolOf, symbolsOfSentence, syms, tensesOf, wordFits, type Resp, type SentenceResult,
 } from '../../lib/lessons/check';
-import { engineReady, jobsOfWord } from 'symbolic-grammar-engine';
+import { BREAKDOWN_FORMULAS, engineReady, formulaPartsOf, jobsOfWord } from 'symbolic-grammar-engine';
 import { fillStory, KINDS, KIND_NAME, available, pickBlanks, type Blank } from '../../lib/silly/blanks';
 import type { BlankCounts, BlankKind } from '../../lib/silly/stories';
 import { ENGINE_FIELDS, TAB_COLOR, type Activity, type Field, type Lesson } from '../../lib/lessons/types';
@@ -958,7 +957,11 @@ function Legacy({ a }: ViewProps) {
 }
 
 // ---------- Edit mode: every student-facing detail ----------
-const FORMULA_OPTIONS = MASTER_FORMULAS.map((m) => ({ value: m.code, label: `${m.skill} ${m.code}: ${m.formula}` })).filter((o, i, all) => all.findIndex((x) => x.value === o.value) === i);
+// Every formula in her Lesson Breakdown (the most current list, 2026-11-19), as she writes them: the formula code, the
+// example, then the parts of speech ("S1.A The dog ran. (article + noun + verb)"). No lesson numbers.
+const FORMULA_OPTIONS = BREAKDOWN_FORMULAS
+  .filter((f, i, all) => all.findIndex((x) => x.code === f.code && x.example === f.example) === i)
+  .map((f) => ({ value: f.code, label: `${f.code} ${f.example} (${formulaPartsOf(f.code, f.example).split(/\s+/).filter(Boolean).join(' + ')})` }));
 
 export function SymbolPicker({ value, onChange }: { value: SymbolWordClass[]; onChange: (v: SymbolWordClass[]) => void }) {
   return (

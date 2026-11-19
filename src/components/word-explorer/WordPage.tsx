@@ -110,6 +110,13 @@ function WordHeader({ entry, teacher, posPick, onPos }: { entry: WordEntry; teac
           </span>
         )}
       </div>
+      {entry.formOf && (
+        <p className="wx-form-of">
+          {entry.formOf.note === 'made from'
+            ? <>"{entry.headword}" is made from <a href={`/words?w=${encodeURIComponent(entry.formOf.base)}`}>{entry.formOf.base}</a>.</>
+            : <>"{entry.headword}" is a form of <a href={`/words?w=${encodeURIComponent(entry.formOf.base)}`}>{entry.formOf.base}</a> ({entry.formOf.note}).</>}
+        </p>
+      )}
       <div className="wx-word-facts">
         {entry.partsOfSpeech.length > 0 && (
           <ul className="wx-pos-list" aria-label="Parts of speech">
