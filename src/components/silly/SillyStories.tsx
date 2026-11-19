@@ -36,7 +36,7 @@ function blankDeck(): Lesson {
 }
 const readOpen = (): Lesson | null => { try { const x = JSON.parse(sessionStorage.getItem(OPEN_KEY) ?? 'null'); return x ? asLesson(x) : null; } catch { return null; } };
 
-export function SillyStories() {
+function SillyEditor({ onPlay }: { onPlay: () => void }) {
   const [deck, setDeck] = useState<Lesson>(() => readOpen() ?? blankDeck());
   const [dirty, setDirty] = useState(false);
   const [sel, setSel] = useState<string | null>(null); // null: every story as a card (her request 2026-11-19)
@@ -149,6 +149,7 @@ export function SillyStories() {
       <header className="ln-bar">
         <HomeButton />
         <span className="ln-app">Silly Stories</span>
+        <button type="button" className="btn btn-sm" onClick={onPlay} title="Back to open play">Play</button>
         <input className="dp-doc-title-input" value={deck.title} onChange={(e) => { setDeck((d) => ({ ...d, title: e.target.value })); setDirty(true); }} aria-label="Deck name" />
         <button type="button" className="btn btn-sm btn-primary" onClick={() => { setAt(Math.max(0, current ? stories.findIndex((x) => x.id === current.id) : 0)); setMode('present'); }}>Present</button>
         <button type="button" className="btn btn-sm" onClick={() => { if (!current && stories[0]) setSel(stories[0].id); setPreview(true); }} disabled={!stories.length}>Preview as student</button>
@@ -295,5 +296,61 @@ function OpenDeck({ current, dirty, onOpen, onClose }: { current: Lesson; dirty:
         </ul>
       )}
     </Modal>
+  );
+}
+
+// Silly Stories opens straight to open play (her request 2026-11-19: "the silly stories should open in a preview way so
+// that students or teacher can open it quickly. it must be edited and shared as link to have a specific set of
+// words/stories, etc. otherwise its open play"). Anyone taps a story card and plays it, with fresh random words each
+// time. A set deck (her stories, her words) is made in "Edit and share a deck" and reaches students by its join link.
+export function SillyStories() {
+  const [view, setView] = useState<'play' | 'edit'>(() => { try { return new URLSearchParams(window.location.search).has('edit') || sessionStorage.getItem('lm-silly-view') === 'edit' ? 'edit' : 'play'; } catch { return 'play'; } });
+  useEffect(() => { try { sessionStorage.setItem('lm-silly-view', view); } catch { /* not kept */ } }, [view]);
+  return view === 'edit' ? <SillyEditor onPlay={() => setView('play')} /> : <SillyPlay onEdit={() => setView('edit')} />;
+}
+
+function SillyPlay({ onEdit }: { onEdit: () => void }) {
+  const [ready, setReady] = useState(0);
+  const [round, setRound] = useState(0);
+  const [pick, setPick] = useState<string | null>(null);
+  const [resp, setResp] = useState<Resp>({});
+  useEffect(() => { document.title = 'Silly Stories'; void loadEngine().then(() => setReady((n) => n + 1)).catch(() => undefined); }, []);
+  // New random words every time a story is opened.
+  const stories = useMemo(() => STARTER_STORIES.map((st) => { const a = story(st); return { ...a, id: st.id, data: withBlanks({ ...a.data, seed: `${st.id}-${round}-${Date.now()}` }) }; }), [ready, round]);
+  const current = stories.find((x) => x.id === pick);
+  const open = (id: string) => { setRound((r) => r + 1); setResp({}); setPick(id); };
+  const deck: Lesson = { ...blankDeck(), tabs: [{ id: 'play', kind: 'practice', title: 'Silly Stories', notes: '', sections: [{ id: 'play', title: 'Silly Stories', activities: stories }] }] };
+  return (
+    <div className="ln ln-edit sl-play">
+      <header className="ln-bar">
+        <HomeButton />
+        <span className="ln-app">Silly Stories</span>
+        {current && <button type="button" className="btn btn-sm" onClick={() => setPick(null)}>All stories</button>}
+        <span style={{ flex: 1 }} />
+        {current && <button type="button" className="btn btn-sm" onClick={() => open(current.id)}>New words</button>}
+        <button type="button" className="btn btn-sm" onClick={onEdit} title="Teachers: pick the stories and words, then share the deck with its own join link">Edit and share a deck</button>
+      </header>
+      {current ? (
+        <main className="ln-stage ln-stage-fit">
+          <Fit>
+            <h1 className="ln-stage-title">{current.title}</h1>
+            <ActivityView key={`${current.id}-${round}`} a={current} lesson={deck} resp={resp} set={setResp} interactive />
+          </Fit>
+        </main>
+      ) : (
+        <main className="ln-main">
+          <h1 className="ln-dp-title">Pick a silly story</h1>
+          <p className="ln-muted">Fill in the words, then read your silly story.</p>
+          <div className="sl-cards">
+            {stories.map((a, i) => (
+              <button key={a.id} type="button" className="sl-card" onClick={() => open(a.id)}>
+                <span className="sl-card-kind">Silly Story {i + 1}</span>
+                <span className="sl-card-title">{a.title}</span>
+              </button>
+            ))}
+          </div>
+        </main>
+      )}
+    </div>
   );
 }

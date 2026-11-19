@@ -61,7 +61,7 @@ const TOOLS: Tool[] = [
   },
   {
     title: 'Silly Stories',
-    description: 'Mad Libs style silly stories. Pick which parts of speech students fill in and how many (3 adjectives, 2 verbs...), and the grammar engine finds those words in the story. Build a deck, share its code, and students fill in their words and read their silly stories.',
+    description: 'Mad Libs style silly stories: open one and play right away. To set the stories and words, edit a deck: pick which parts of speech students fill in and how many (3 adjectives, 2 verbs...), and the grammar engine finds those words in the story. Build a deck, share its code, and students fill in their words and read their silly stories.',
     href: '/silly-stories',
     image: '/dashboard/silly-stories.svg',
     tags: ['Student-facing', 'Teacher tool', 'Parts of speech'],
