@@ -233,7 +233,11 @@ export function DailyLesson() {
     const fit = () => setSpScale(Math.min(1, (window.innerWidth - 32) / (spTall ? 796 : 1052), (window.innerHeight - 150) / (spTall ? 1052 : 796)));
     fit(); window.addEventListener('resize', fit); return () => window.removeEventListener('resize', fit);
   }, [preview, spTall]);
-  const [zoom, setZoom] = useState<Work | null>(null);
+  const [zoom, setZoom] = useState<string | null>(null); // a student's id: their work, looked at closer, live
+  // Show a student's work on my board (her request 2026-11-19: "show live edits like the student is working on my
+  // whiteboard"): the stage shows that student's screen for this activity, changing as they work, until I go back.
+  const [mirror, setMirror] = useState<string | null>(null);
+
   const session = useRef<Session | null>(null);
   const stop = stops[Math.min(at, stops.length - 1)];
   const pos: Pos = { at: mode === 'present' ? stop?.activity.id ?? null : null, tabId: stop?.tab.id ?? null, teacherResp: stop ? teacherResp[stop.activity.id] ?? {} : {}, done, progress: lesson.progress };
@@ -250,6 +254,7 @@ export function DailyLesson() {
   const onCode = useCallback((code: string) => { change((l) => ({ ...l, code })); }, [change]);
   const host = useLessonHost(lesson, pos, onWork, onCode);
   const startShare = async () => { await host.start(); };
+  useEffect(() => { if (host.status !== 'live') setMirror(null); }, [host.status]);
   useEffect(() => { if (host.status === 'live' && host.code && !session.current) session.current = { id: newId(), startedAt: new Date().toISOString(), code: host.code, students: {} }; if (host.status === 'off') session.current = null; }, [host.status, host.code]);
   const go = (i: number) => { const j = Math.max(0, Math.min(stops.length - 1, i)); if (stop && j > at) setDone((d) => (d.includes(stop.activity.id) ? d : [...d, stop.activity.id])); setAt(j); };
   const present = (fromActivity?: string | null) => { const i = fromActivity ? stops.findIndex((s) => s.activity.id === fromActivity) : stops.findIndex((s) => s.tab.id === tab?.id); setAt(Math.max(0, i)); setMode('present'); };
@@ -271,6 +276,11 @@ export function DailyLesson() {
   if (mode === 'present' && stop) {
     const a = stop.activity;
     const work = Object.values(live[a.id] ?? {});
+    const mirrorName = mirror ? host.students.find((x) => x.id === mirror)?.name : undefined;
+    const mirrorWork = mirror ? live[a.id]?.[mirror] : undefined;
+    const mirroring = !!mirrorName && a.engine !== 'board' && a.access === 'do';
+    const zoomName = zoom ? host.students.find((x) => x.id === zoom)?.name ?? live[a.id]?.[zoom]?.name : undefined;
+    const zoomWork = zoom ? live[a.id]?.[zoom] : undefined;
     const joinUrl = `${window.location.origin}/join`;
     return (
       <div className="ln ln-present">
@@ -296,7 +306,19 @@ export function DailyLesson() {
             {showBar ? <Progress lesson={lesson} at={a.id} done={done} view={lesson.progress} onPick={(id) => go(stops.findIndex((s) => s.activity.id === id))} /> : null}
             <button type="button" className="ln-bar-fold" onClick={() => setShowBar((x) => !x)} aria-expanded={showBar}>{showBar ? 'Hide the plan bar on my screen' : 'Show the plan bar'}</button>
             <main className="ln-stage ln-stage-fit" aria-label={a.title}>
-              {a.engine === 'board'
+              {mirroring
+                ? (
+                  <Fit slide>
+                    <p className="ln-mirror-bar" role="status">
+                      <span className="ln-mirror-dot" aria-hidden />
+                      <span>{mirrorName}'s work, live{mirrorWork ? '' : ': not started yet'}</span>
+                      <button type="button" className="btn btn-sm" onClick={() => setMirror(null)}>Back to my board</button>
+                    </p>
+                    <h1 className="ln-stage-title"><span className="ln-stage-tab">{stop.tab.title}</span> {a.title}</h1>
+                    <ActivityView key={`${a.id}-${mirror}`} a={a} lesson={lesson} quiet={stop.tab.kind === 'assessment'} resp={mirrorWork?.resp ?? {}} set={() => {}} interactive={false} teacher />
+                  </Fit>
+                )
+                : a.engine === 'board'
                 ? <ActivityView key={a.id} a={a} lesson={lesson} resp={{}} set={() => {}} interactive teacher />
                 : (
                   <Fit slide>
@@ -333,10 +355,17 @@ export function DailyLesson() {
                       const flag = str(live.__flag?.[st.id]?.resp.flag);
                       const sum = w ? summarize(a, w.resp) : null;
                       return (
-                        <button key={st.id} type="button" className="ln-work" onClick={() => w && setZoom(w)} disabled={!w}>
-                          <span className="ln-work-name">{st.name}{flag && <span className={`ln-flag ln-flag-${flag}`}>{FLAG_NAME[flag] ?? flag}</span>}{sum?.total ? <span className="ln-work-score">{sum.right} of {sum.total}</span> : null}</span>
-                          <span className="ln-work-text">{sum?.text || 'Not started'}</span>
-                        </button>
+                        <div key={st.id} className={`ln-work-card${mirror === st.id ? ' on' : ''}`}>
+                          <button type="button" className="ln-work" onClick={() => w && setZoom(st.id)} disabled={!w} title="Look closer, only on your screen">
+                            <span className="ln-work-name">{st.name}{flag && <span className={`ln-flag ln-flag-${flag}`}>{FLAG_NAME[flag] ?? flag}</span>}{sum?.total ? <span className="ln-work-score">{sum.right} of {sum.total}</span> : null}</span>
+                            <span className="ln-work-text">{sum?.text || 'Not started'}</span>
+                          </button>
+                          {a.engine !== 'board' && (
+                            <button type="button" className={`btn btn-sm ln-work-show${mirror === st.id ? ' btn-primary' : ''}`} aria-pressed={mirror === st.id} onClick={() => setMirror((m) => (m === st.id ? null : st.id))}>
+                              {mirror === st.id ? 'Showing on my board' : 'Show on my board'}
+                            </button>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -346,8 +375,8 @@ export function DailyLesson() {
           )}
         </div>
         {zoom && (
-          <Modal title={`${zoom.name}: ${a.title}`} onClose={() => setZoom(null)} wide>
-            <div className="ln-zoom"><ActivityView a={a} lesson={lesson} quiet={stop.tab.kind === 'assessment'} resp={zoom.resp} set={() => {}} interactive={false} teacher /></div>
+          <Modal title={`${zoomName ?? 'Student'}: ${a.title}`} onClose={() => setZoom(null)} wide>
+            <div className="ln-zoom"><ActivityView a={a} lesson={lesson} quiet={stop.tab.kind === 'assessment'} resp={zoomWork?.resp ?? {}} set={() => {}} interactive={false} teacher /></div>
           </Modal>
         )}
       </div>

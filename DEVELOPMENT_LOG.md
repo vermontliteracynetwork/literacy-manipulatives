@@ -1320,3 +1320,8 @@ Her request: a Mad Lib style silly story fill in the blank app, customizable ("s
 - Browse cards: a word with a picture shows only its pictures, no grammar symbol tiles.
 - Symbolic Grammar Engine 1.5.0: her Lesson Breakdown, Units 1-8 and Compositions, is in the engine (`LESSON_BREAKDOWN`, `BREAKDOWN_FORMULAS`, `formulaPartsOf`; 132 formulas; the engine codes 110 of the examples the same way). The formula picker in Daily Lesson and Silly Stories lists every Lesson Breakdown formula as "S1.A The dog ran. (article + noun + verb)", with no lesson numbers; formula strips for codes only in the Breakdown read their parts from the example.
 - Activity names without procedure letters: New formula, Symbol Story, Picture Sentence Builder, Tense Builder, Restating the Question.
+
+## 2026-11-19: Daily Lesson, a student's work live on the teacher's board
+- Her request: "show live edits like the student is working on my whiteboard".
+- Present mode, Notes and students: each student's card has "Show on my board". The stage then shows that student's work on the current activity, read-only, changing as they work, under a "Xander's work, live" bar with "Back to my board". It follows the student as the teacher moves to the next activity, and turns off when sharing stops. Not for whiteboard activities.
+- The "look closer" window (tap a student's card) now updates live too, instead of a snapshot.
