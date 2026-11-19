@@ -39,7 +39,7 @@ const readOpen = (): Lesson | null => { try { const x = JSON.parse(sessionStorag
 export function SillyStories() {
   const [deck, setDeck] = useState<Lesson>(() => readOpen() ?? blankDeck());
   const [dirty, setDirty] = useState(false);
-  const [sel, setSel] = useState<string | null>(() => deck.tabs[0]?.sections[0]?.activities[0]?.id ?? null);
+  const [sel, setSel] = useState<string | null>(null); // null: every story as a card (her request 2026-11-19)
   const [mode, setMode] = useState<'edit' | 'present'>('edit');
   const [dialog, setDialog] = useState<null | 'save' | 'open' | 'add'>(null);
   const [preview, setPreview] = useState(false);
@@ -59,7 +59,7 @@ export function SillyStories() {
   }, []);
   // Once the word lists load, a story whose blanks were picked before they were ready gets them picked again.
   useEffect(() => { if (ready && stories.some((a) => !a.data.engineOk)) change((acts) => acts.map((a) => (a.data.engineOk ? a : { ...a, data: withBlanks(a.data) }))); }, [ready]);
-  const current = stories.find((a) => a.id === sel) ?? stories[0];
+  const current = sel ? stories.find((a) => a.id === sel) : undefined;
   const update = (id: string, patch: Partial<Activity>) => change((acts) => acts.map((a) => (a.id === id ? { ...a, ...patch } : a)));
   const move = (from: number, to: number) => change((acts) => { const n = [...acts]; const [m] = n.splice(from, 1); n.splice(to, 0, m); return n; });
   const remove = (a: Activity) => { if (!window.confirm(`Take "${a.title}" out of the deck?`)) return; change((acts) => acts.filter((x) => x.id !== a.id)); setSel(stories.find((x) => x.id !== a.id)?.id ?? null); };
@@ -150,8 +150,8 @@ export function SillyStories() {
         <HomeButton />
         <span className="ln-app">Silly Stories</span>
         <input className="dp-doc-title-input" value={deck.title} onChange={(e) => { setDeck((d) => ({ ...d, title: e.target.value })); setDirty(true); }} aria-label="Deck name" />
-        <button type="button" className="btn btn-sm btn-primary" onClick={() => { setAt(Math.max(0, stories.findIndex((x) => x.id === current?.id))); setMode('present'); }}>Present</button>
-        <button type="button" className="btn btn-sm" onClick={() => setPreview(true)} disabled={!current}>Preview as student</button>
+        <button type="button" className="btn btn-sm btn-primary" onClick={() => { setAt(Math.max(0, current ? stories.findIndex((x) => x.id === current.id) : 0)); setMode('present'); }}>Present</button>
+        <button type="button" className="btn btn-sm" onClick={() => { if (!current && stories[0]) setSel(stories[0].id); setPreview(true); }} disabled={!stories.length}>Preview as student</button>
         <span style={{ flex: 1 }} />
         <span className="dp-save-state" role="status">{deck.saved ? (dirty ? 'Saving...' : 'All changes saved') : 'Not saved yet'}</span>
         {deck.saved && deck.code && <><span className="ln-code-chip">Join code {deck.code}</span><CopyLink code={deck.code} /></>}
@@ -163,7 +163,7 @@ export function SillyStories() {
           <div className="ln-nav">
             <section className="lm-category ln-plan-box" aria-label="Stories in this deck">
               <div className="lm-category-header ln-cat-head" style={{ background: '#C9EBD3' }}>
-                <span className="ln-cat-btn"><span>Stories ({stories.length})</span></span>
+                <button type="button" className={`ln-cat-btn${!current ? ' on' : ''}`} onClick={() => setSel(null)} title="See every story as a card"><span>Stories ({stories.length})</span></button>
                 <button type="button" className="ln-plus" aria-label="Add a story" title="Add a story" onClick={() => setDialog('add')}>+</button>
               </div>
               <ol className="ln-plan-list">
@@ -187,6 +187,7 @@ export function SillyStories() {
           <>
             <main className="ln-main ln-main-fit">
               <div className="ln-crumbs">
+                <button type="button" className="btn btn-sm" onClick={() => setSel(null)}>← All stories</button>
                 <strong>{current.title}</strong>
                 <span style={{ flex: 1 }} />
                 <button type="button" className="btn btn-sm" onClick={() => remove(current)}>Take out of the deck</button>
@@ -204,7 +205,25 @@ export function SillyStories() {
               </div>
             </SidePane>
           </>
-        ) : <main className="ln-main"><p className="ln-muted">This deck has no stories. Tap + to add one.</p></main>}
+        ) : (
+          <main className="ln-main">
+            <h1 className="ln-dp-title">{deck.title}</h1>
+            <p className="ln-muted">{stories.length} silly stories. Tap one to set it up, or Present to share the deck.</p>
+            <div className="sl-cards">
+              {stories.map((a, i) => {
+                const n = Array.isArray(a.data.blanks) ? a.data.blanks.length : 0;
+                return (
+                  <button key={a.id} type="button" className="sl-card" onClick={() => setSel(a.id)}>
+                    <span className="sl-card-kind">Silly Story {i + 1}</span>
+                    <span className="sl-card-title">{a.title}</span>
+                    <span className="sl-card-foot">{n} words to fill in</span>
+                  </button>
+                );
+              })}
+              <button type="button" className="sl-card sl-card-add" onClick={() => setDialog('add')}><span className="ln-acard-plus">+</span><span>Add a story</span></button>
+            </div>
+          </main>
+        )}
       </div>
 
       {dialog === 'add' && (
@@ -222,7 +241,7 @@ export function SillyStories() {
         </Modal>
       )}
       {dialog === 'save' && <SaveDeck deck={deck} onClose={() => setDialog(null)} onSave={(t, asNew) => void save(t, asNew)} />}
-      {dialog === 'open' && <OpenDeck current={deck} dirty={dirty} onOpen={(d) => { setDeck(d); setSel(d.tabs[0]?.sections[0]?.activities[0]?.id ?? null); setDirty(false); setDialog(null); }} onClose={() => setDialog(null)} />}
+      {dialog === 'open' && <OpenDeck current={deck} dirty={dirty} onOpen={(d) => { setDeck(d); setSel(null); setDirty(false); setDialog(null); }} onClose={() => setDialog(null)} />}
       {preview && current && (
         <div className="ln-sp-back" role="dialog" aria-modal="true" aria-label="Preview as student">
           <div className="ln-sp-bar">

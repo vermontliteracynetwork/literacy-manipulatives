@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import type React from 'react';
+import { createPortal } from 'react-dom';
 import type { SymbolWordClass } from 'symbolic-grammar-engine';
 import { GRAMMAR_SYMBOL_INFO, TENSE_SYMBOLS } from '../../lib/grammarSymbols';
 import { MASTER_FORMULAS } from '../../lib/writer/masterList';
 import { speak, stopSpeaking } from '../../lib/word-explorer/speech';
+import { pluralOf, verbForms, wordsOfType } from '../../lib/wordsByType';
 import { FormulaSymbols } from '../SentenceFormulas';
 import { TemplateEditor, TemplateView, Timer } from '../procedures/TemplatePages';
 import LiteracyManipulatives from '../../LiteracyManipulatives';
@@ -11,7 +13,7 @@ import {
   SYMBOL_ORDER, checkWritten, codeOf, formulaLabel, formulaRow, formulaSlots, num, sortSetup, splitArrow, splitBar, splitEq, str, strs, symbolByName,
   symbolName, symbolOf, symbolsOfSentence, syms, tensesOf, wordFits, type Resp, type SentenceResult,
 } from '../../lib/lessons/check';
-import { engineReady } from 'symbolic-grammar-engine';
+import { engineReady, jobsOfWord } from 'symbolic-grammar-engine';
 import { fillStory, KINDS, KIND_NAME, available, pickBlanks, type Blank } from '../../lib/silly/blanks';
 import type { BlankCounts, BlankKind } from '../../lib/silly/stories';
 import { ENGINE_FIELDS, TAB_COLOR, type Activity, type Field, type Lesson } from '../../lib/lessons/types';
@@ -835,45 +837,114 @@ function Assess({ a, resp, set, interactive, teacher }: ViewProps) {
   );
 }
 
-// A Silly Story (Mad Libs style, her request 2026-11-19): first the list of words to fill in, each with its symbol, then
-// the story with the student's words in it, read aloud on a tap. The Symbolic Grammar Engine checks each word's job.
+// A Silly Story (Mad Libs style, her request 2026-11-19). One prompt at a time (her request: "students should see only
+// one prompt at a time ... the symbol above it, an open (rounded space same as whiteboard). students can type word,
+// speak, or double click the blank word space to view the dictionary word selector"), then the story with their words
+// in it, read aloud on a tap. The Symbolic Grammar Engine checks each word's job.
+const SpeechRec = typeof window === 'undefined' ? undefined
+  : ((window as unknown as Record<string, unknown>).SpeechRecognition ?? (window as unknown as Record<string, unknown>).webkitSpeechRecognition) as (new () => {
+    lang: string; interimResults: boolean; maxAlternatives: number; start: () => void; stop: () => void;
+    onresult: ((e: { results: { 0: { transcript: string } }[] }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null;
+  }) | undefined;
+const NUMBERS = ['two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'fifteen', 'twenty', 'fifty', 'one hundred', 'one million'];
+
+// The words a student can pick for a blank: the dictionary's words for its symbol, in the form the blank asks for.
+function wordsForBlank(b: Blank): string[] {
+  if (b.kind === 'number') return NUMBERS;
+  let list: string[] = [];
+  // Only words whose main job is this one ("about" is mostly a preposition, so it is not offered as an adjective).
+  try { list = wordsOfType(b.cls).filter((x) => jobsOfWord(x)[0] === b.cls && !(b.cls === 'adjective' && /(ed|ing)$/.test(x))); } catch { list = []; }
+  if (!list.length) list = BANK[b.cls] ?? [];
+  if (b.kind === 'pluralNoun') return list.map(pluralOf);
+  if (b.kind === 'verb') {
+    const f = b.label.includes('past') ? 'past' : b.label.includes('-ing') ? 'ing' : b.label.includes('-s') ? 'third' : 'base';
+    return f === 'base' ? list : list.map((v) => verbForms(v)[f]);
+  }
+  return list;
+}
+
+function WordPicker({ b, onPick, onClose }: { b: Blank; onPick: (w: string) => void; onClose: () => void }) {
+  const all = useMemo(() => [...new Set(wordsForBlank(b))].sort((x, y) => x.localeCompare(y)), [b.label, b.cls]);
+  const [q, setQ] = useState('');
+  const [letter, setLetter] = useState(all[0]?.[0] ?? 'a');
+  const shown = q.trim() ? all.filter((w) => w.startsWith(q.trim().toLowerCase())).slice(0, 60) : all.filter((w) => w[0] === letter).slice(0, 60);
+  const letters = [...new Set(all.map((w) => w[0]))];
+  return (
+    <div className="ln-picker-back" onClick={onClose}>
+      <div className="ln-picker-book" role="dialog" aria-modal="true" aria-label={`Pick ${b.label}`} onClick={(e) => e.stopPropagation()}>
+        <div className="ln-picker-head"><Sym c={b.cls} size={40} /><strong>Pick {b.label}</strong><span style={{ flex: 1 }} /><button type="button" className="btn" onClick={onClose}>Close</button></div>
+        <input {...NOAUTO} className="ln-input" value={q} placeholder="Type to find a word" aria-label="Find a word" onChange={(e) => setQ(e.target.value)} />
+        {!q.trim() && <div className="ln-letters">{letters.map((l) => <button key={l} type="button" className={`ln-letter${l === letter ? ' on' : ''}`} onClick={() => setLetter(l)}>{l.toUpperCase()}</button>)}</div>}
+        <div className="ln-picker-words">{shown.map((w) => <button key={w} type="button" className="ln-card" onClick={() => onPick(w)}>{w}</button>)}{!shown.length && <p className="ln-muted">No words here yet.</p>}</div>
+      </div>
+    </div>
+  );
+}
+
 function MadLib(p: ViewProps) {
   const { a, resp, set, interactive, teacher } = p;
-  const seen = useSeen(p);
   const blanks = (Array.isArray(a.data.blanks) ? a.data.blanks : []) as Blank[];
   const w = (resp.w ?? {}) as Record<string, string>;
   const all = blanks.every((_, n) => str(w[n]).trim());
-  const reading = resp.read === true || (a.data.hide === false);
+  const reading = resp.read === true || a.data.hide === false;
+  const at = Math.max(0, Math.min(blanks.length - 1, num(resp.at, 0)));
+  const [picker, setPicker] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [checked, setChecked] = useState<Set<number>>(new Set());
   const story = str(a.data.story);
   const filled = fillStory(story, blanks, w);
   const said = filled.map((x) => x.text).join('');
-  return (
-    <div className="ln-mad">
-      {str(a.data.storyTitle) && <h2 className="ln-mad-title">{str(a.data.storyTitle)}</h2>}
-      {!blanks.length && <p className="ln-muted">This story has no blanks yet. Set how many words to fill in.</p>}
-      {(!reading || !all) && blanks.length > 0 && (
-        <ol className="ln-mad-list">
-          {blanks.map((b, n) => {
-            const v = str(w[n]);
-            const fit = v.trim() && seen.show(`m${n}`) && b.kind !== 'number' ? wordFits(v, b.cls) : null;
-            return (
-              <li key={n} className="ln-mad-item">
-                <span className="ln-mad-label"><Sym c={b.cls} size={34} /><span>{b.label}</span></span>
-                <input {...NOAUTO} {...seen.done(`m${n}`)} className="ln-input" readOnly={!interactive} value={v} aria-label={`${n + 1}: ${b.label}`} inputMode={b.kind === 'number' ? 'numeric' : undefined}
-                  onChange={(e) => set({ ...resp, w: { ...w, [n]: e.target.value } })} />
-                {fit && <Mark ok={fit === 'yes' ? true : fit === 'no' ? false : undefined} />}
-              </li>
-            );
-          })}
-        </ol>
-      )}
-      {all && blanks.length > 0 && !reading && (interactive || teacher) && <button type="button" className="btn btn-primary ln-big" onClick={() => set({ ...resp, read: true })}>Read my silly story</button>}
-      {(reading && (all || a.data.hide === false)) && (
+  const can = interactive || !!teacher;
+  const put = (v: string) => set({ ...resp, w: { ...w, [at]: v } });
+  const go = (n: number) => { setChecked((c) => new Set(c).add(at)); set({ ...resp, at: n }); };
+  const listen = () => {
+    if (!SpeechRec || listening) return;
+    const r = new SpeechRec();
+    r.lang = 'en-US'; r.interimResults = false; r.maxAlternatives = 1;
+    r.onresult = (e) => { const t = e.results[0]?.[0]?.transcript?.trim() ?? ''; if (t) put(t.replace(/[.!?,]$/, '').toLowerCase()); };
+    r.onend = () => setListening(false); r.onerror = () => setListening(false);
+    setListening(true); r.start();
+  };
+  if (!blanks.length) return <p className="ln-muted">This story has no blanks yet. Set how many words to fill in.</p>;
+  if (reading && all) {
+    return (
+      <div className="ln-mad">
+        {str(a.data.storyTitle) && <h2 className="ln-mad-title">{str(a.data.storyTitle)}</h2>}
         <div className="ln-mad-story">
           <p>{filled.map((x, i) => (x.mine ? <mark key={i} className="ln-mad-word">{x.text}</mark> : <span key={i}>{x.text}</span>))}</p>
-          <div className="ln-row"><Say text={said} label="Read my silly story aloud" />{resp.read === true && (interactive || teacher) && <button type="button" className="btn" onClick={() => set({ ...resp, read: false })}>Change my words</button>}</div>
+          <div className="ln-row"><Say text={said} label="Read my silly story aloud" />{resp.read === true && can && <button type="button" className="btn" onClick={() => set({ ...resp, read: false })}>Change my words</button>}</div>
         </div>
-      )}
+      </div>
+    );
+  }
+  const b = blanks[at];
+  const info = GRAMMAR_SYMBOL_INFO[b.cls];
+  const v = str(w[at]);
+  const fit = v.trim() && b.kind !== 'number' && (teacher || checked.has(at)) ? wordFits(v, b.cls) : null;
+  return (
+    <div className="ln-mad ln-mad-one">
+      <p className="ln-mad-count">Word {at + 1} of {blanks.length}</p>
+      <div className="ln-mad-prompt">
+        <img src={info.imageUrl} alt="" width={120} height={120} />
+        <p className="ln-mad-ask">{b.label.replace(/^./, (c) => c.toUpperCase())} <Say text={b.label} label="Hear what to write" /></p>
+        <input {...NOAUTO} className="ln-mad-bubble" style={{ borderColor: info.color === '#F7B3CF' ? '#e07aa8' : info.color, color: info.color === '#F7B3CF' ? '#b0477a' : info.color }} readOnly={!can} value={v}
+          aria-label={b.label} placeholder="" inputMode={b.kind === 'number' ? 'text' : undefined} title="Type a word, or double-click to pick one"
+          onChange={(e) => put(e.target.value)} onDoubleClick={() => can && setPicker(true)}
+          onBlur={() => setChecked((c) => new Set(c).add(at))} onKeyDown={(e) => { if (e.key === 'Enter' && v.trim() && at < blanks.length - 1) go(at + 1); }} />
+        <div className="ln-row ln-mad-tools">
+          {SpeechRec && <button type="button" className={`btn ln-big${listening ? ' btn-primary' : ''}`} disabled={!can} onClick={listen}>{listening ? 'Listening...' : 'Say it'}</button>}
+          <button type="button" className="btn ln-big" disabled={!can} onClick={() => setPicker(true)}>Pick a word</button>
+          {fit && <Mark ok={fit === 'yes' ? true : fit === 'no' ? false : undefined} />}
+        </div>
+      </div>
+      <div className="ln-row ln-mad-nav">
+        <button type="button" className="btn ln-big" disabled={at === 0 || !can} onClick={() => go(at - 1)}>Back</button>
+        <span className="ln-mad-dots" aria-hidden>{blanks.map((_, n) => <span key={n} className={`ln-mad-dot${n === at ? ' here' : str(w[n]).trim() ? ' done' : ''}`} />)}</span>
+        {at < blanks.length - 1
+          ? <button type="button" className="btn btn-primary ln-big" disabled={!can || !v.trim()} onClick={() => go(at + 1)}>Next</button>
+          : <button type="button" className="btn btn-primary ln-big" disabled={!can || !all} onClick={() => set({ ...resp, read: true })}>Read my silly story</button>}
+      </div>
+      {picker && createPortal(<WordPicker b={b} onPick={(x) => { put(x); setPicker(false); }} onClose={() => setPicker(false)} />, document.body)}
     </div>
   );
 }
