@@ -31,7 +31,7 @@ function story(st: StarterStory): Activity {
 function blankDeck(): Lesson {
   return {
     v: 2, app: 'silly', id: newId(), title: 'Silly Stories', folderId: null, updatedAt: new Date().toISOString(), focus: { symbols: [], formulas: [] }, progress: 'bar',
-    tabs: [{ id: newId(), kind: 'practice', title: 'Silly Stories', notes: '', sections: [{ id: newId(), title: 'Silly Stories', activities: STARTER_STORIES.map(story) }] }],
+    tabs: [{ id: newId(), kind: 'practice', title: 'Silly Stories', notes: '', sections: [{ id: newId(), title: 'Silly Stories', activities: [] }] }], // a new deck starts empty (her request 2026-11-19)
   };
 }
 const readOpen = (): Lesson | null => { try { const x = JSON.parse(sessionStorage.getItem(OPEN_KEY) ?? 'null'); return x ? asLesson(x) : null; } catch { return null; } };
@@ -209,7 +209,7 @@ function SillyEditor({ onPlay }: { onPlay: () => void }) {
         ) : (
           <main className="ln-main">
             <h1 className="ln-dp-title">{deck.title}</h1>
-            <p className="ln-muted">{stories.length} silly stories. Tap one to set it up, or Present to share the deck.</p>
+            <p className="ln-muted">{stories.length ? `${stories.length} silly stories. Tap one to set it up, or Present to share the deck.` : 'This deck is empty. Tap Add a story to pick from the 10 stories or write your own.'}</p>
             <div className="sl-cards">
               {stories.map((a) => {
                 const n = Array.isArray(a.data.blanks) ? a.data.blanks.length : 0;
@@ -280,7 +280,7 @@ function OpenDeck({ current, dirty, onOpen, onClose }: { current: Lesson; dirty:
   const leave = (d: Lesson) => { if (!dirty || window.confirm('This deck has unsaved changes. Open another one anyway?')) onOpen(d); };
   return (
     <Modal title="Open a deck" onClose={onClose}>
-      <div className="dp-row"><button type="button" className="btn btn-sm" onClick={() => leave(blankDeck())}>New deck (the 10 stories)</button></div>
+      <div className="dp-row"><button type="button" className="btn btn-sm" onClick={() => leave(blankDeck())}>New deck</button></div>
       {decks.length === 0 ? <p className="dp-muted">No saved decks yet.</p> : (
         <ul className="dp-file-list">
           {decks.map((d) => (
