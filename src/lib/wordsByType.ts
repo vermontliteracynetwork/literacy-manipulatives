@@ -1,7 +1,8 @@
 // Literacy Manipulatives' own word lists by grammar symbol, and word forms (Story Maker's word book and video). These
 // are this app's, not the shared engine's: the engine (her Symbolic Grammar curriculum) only says what job a word does.
 // Call loadEngine() first.
-import { jobsOfWord, wordsRanked, baseOf, pastOf, third, type SymbolWordClass } from 'symbolic-grammar-engine';
+import { jobsOfWord, wordsRanked, baseOf, pastOf, third, ingOf, pluralOf, type SymbolWordClass } from 'symbolic-grammar-engine';
+export { pluralOf, ingOf };
 export { multiJobWords, JOB_RULES, jobRuleFor, PREPOSITION_LIST, type MultiJobWord, type JobRule } from 'symbolic-grammar-engine/src/jobRules';
 
 const cache = new Map<string, string[]>();
@@ -25,14 +26,7 @@ export function wordsOfType(type: SymbolWordClass, maxRank = 0): string[] {
   return list;
 }
 
-/** More than one: dog → dogs, box → boxes, baby → babies. */
-export const pluralOf = (w: string): string => (/(s|x|z|ch|sh)$/.test(w) ? `${w}es` : /[^aeiou]y$/.test(w) ? `${w.slice(0, -1)}ies` : `${w}s`);
-
-/** The -ing form: run → running, make → making, tie → tying. */
-export const ingOf = (b: string): string =>
-  /ie$/.test(b) ? `${b.slice(0, -2)}ying` : /[^e]e$/.test(b) ? `${b.slice(0, -1)}ing` : /^[^aeiou]*[aeiou][bdgmnprt]$/.test(b) ? `${b}${b.slice(-1)}ing` : `${b}ing`;
-
-/** Every form of a verb from its plain form. */
+/** Every form of a verb from its plain form (the Symbolic Grammar Engine makes every word form: ran, hopped, cried). */
 export function verbForms(base: string): { base: string; third: string; past: string; ing: string } {
   return { base, third: third(base), past: pastOf(base), ing: ingOf(base) };
 }

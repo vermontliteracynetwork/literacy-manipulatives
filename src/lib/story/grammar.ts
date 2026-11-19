@@ -3,7 +3,7 @@
 // contractions), and turns it into the actors and actions the renderer plays.
 import { FORMULA_LIST } from '../writer/formulaList';
 import type { SymbolWordClass } from '../grammarSymbols';
-import { baseOf, pastOf } from '../writer/tenses';
+import { baseOf, pastOf, pastParticipleOf, ingOf } from 'symbolic-grammar-engine';
 import { jobsOfWord } from '../grammarEngine';
 import { pluralOf, verbForms, wordsOfType } from '../wordsByType';
 import {
@@ -877,9 +877,9 @@ export function exampleFill(f: StoryFormula, ctx: StoryContext): SentenceState {
         const v = VERBS.find((x) => [x.base, x.third, x.past, x.ing].includes(word));
         if (v) { tok.value = v.id; if (!tense) tense = word === v.past ? 'past' : word === v.third || word === v.base ? 'present' : null; }
         else {
-          let b = baseOf(word);
-          if (/ing$/.test(word)) b = [word.slice(0, -3), `${word.slice(0, -3)}e`, word.slice(0, -4)].find((x) => x.length > 1 && dictKinds(x).includes('verb')) ?? b;
-          if (dictKinds(b).includes('verb')) { tok.value = `w:${b}`; if (!tense) tense = word === pastOf(b) || /ed$/.test(word) ? 'past' : /ing$/.test(word) ? null : 'present'; }
+          // The engine finds the plain form (ran: run, hopping: hop, need: need) and says which form it is.
+          const b = baseOf(word);
+          if (dictKinds(b).includes('verb')) { tok.value = `w:${b}`; if (!tense) tense = word !== b && (word === pastOf(b) || word === pastParticipleOf(b)) ? 'past' : word === ingOf(b) && word !== b ? null : 'present'; }
         }
         w++; break;
       }
@@ -952,7 +952,7 @@ export function findWords(q: string): WordHit[] {
   // Any other dictionary word, typed whole: its part of speech comes from the engine.
   if (/^[a-z]+$/.test(s) && !hits.some((h) => h.label.toLowerCase() === s)) {
     for (const k of dictKinds(s)) {
-      if (k === 'verb') { const b = baseOf(s); hits.push({ kind: k, value: `w:${b}`, label: s, tense: s === pastOf(b) || /ed$/.test(s) ? 'past' : s === b ? 'present' : undefined }); }
+      if (k === 'verb') { const b = baseOf(s); hits.push({ kind: k, value: `w:${b}`, label: s, tense: s !== b && (s === pastOf(b) || s === pastParticipleOf(b)) ? 'past' : s === b ? 'present' : undefined }); }
       else if (k === 'noun' || k === 'adjective' || k === 'adverb' || k === 'interjection') hits.push({ kind: k, value: `w:${s}`, label: s });
       else if (k === 'prep') hits.push({ kind: k, value: s, label: s });
     }

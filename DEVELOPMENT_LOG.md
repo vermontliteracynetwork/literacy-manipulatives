@@ -1320,3 +1320,11 @@ Her request: a Mad Lib style silly story fill in the blank app, customizable ("s
 - Browse cards: a word with a picture shows only its pictures, no grammar symbol tiles.
 - Symbolic Grammar Engine 1.5.0: her Lesson Breakdown, Units 1-8 and Compositions, is in the engine (`LESSON_BREAKDOWN`, `BREAKDOWN_FORMULAS`, `formulaPartsOf`; 132 formulas; the engine codes 110 of the examples the same way). The formula picker in Daily Lesson and Silly Stories lists every Lesson Breakdown formula as "S1.A The dog ran. (article + noun + verb)", with no lesson numbers; formula strips for codes only in the Breakdown read their parts from the example.
 - Activity names without procedure letters: New formula, Symbol Story, Picture Sentence Builder, Tense Builder, Restating the Question.
+
+## 2026-11-19: Word forms come from the Symbolic Grammar Engine (no -ed added where it does not belong)
+
+Her request: "MAIN SYMBOLIC GRAMMAR ENGINE: needs to fuel all literacy manipulatives tools/apps. the dictionary/word explorer needs to improve so we dont have past tense verbs with ed added arbitrarily".
+- Symbolic Grammar Engine 1.6.0 makes every word form for every tool: past, past participle, -ing, he/she/it, plain form, plurals, more and most. About 190 irregular verbs (and rewrite, undo, become, overeat... made from them) instead of about 120, plus the spelling rules (hopped, cried, panicked, admitted, visited, traveled). `npm test` in the engine checks 350 word forms, so a wrong one stops the build.
+- Word Explorer's forms card (`regularForms` in `src/lib/word-explorer/data.ts`) uses the engine: teach shows taught, forgive shows forgave and forgiven, sting shows stung. WordNet's British -ed spellings (travelled) are not used.
+- An example sentence is past only when the engine says its verb is a past form (need and feed are not past). Same for Silly Stories' blank labels ("a verb in the past") and Story Maker's word book.
+- Silly Stories, Story Maker and the Daily Lesson word pickers use the engine's plurals and -ing forms (`src/lib/wordsByType.ts` no longer has its own).

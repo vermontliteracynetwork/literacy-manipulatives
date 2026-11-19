@@ -1,6 +1,6 @@
 import { fitsJob, type SymbolWordClass } from 'symbolic-grammar-engine';
 import { tagForCheck } from '../writer/sentenceCheck';
-import { baseOf, pastOf } from '../writer/tenses';
+import { baseOf, ingOf, pastOf, pastParticipleOf } from 'symbolic-grammar-engine';
 import type { BlankCounts, BlankKind } from './stories';
 
 // Picks a Silly Story's blanks with the Symbolic Grammar Engine: it reads the whole story, finds the words doing each
@@ -27,10 +27,10 @@ function seeded(seed: string) { let h = 2166136261; for (const ch of seed) h = M
 function labelFor(kind: BlankKind, w: string): string {
   const lw = w.toLowerCase();
   if (kind === 'verb') {
-    if (lw.endsWith('ing')) return 'a verb ending in -ing';
     const b = baseOf(lw);
-    if (b !== lw && pastOf(b) === lw) return 'a verb in the past';
-    if (lw.endsWith('ed')) return 'a verb in the past';
+    if (b !== lw && ingOf(b) === lw) return 'a verb ending in -ing';
+    // Past only when the engine says so (ran, hopped), never just for ending in -ed (need, feed).
+    if (b !== lw && (pastOf(b) === lw || pastParticipleOf(b) === lw)) return 'a verb in the past';
     if (/[^s]s$/.test(lw) && b !== lw) return 'a verb ending in -s';
     return 'a verb';
   }

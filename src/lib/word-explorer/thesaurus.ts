@@ -1,7 +1,7 @@
 import type { PartOfSpeech, Sense, Tier, FrequencyBand } from './types';
 import { indexWord } from './data';
 import { tierFor } from './data';
-import { pastOf, third } from '../writer/tenses';
+import { pastOf, third } from 'symbolic-grammar-engine';
 import { irregularFormsOf, regularForms } from './data';
 
 // Thesaurus engine (build spec 4.2 and Phase 3): clusters per meaning, opposite types, word lines, and swapping a

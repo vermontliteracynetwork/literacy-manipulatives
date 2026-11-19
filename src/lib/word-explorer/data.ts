@@ -4,7 +4,7 @@ import { soundOutFromIpa } from './soundOut';
 import { loadWordTypes } from '../wordTypes';
 import { jobsOfWord } from '../grammarEngine';
 import type { SymbolWordClass } from '../grammarSymbols';
-import { pastOf, third } from '../writer/tenses';
+import { comparisonOf, ingOf, irregularVerb, pastOf, pastParticipleOf, pluralOf, third } from 'symbolic-grammar-engine';
 import { SEED_ENTRIES, type SeedSense } from './seed';
 import { statusOf } from './review';
 import { timeOf } from './time';
@@ -92,30 +92,31 @@ export function tierFor(band: FrequencyBand, lex = ''): Tier {
   return 2;
 }
 
-const VOWEL = /[aeiou]/;
-const doubles = (w: string) => /^[^aeiou]*[aeiou][bdgklmnprt]$/.test(w) && w.length <= 4;
+// Every form comes from the Symbolic Grammar Engine (her rule 2026-11-19: no past tense with -ed added to a verb that
+// does not take it). WordNet's own irregular forms are used only for a verb the engine's table does not have, and only
+// when they are not -ed spellings (WordNet lists British ones like travelled).
 export function regularForms(word: string, pos: PartOfSpeech, irregular: string[] = []): WordForms {
-  const f: WordForms = { irregular: irregular.length > 0 };
+  const f: WordForms = { irregular: false };
   if (pos === 'noun') {
-    f.plural = irregular.find((x) => !x.endsWith("'s")) ?? (/[^aeiou]y$/.test(word) ? `${word.slice(0, -1)}ies` : /(s|sh|ch|x|z)$/.test(word) ? `${word}es` : `${word}s`);
+    const own = irregular.find((x) => !x.endsWith("'s") && !x.endsWith('s'));
+    f.plural = own ?? pluralOf(word);
+    f.irregular = f.plural !== `${word}s` && f.plural !== `${word}es` && !/ies$/.test(f.plural);
     f.possessive = `${word}'s`;
   } else if (pos === 'verb') {
-    const ing = irregular.find((x) => x.endsWith('ing'));
-    const other = irregular.filter((x) => !x.endsWith('ing'));
-    const past = pastOf(word);
-    f.past = other[0] && past.endsWith('ed') ? other[0] : past;
-    f.pastParticiple = other[1] ?? (other[0] && other[0] !== f.past ? other[0] : f.past);
+    const engine = irregularVerb(word);
+    const other = irregular.filter((x) => !/(ing|ed|s)$/.test(x));
+    f.past = engine?.past ?? other[0] ?? pastOf(word);
+    f.pastParticiple = engine?.participle ?? other[1] ?? other[0] ?? pastParticipleOf(word);
+    f.irregular = !!engine || other.length > 0;
     f.present = [word, third(word)];
     f.future = `will ${word}`;
-    f.ing = ing ?? (/ie$/.test(word) ? `${word.slice(0, -2)}ying` : /[^e]e$/.test(word) ? `${word.slice(0, -1)}ing` : doubles(word) ? `${word}${word.slice(-1)}ing` : `${word}ing`);
+    f.ing = ingOf(word);
   } else if (pos === 'adjective') {
-    const er = irregular.find((x) => /er$/.test(x)) ?? irregular[0];
-    const est = irregular.find((x) => /est$/.test(x)) ?? irregular[1];
-    const syllables = (word.match(/[aeiouy]+/g) ?? []).length - (/[^aeiouy]e$/.test(word) ? 1 : 0);
-    if (er) { f.comparative = er; f.superlative = est; } else if (syllables <= 1 || (syllables === 2 && /y$/.test(word))) {
-      const stem = /[^aeiou]y$/.test(word) ? `${word.slice(0, -1)}i` : /e$/.test(word) ? word.slice(0, -1) : doubles(word) && VOWEL.test(word) ? `${word}${word.slice(-1)}` : word;
-      f.comparative = `${stem}er`; f.superlative = `${stem}est`;
-    } else { f.comparative = `more ${word}`; f.superlative = `most ${word}`; }
+    const er = irregular.find((x) => /er$/.test(x));
+    const est = irregular.find((x) => /est$/.test(x));
+    const c = comparisonOf(word);
+    f.comparative = er ?? c.more; f.superlative = est ?? c.most;
+    f.irregular = !!er && !er.startsWith(word.replace(/e$/, '').replace(/y$/, 'i'));
   }
   return f;
 }
