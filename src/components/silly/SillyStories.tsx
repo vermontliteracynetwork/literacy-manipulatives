@@ -211,11 +211,10 @@ function SillyEditor({ onPlay }: { onPlay: () => void }) {
             <h1 className="ln-dp-title">{deck.title}</h1>
             <p className="ln-muted">{stories.length} silly stories. Tap one to set it up, or Present to share the deck.</p>
             <div className="sl-cards">
-              {stories.map((a, i) => {
+              {stories.map((a) => {
                 const n = Array.isArray(a.data.blanks) ? a.data.blanks.length : 0;
                 return (
                   <button key={a.id} type="button" className="sl-card" onClick={() => setSel(a.id)}>
-                    <span className="sl-card-kind">Silly Story {i + 1}</span>
                     <span className="sl-card-title">{a.title}</span>
                     <span className="sl-card-foot">{n} words to fill in</span>
                   </button>
@@ -342,9 +341,8 @@ function SillyPlay({ onEdit }: { onEdit: () => void }) {
           <h1 className="ln-dp-title">Pick a silly story</h1>
           <p className="ln-muted">Fill in the words, then read your silly story.</p>
           <div className="sl-cards">
-            {stories.map((a, i) => (
+            {stories.map((a) => (
               <button key={a.id} type="button" className="sl-card" onClick={() => open(a.id)}>
-                <span className="sl-card-kind">Silly Story {i + 1}</span>
                 <span className="sl-card-title">{a.title}</span>
               </button>
             ))}

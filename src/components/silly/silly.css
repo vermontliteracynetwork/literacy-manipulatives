@@ -49,3 +49,6 @@
 .sl-card-foot { font-size: 0.85rem; font-weight: 600; color: #3d5a73; }
 .sl-card-add { background: #fff !important; border-style: dashed; justify-content: center; align-items: center; text-align: center; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .sl-card:hover { transform: none; } }
+/* Title in the middle of each card (her request 2026-11-19) */
+.sl-card { justify-content: center; align-items: center; text-align: center; }
+.sl-card-title { font-size: 1.45rem; }
