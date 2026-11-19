@@ -104,9 +104,8 @@ export function pickBlanks(text: string, counts: BlankCounts, seed: string): Bla
 
 /** How many of each kind the story has room for (shown beside each setting). */
 export function available(text: string): Record<BlankKind, number> {
-  const all = pickBlanks(text, { noun: 99, pluralNoun: 99, verb: 99, adjective: 99, adverb: 99, number: 99 }, 'count');
   const n: Record<BlankKind, number> = { noun: 0, pluralNoun: 0, verb: 0, adjective: 0, adverb: 0, number: 0 };
-  for (const b of all) if (b.was) n[b.kind]++;
+  for (const k of KINDS) n[k] = pickBlanks(text, { [k]: 99 }, 'count').filter((x) => x.was && x.kind === k).length;
   return n;
 }
 

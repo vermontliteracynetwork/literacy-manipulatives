@@ -4,7 +4,9 @@ import './silly.css';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { loadEngine } from 'symbolic-grammar-engine';
 import { HomeButton } from '../HomeButton';
-import { ActivityEditor, ActivityView, withBlanks } from '../lessons/Activities';
+import { ActivityView, withBlanks } from '../lessons/Activities';
+import { KINDS, KIND_NAME, available, type Blank } from '../../lib/silly/blanks';
+import type { BlankCounts, BlankKind } from '../../lib/silly/stories';
 import { CopyLink, Modal, SidePane } from '../lessons/DailyLesson';
 import { StudentScreen } from '../lessons/LessonJoin';
 import { Fit } from '../lessons/Fit';
@@ -64,7 +66,7 @@ function SillyEditor({ onPlay }: { onPlay: () => void }) {
   const move = (from: number, to: number) => change((acts) => { const n = [...acts]; const [m] = n.splice(from, 1); n.splice(to, 0, m); return n; });
   const remove = (a: Activity) => { if (!window.confirm(`Take "${a.title}" out of the deck?`)) return; change((acts) => acts.filter((x) => x.id !== a.id)); setSel(stories.find((x) => x.id !== a.id)?.id ?? null); };
   const add = (st: StarterStory | null) => {
-    const a = st ? story(st) : { ...newActivity('silly-story', deck.focus), title: 'My silly story', data: withBlanks({ ...newActivity('silly-story', deck.focus).data, story: '', storyTitle: 'My silly story' }) };
+    const a = st ? story(st) : { ...newActivity('silly-story', deck.focus), title: 'My silly story', data: withBlanks({ ...newActivity('silly-story', deck.focus).data, story: '', storyTitle: 'My silly story', custom: true, counts: {} }) };
     change((acts) => [...acts, a]); setSel(a.id); setDialog(null);
   };
   const save = async (title: string, asNew: boolean) => {
@@ -180,7 +182,6 @@ function SillyEditor({ onPlay }: { onPlay: () => void }) {
                   </li>
                 ))}
               </ol>
-              <p className="ln-plan-tip">Drag to reorder.</p>
             </section>
           </div>
         </SidePane>
@@ -193,7 +194,6 @@ function SillyEditor({ onPlay }: { onPlay: () => void }) {
                 <span style={{ flex: 1 }} />
                 <button type="button" className="btn btn-sm" onClick={() => remove(current)}>Take out of the deck</button>
               </div>
-              <p className="ln-preview-label">What students see when you present</p>
               <Fit slide className="ln-preview-fit">
                 <h1 className="ln-stage-title"><span className="ln-stage-tab">Story {stories.findIndex((x) => x.id === current.id) + 1}</span> {current.title}</h1>
                 <ActivityView key={current.id + JSON.stringify(current.data).length} a={current} lesson={deck} resp={teacherResp[current.id] ?? {}} set={(r) => setTeacherResp((m) => ({ ...m, [current.id]: r }))} interactive teacher />
@@ -201,15 +201,14 @@ function SillyEditor({ onPlay }: { onPlay: () => void }) {
             </main>
             <SidePane id="silly-panel" side="right" width={360} label="Story settings">
               <div className="ln-panel">
-                <h2 className="dp-panel-h">Story settings</h2>
-                <ActivityEditor a={current} lesson={deck} tabKind="practice" onChange={(patch) => update(current.id, patch)} />
+                <SillySettings a={current} onChange={(patch) => update(current.id, patch)} />
               </div>
             </SidePane>
           </>
         ) : (
           <main className="ln-main">
             <h1 className="ln-dp-title">{deck.title}</h1>
-            <p className="ln-muted">{stories.length ? `${stories.length} silly stories. Tap one to set it up, or Present to share the deck.` : 'This deck is empty. Tap Add a story to pick from the 10 stories or write your own.'}</p>
+            {!stories.length && <p className="ln-muted">Tap Add a story.</p>}
             <div className="sl-cards">
               {stories.map((a) => {
                 const n = Array.isArray(a.data.blanks) ? a.data.blanks.length : 0;
@@ -246,7 +245,6 @@ function SillyEditor({ onPlay }: { onPlay: () => void }) {
         <div className="ln-sp-back" role="dialog" aria-modal="true" aria-label="Preview as student">
           <div className="ln-sp-bar">
             <strong>Preview as student</strong>
-            <span className="ln-muted">What a student sees on an iPad. Nothing is sent or saved.</span>
             <span style={{ flex: 1 }} />
             <button type="button" className="btn btn-sm" onClick={() => setPreview(false)}>Close preview</button>
           </div>
@@ -339,7 +337,6 @@ function SillyPlay({ onEdit }: { onEdit: () => void }) {
       ) : (
         <main className="ln-main">
           <h1 className="ln-dp-title">Pick a silly story</h1>
-          <p className="ln-muted">Fill in the words, then read your silly story.</p>
           <div className="sl-cards">
             {stories.map((a) => (
               <button key={a.id} type="button" className="sl-card" onClick={() => open(a.id)}>
@@ -348,6 +345,63 @@ function SillyPlay({ onEdit }: { onEdit: () => void }) {
             ))}
           </div>
         </main>
+      )}
+    </div>
+  );
+}
+
+// Story settings in three simple tabs (her request 2026-11-19: "change the Story settings to be tabs for each category so
+// it is easier. make the design of the settings simple. dont allow changing of the story text for presets, but allow me to
+// create a custom story with a passage i add. then, i should be able to add the selections for words to input").
+function SillySettings({ a, onChange }: { a: Activity; onChange: (patch: Partial<Activity>) => void }) {
+  const [tab, setTab] = useState<'story' | 'words' | 'students'>('words');
+  const d = a.data;
+  const custom = d.custom === true;
+  const counts = (d.counts ?? {}) as BlankCounts;
+  const room = available(String(d.story ?? ''));
+  const blanks = (Array.isArray(d.blanks) ? d.blanks : []) as Blank[];
+  const setData = (patch: Record<string, unknown>, again = false) => onChange({ data: again ? withBlanks({ ...d, ...patch }) : { ...d, ...patch } });
+  return (
+    <div className="sl-settings">
+      <div className="sl-tabs" role="tablist" aria-label="Story settings">
+        {(['story', 'words', 'students'] as const).map((t) => (
+          <button key={t} type="button" role="tab" aria-selected={tab === t} className={`sl-tab${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}>{t === 'story' ? 'Story' : t === 'words' ? 'Words' : 'Students'}</button>
+        ))}
+      </div>
+      {tab === 'story' && (
+        <div className="sl-pane">
+          <label className="sl-field"><span>Title</span><input value={a.title} onChange={(e) => onChange({ title: e.target.value, data: { ...d, storyTitle: e.target.value } })} /></label>
+          {custom ? (
+            <label className="sl-field"><span>Your story</span>
+              <textarea rows={14} value={String(d.story ?? '')} placeholder="Paste or type your story here." onChange={(e) => setData({ story: e.target.value }, true)} />
+            </label>
+          ) : (
+            <div className="sl-field"><span>Story</span><p className="sl-readonly">{String(d.story ?? '')}</p></div>
+          )}
+        </div>
+      )}
+      {tab === 'words' && (
+        <div className="sl-pane">
+          {KINDS.map((k: BlankKind) => (
+            <div key={k} className="sl-count">
+              <span className="sl-count-name">{KIND_NAME[k]}</span>
+              <button type="button" className="sl-step" aria-label={`Fewer ${KIND_NAME[k].toLowerCase()}`} onClick={() => setData({ counts: { ...counts, [k]: Math.max(0, (counts[k] ?? 0) - 1) } }, true)}>-</button>
+              <span className="sl-count-n">{counts[k] ?? 0}</span>
+              <button type="button" className="sl-step" aria-label={`More ${KIND_NAME[k].toLowerCase()}`} disabled={(counts[k] ?? 0) >= room[k]} onClick={() => setData({ counts: { ...counts, [k]: (counts[k] ?? 0) + 1 } }, true)}>+</button>
+              <span className="sl-count-max">of {room[k]}</span>
+            </div>
+          ))}
+          <button type="button" className="btn btn-sm" onClick={() => setData({ seed: String(Date.now()) }, true)}>New random words</button>
+          <div className="sl-chosen">{blanks.map((b, i) => <span key={i} className="sl-chip">{b.was || b.label}</span>)}</div>
+        </div>
+      )}
+      {tab === 'students' && (
+        <div className="sl-pane">
+          <label className="sl-field"><span>Directions</span><textarea rows={3} value={a.directions} onChange={(e) => onChange({ directions: e.target.value })} /></label>
+          <label className="sl-check"><input type="checkbox" checked={a.access === 'do'} onChange={(e) => onChange({ access: e.target.checked ? 'do' : 'view' })} /> Students fill it in on their iPads</label>
+          <label className="sl-check"><input type="checkbox" checked={d.hide !== false} onChange={(e) => setData({ hide: e.target.checked })} /> Hide the story until every word is in</label>
+          <label className="sl-check"><input type="checkbox" checked={!!a.timer} onChange={(e) => onChange({ timer: e.target.checked ? 120 : undefined })} /> Timer{a.timer ? <input type="number" min={10} max={1800} value={a.timer} onChange={(e) => onChange({ timer: Math.max(10, Number(e.target.value) || 120) })} aria-label="Seconds" /> : null}{a.timer ? ' seconds' : ''}</label>
+        </div>
       )}
     </div>
   );

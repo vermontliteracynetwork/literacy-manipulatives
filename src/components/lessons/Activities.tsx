@@ -1064,7 +1064,6 @@ export function ActivityEditor({ a, onChange, lesson, tabKind }: { a: Activity; 
   return (
     <div className="ln-editor">
       <label className="dp-field"><span>Card name</span><input value={a.title} onChange={(e) => onChange({ title: e.target.value })} /></label>
-      <label className="dp-field"><span>Short description (on the card)</span><input value={a.about} onChange={(e) => onChange({ about: e.target.value })} /></label>
       <label className="dp-field"><span>Directions students read and hear</span><textarea rows={2} value={a.directions} onChange={(e) => onChange({ directions: e.target.value })} /></label>
       <div className="dp-field"><span>Students</span>
         <div className="dp-row" role="radiogroup">

@@ -449,7 +449,6 @@ export function DailyLesson() {
                 <button type="button" className="btn btn-sm" onClick={() => delActivity(sel.a)}>Delete</button>
                 <button type="button" className="btn btn-sm btn-primary" onClick={() => present(sel.a.id)}>Present from here</button>
               </div>
-              <p className="ln-preview-label">What students see when you present</p>
               {sel.a.engine === 'board' && boardEmbed
                 ? <div className="ln-board ln-board-fill"><LiteracyManipulatives key={sel.a.id} embed={boardEmbed} /></div>
                 : (
