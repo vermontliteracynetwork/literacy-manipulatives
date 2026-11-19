@@ -25,6 +25,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/silly-stories",
+      "destination": "/index.html"
+    },
+    {
       "source": "/lesson",
       "destination": "/index.html"
     },

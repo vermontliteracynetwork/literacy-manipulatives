@@ -1,6 +1,9 @@
 import type { SymbolWordClass } from '../grammarSymbols';
 import type { BoardData } from '../../LiteracyManipulatives';
 import type { Procedure } from '../procedures/types';
+import { STARTER_STORIES } from '../silly/stories';
+import { pickBlanks } from '../silly/blanks';
+import { engineReady } from 'symbolic-grammar-engine';
 
 // Daily Lesson (her request 2026-11-18, rebuilding the Daily Procedure): a lesson is a row of tabs on the left
 // (Goal, Review, Instruction, Practice, Assessment, and Application from her Daily Lesson Structure). Each tab is
@@ -25,7 +28,7 @@ export const tabKindName = (k: TabKind) => TAB_KINDS.find((t) => t.kind === k)?.
 export type Engine =
   | 'goal' | 'slide' | 'symbolMatch' | 'sort' | 'define' | 'wordList' | 'memory' | 'pull' | 'build' | 'write'
   | 'fill' | 'pyramid' | 'edit' | 'time' | 'choice' | 'markup' | 'tictactoe' | 'fishing' | 'search' | 'procA'
-  | 'assess' | 'board' | 'legacy';
+  | 'assess' | 'board' | 'legacy' | 'madlib';
 
 export type Access = 'view' | 'do';
 export type ActivityData = Record<string, unknown>;
@@ -59,6 +62,7 @@ export interface Lesson {
   code?: string;                     // the lesson's own join code (kept with the lesson)
   focus: { symbols: SymbolWordClass[]; formulas: string[] }; // today's symbols and formula codes (defaults for new activities)
   progress: 'bar' | 'checklist';     // what students see across the top in Present mode
+  app?: 'silly';                     // a Silly Stories deck (its own app; the same lesson format underneath)
   tabs: Tab[];
 }
 
@@ -69,7 +73,7 @@ export const newId = () => Math.random().toString(36).slice(2, 10);
 export const newCode = () => String(1000 + Math.floor(Math.random() * 9000));
 
 // ---------- The activity catalog ----------
-export type FieldKind = 'text' | 'textarea' | 'lines' | 'symbols' | 'formulas' | 'formula' | 'number' | 'bool' | 'picture' | 'select';
+export type FieldKind = 'counts' | 'text' | 'textarea' | 'lines' | 'symbols' | 'formulas' | 'formula' | 'number' | 'bool' | 'picture' | 'select';
 export interface Field { key: string; label: string; kind: FieldKind; help?: string; options?: { value: string; label: string }[] }
 
 export interface Preset {
@@ -194,6 +198,8 @@ export const PRESETS: Preset[] = [
     data: (f) => ({ prompt: 'Idea: a dog and a ball', picture: '', emoji: '', formulas: f.formulas.slice(0, 3), lines: 2, model: '', dictate: [], check: 'sentence' }) },
   { id: 'end-mark', engine: 'choice', name: 'Which End Mark?', about: 'Listen to how the voice ends, then choose the end mark.', directions: 'Listen. Choose the end mark.', group: 'Practice: sentences', tabs: ['practice', 'review'], levels: 'A B C', access: 'do',
     data: () => ({ items: ['The cat is asleep | . / ? / ! | .'], speak: true }) },
+  { id: 'silly-story', engine: 'madlib', name: 'Silly Story', about: 'Mad Libs style: fill in the words, then read the silly story.', directions: 'Fill in a word for each one. Then read your silly story.', group: 'Practice: sentences', tabs: ['review', 'practice', 'application'], levels: 'A B C', access: 'do',
+    data: () => { const st = STARTER_STORIES[0]; return { story: st.text, storyTitle: st.title, counts: { ...st.counts }, hide: true, seed: '1', blanks: [] }; } },
   // Practice: paragraphs
   { id: 'paragraph-puzzle', engine: 'build', name: 'Paragraph Puzzle', about: 'Put a cut-up paragraph back in order.', directions: 'Put the sentences in order.', group: 'Practice: paragraphs', tabs: ['practice', 'application'], levels: 'B C', access: 'do',
     data: () => ({ unit: 'sentences', items: ['First, the frog wakes up.', 'Next, it jumps in the pond.', 'Last, it naps on a rock.'], showStrip: false, model: '' }) },
@@ -212,7 +218,9 @@ export const presetById = (id: string) => PRESETS.find((p) => p.id === id);
 
 export function newActivity(presetId: string, focus: Lesson['focus']): Activity {
   const p = presetById(presetId) ?? PRESETS[1];
-  return { id: newId(), preset: p.id, engine: p.engine, title: p.name, about: p.about, directions: p.directions, access: p.access, notes: '', data: p.data(focus), ...(p.engine === 'board' ? { board: { placed: [], strokes: [] } } : {}) };
+  const data = p.data(focus);
+  if (p.engine === 'madlib') { data.blanks = pickBlanks(String(data.story ?? ''), (data.counts ?? {}) as Record<string, number>, String(data.seed ?? '1')); data.engineOk = engineReady(); }
+  return { id: newId(), preset: p.id, engine: p.engine, title: p.name, about: p.about, directions: p.directions, access: p.access, notes: '', data, ...(p.engine === 'board' ? { board: { placed: [], strokes: [] } } : {}) };
 }
 
 // The fields each engine shows in Edit mode, so every student-facing detail can be changed.
@@ -247,6 +255,7 @@ export const ENGINE_FIELDS: Record<Engine, Field[]> = {
   assess: [F('items', 'Items (one per line: prompt | formula code, optional)', 'lines'), F('checks', 'Checks', 'lines'), F('tiles', 'Word tiles (one per line; left empty, the engine picks words for each symbol of the formula)', 'lines'), F('tilesFirst', 'Start with word tiles', 'bool'), F('noTiles', 'Turn word tiles off', 'bool')],
   board: [],
   legacy: [],
+  madlib: [F('story', 'Story (a word in brackets, like [noun], is always a blank)', 'textarea'), F('counts', 'Blanks: how many of each', 'counts'), F('hide', 'Hide the story until every word is in (the Mad Libs way)', 'bool')],
 };
 
 // ---------- New lessons ----------

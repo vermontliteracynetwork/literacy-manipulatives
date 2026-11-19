@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadEngine } from 'symbolic-grammar-engine';
 import LiteracyManipulatives, { type BoardData } from '../../LiteracyManipulatives';
 import { HomeButton } from '../HomeButton';
-import { ActivityEditor, ActivityView, FormulaPicker, SymbolPicker } from './Activities';
+import { ActivityEditor, ActivityView, FormulaPicker, SymbolPicker, withBlanks } from './Activities';
 import { Progress } from './Progress';
 import { Fit } from './Fit';
 import { StudentScreen } from './LessonJoin';
@@ -34,7 +34,7 @@ const readOpen = (): Lesson | null => { try { const x = JSON.parse(sessionStorag
 const writeOpen = (l: Lesson) => { try { sessionStorage.setItem(OPEN_KEY, JSON.stringify(l)); } catch { /* too big for this tab */ } };
 
 // A join link with the code in it, to send to a student: they only type their name (her request 2026-11-18).
-function CopyLink({ code }: { code: string }) {
+export function CopyLink({ code }: { code: string }) {
   const [done, setDone] = useState(false);
   const link = `${window.location.origin}/lesson?code=${code}`;
   return <button type="button" className="btn btn-sm" title={link} onClick={() => { void navigator.clipboard?.writeText(link).then(() => { setDone(true); window.setTimeout(() => setDone(false), 1500); }); }}>{done ? 'Copied' : 'Copy join link'}</button>;
@@ -43,7 +43,7 @@ function CopyLink({ code }: { code: string }) {
 
 // A side menu that can be dragged wider or narrower by its inner edge and folded away (her request 2026-11-18:
 // "allow all menus (right bar and left column menu) to be resizeable and collapsable"). Remembered on this computer.
-function SidePane({ id, side, width, label, children }: { id: string; side: 'left' | 'right'; width: number; label: string; children: React.ReactNode }) {
+export function SidePane({ id, side, width, label, children }: { id: string; side: 'left' | 'right'; width: number; label: string; children: React.ReactNode }) {
   const key = `lm-lesson-pane-${id}`;
   const [w, setW] = useState<number>(() => { try { return Number(localStorage.getItem(`${key}-w`)) || width; } catch { return width; } });
   const [shut, setShut] = useState<boolean>(() => { try { return localStorage.getItem(`${key}-shut`) === '1'; } catch { return false; } });
@@ -119,7 +119,7 @@ function DailyPlanView({ lesson, onAdd, onOpen, onRemove, onAddTab, onCatalog }:
   );
 }
 
-function Modal({ title, onClose, wide, children }: { title: string; onClose: () => void; wide?: boolean; children: React.ReactNode }) {
+export function Modal({ title, onClose, wide, children }: { title: string; onClose: () => void; wide?: boolean; children: React.ReactNode }) {
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
   return (
     <div className="dp-modal-back" onClick={onClose}>
@@ -142,8 +142,10 @@ export function DailyLesson() {
   const [open, setOpen] = useState<Set<string>>(() => new Set(lesson.tabs.slice(0, 2).map((t) => t.id)));
   const [dialog, setDialog] = useState<null | 'library' | 'save' | 'settings' | 'reports' | { catalog: string }>(null);
   const [msg, setMsg] = useState('');
-  const [, setReady] = useState(0);
+  const [ready, setReady] = useState(0);
   useEffect(() => { document.title = 'Daily Lesson'; void loadEngine().then(() => setReady((n) => n + 1)).catch(() => undefined); }, []);
+  // A Silly Story picked before the word lists loaded gets its blanks picked again once they are ready.
+  useEffect(() => { if (ready && stopsOf(lesson).some((x) => x.activity.engine === 'madlib' && !x.activity.data.engineOk)) setLesson((l) => ({ ...l, tabs: l.tabs.map((t) => ({ ...t, sections: t.sections.map((sec) => ({ ...sec, activities: sec.activities.map((a) => (a.engine === 'madlib' && !a.data.engineOk ? { ...a, data: withBlanks(a.data) } : a)) })) })) })); }, [ready]);
   useEffect(() => { const t = window.setTimeout(() => writeOpen(lesson), 400); return () => window.clearTimeout(t); }, [lesson]);
   // Once a lesson is saved and named, every change saves itself (her request 2026-11-18: "auto save updates").
   useEffect(() => {
@@ -586,7 +588,7 @@ function useLibrary() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const reload = () => Promise.all([listFolders(), listProcedures()]).then(([f, p]) => {
     setFolders(f.sort((a, b) => a.name.localeCompare(b.name)));
-    setLessons((p as unknown as (Lesson | Procedure)[]).map(asLesson).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+    setLessons((p as unknown as (Lesson | Procedure)[]).map(asLesson).filter((l) => l.app !== 'silly').sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
   }).catch(() => undefined);
   useEffect(() => { void reload(); }, []);
   return { folders, lessons, reload };

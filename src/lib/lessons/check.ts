@@ -5,6 +5,7 @@ import { formulaCode, sentenceSlots } from '../writer/formulaMatch';
 import { MASTER_FORMULAS } from '../writer/masterList';
 import { tenseVersions } from '../writer/tenses';
 import type { Activity } from './types';
+import type { Blank } from '../silly/blanks';
 
 // Every check a lesson activity makes goes through the Symbolic Grammar Engine, so the lesson grades a word's job
 // and a sentence's formula exactly the way the curriculum does.
@@ -135,6 +136,13 @@ export function summarize(a: Activity, resp: Resp | undefined): { text: string; 
     case 'fishing': return { text: strs(r.done).join(' / ') || '-', right: strs(r.done).length, total: num(d.goal, 3) };
     case 'search': return { text: `${strs(r.found).length} of ${strs(d.words).length} words found. ${str(r.sentence)}`, right: strs(r.found).length, total: strs(d.words).length };
     case 'procA': return { text: strs(r.lines).filter(Boolean).join(' / ') || '-' };
+    case 'madlib': {
+      const blanks = (Array.isArray(d.blanks) ? d.blanks : []) as Blank[];
+      const w = (r.w ?? {}) as Record<string, string>;
+      const filled = blanks.filter((_, n) => str(w[n]).trim()).length;
+      const right = blanks.filter((b, n) => str(w[n]).trim() && b.kind !== 'number' && wordFits(str(w[n]), b.cls) === 'yes').length;
+      return { text: `${filled} of ${blanks.length} words: ${blanks.map((_, n) => str(w[n]) || '_').join(', ')}`, right, total: blanks.filter((b) => b.kind !== 'number').length };
+    }
     default: return { text: '' };
   }
 }

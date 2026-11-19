@@ -11,6 +11,9 @@ import {
   SYMBOL_ORDER, checkWritten, codeOf, formulaLabel, formulaRow, formulaSlots, num, sortSetup, splitArrow, splitBar, splitEq, str, strs, symbolByName,
   symbolName, symbolOf, symbolsOfSentence, syms, tensesOf, wordFits, type Resp, type SentenceResult,
 } from '../../lib/lessons/check';
+import { engineReady } from 'symbolic-grammar-engine';
+import { fillStory, KINDS, KIND_NAME, available, pickBlanks, type Blank } from '../../lib/silly/blanks';
+import type { BlankCounts, BlankKind } from '../../lib/silly/stories';
 import { ENGINE_FIELDS, TAB_COLOR, type Activity, type Field, type Lesson } from '../../lib/lessons/types';
 import type { PageData, PageKind } from '../../lib/procedures/types';
 
@@ -168,6 +171,7 @@ function Body(p: ViewProps) {
     case 'assess': return <Assess {...p} />;
     case 'board': return <Board {...p} />;
     case 'legacy': return <Legacy {...p} />;
+    case 'madlib': return <MadLib {...p} />;
   }
 }
 
@@ -831,6 +835,49 @@ function Assess({ a, resp, set, interactive, teacher }: ViewProps) {
   );
 }
 
+// A Silly Story (Mad Libs style, her request 2026-11-19): first the list of words to fill in, each with its symbol, then
+// the story with the student's words in it, read aloud on a tap. The Symbolic Grammar Engine checks each word's job.
+function MadLib(p: ViewProps) {
+  const { a, resp, set, interactive, teacher } = p;
+  const seen = useSeen(p);
+  const blanks = (Array.isArray(a.data.blanks) ? a.data.blanks : []) as Blank[];
+  const w = (resp.w ?? {}) as Record<string, string>;
+  const all = blanks.every((_, n) => str(w[n]).trim());
+  const reading = resp.read === true || (a.data.hide === false);
+  const story = str(a.data.story);
+  const filled = fillStory(story, blanks, w);
+  const said = filled.map((x) => x.text).join('');
+  return (
+    <div className="ln-mad">
+      {str(a.data.storyTitle) && <h2 className="ln-mad-title">{str(a.data.storyTitle)}</h2>}
+      {!blanks.length && <p className="ln-muted">This story has no blanks yet. Set how many words to fill in.</p>}
+      {(!reading || !all) && blanks.length > 0 && (
+        <ol className="ln-mad-list">
+          {blanks.map((b, n) => {
+            const v = str(w[n]);
+            const fit = v.trim() && seen.show(`m${n}`) && b.kind !== 'number' ? wordFits(v, b.cls) : null;
+            return (
+              <li key={n} className="ln-mad-item">
+                <span className="ln-mad-label"><Sym c={b.cls} size={34} /><span>{b.label}</span></span>
+                <input {...NOAUTO} {...seen.done(`m${n}`)} className="ln-input" readOnly={!interactive} value={v} aria-label={`${n + 1}: ${b.label}`} inputMode={b.kind === 'number' ? 'numeric' : undefined}
+                  onChange={(e) => set({ ...resp, w: { ...w, [n]: e.target.value } })} />
+                {fit && <Mark ok={fit === 'yes' ? true : fit === 'no' ? false : undefined} />}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {all && blanks.length > 0 && !reading && (interactive || teacher) && <button type="button" className="btn btn-primary ln-big" onClick={() => set({ ...resp, read: true })}>Read my silly story</button>}
+      {(reading && (all || a.data.hide === false)) && (
+        <div className="ln-mad-story">
+          <p>{filled.map((x, i) => (x.mine ? <mark key={i} className="ln-mad-word">{x.text}</mark> : <span key={i}>{x.text}</span>))}</p>
+          <div className="ln-row"><Say text={said} label="Read my silly story aloud" />{resp.read === true && (interactive || teacher) && <button type="button" className="btn" onClick={() => set({ ...resp, read: false })}>Change my words</button>}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Board({ a, teacher }: ViewProps) {
   const embed = useMemo(() => ({ initial: a.board ?? { placed: [], strokes: [] }, onChange: () => {}, presenting: true }), [a.id, teacher ? 0 : JSON.stringify(a.board)]);
   return <div className="ln-board"><LiteracyManipulatives key={teacher ? a.id : `${a.id}-${JSON.stringify(a.board).length}`} embed={embed} /></div>;
@@ -887,6 +934,7 @@ function FieldInput({ f, value, onChange, only }: { f: Field; value: unknown; on
     case 'symbols': return <SymbolPicker value={syms(value)} onChange={onChange} />;
     case 'formulas': return <FormulaPicker only={only} value={strs(value)} onChange={onChange} />;
     case 'formula': return <FormulaPicker only={only} value={str(value) ? [str(value)] : []} onChange={(v) => onChange(v[v.length - 1] ?? '')} />;
+    case 'counts': return null;
     case 'picture': return (
       <span className="ln-pic-field">
         {str(value) && <img src={str(value)} alt="" />}
@@ -906,6 +954,36 @@ export function taughtFormulas(lesson: Lesson): string[] {
     for (const c of strs(x.data.formulas)) out.add(c);
   }
   return [...out];
+}
+
+// A Silly Story's blanks are picked again whenever its story, counts or seed change (see lib/silly/blanks.ts).
+export const withBlanks = (d: Activity['data']): Activity['data'] => ({ ...d, blanks: pickBlanks(str(d.story), (d.counts ?? {}) as BlankCounts, str(d.seed) || '1'), engineOk: engineReady() });
+
+function BlankSettings({ a, onChange }: { a: Activity; onChange: (patch: Partial<Activity>) => void }) {
+  const counts = (a.data.counts ?? {}) as BlankCounts;
+  const room = available(str(a.data.story)); // read again each time, so it is right once the word lists load
+  const blanks = (Array.isArray(a.data.blanks) ? a.data.blanks : []) as Blank[];
+  const setCount = (k: BlankKind, n: number) => onChange({ data: withBlanks({ ...a.data, counts: { ...counts, [k]: Math.max(0, Math.min(20, n)) } }) });
+  return (
+    <div className="dp-field ln-blank-settings">
+      <span>Story title</span>
+      <input value={str(a.data.storyTitle)} onChange={(e) => onChange({ data: { ...a.data, storyTitle: e.target.value } })} />
+      <span>Words to fill in</span>
+      <table className="ln-count-table">
+        <tbody>
+          {KINDS.map((k) => (
+            <tr key={k}>
+              <th scope="row">{KIND_NAME[k]}</th>
+              <td><input type="number" min={0} max={20} value={counts[k] ?? 0} onChange={(e) => setCount(k, Number(e.target.value) || 0)} aria-label={`How many ${KIND_NAME[k].toLowerCase()}`} /></td>
+              <td className="dp-muted">{room[k]} in the story</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button type="button" className="btn btn-sm" onClick={() => onChange({ data: withBlanks({ ...a.data, seed: String(Date.now()) }) })}>New random words</button>
+      <small className="dp-muted">{blanks.length} blanks: {blanks.map((b) => b.was || b.label).join(', ') || 'none yet'}</small>
+    </div>
+  );
 }
 
 export function ActivityEditor({ a, onChange, lesson, tabKind }: { a: Activity; onChange: (patch: Partial<Activity>) => void; lesson: Lesson; tabKind: string }) {
@@ -935,10 +1013,11 @@ export function ActivityEditor({ a, onChange, lesson, tabKind }: { a: Activity; 
           <option value="">Not set</option><option value="lesson">Lesson-specific (today's formula only)</option><option value="cumulative">Cumulative review (mixed with earlier formulas)</option>
         </select>
       </label>
-      {fields.map((f) => (
+      {a.engine === 'madlib' && <BlankSettings a={a} onChange={onChange} />}
+      {fields.filter((f) => f.kind !== 'counts').map((f) => (
         <label key={f.key} className={`dp-field${f.kind === 'bool' ? ' dp-check' : ''}`}>
           <span>{f.label}</span>
-          <FieldInput f={f} only={only} value={a.data[f.key]} onChange={(v) => onChange({ data: { ...a.data, [f.key]: v } })} />
+          <FieldInput f={f} only={only} value={a.data[f.key]} onChange={(v) => onChange({ data: a.engine === 'madlib' ? withBlanks({ ...a.data, [f.key]: v }) : { ...a.data, [f.key]: v } })} />
           {only && (f.kind === 'formulas' || f.kind === 'formula') && <small className="dp-muted">Showing the formulas taught in this lesson's Instruction. To mix in earlier formulas, set Practice type to Cumulative review.</small>}
           {f.help && <small className="dp-muted">{f.help}</small>}
         </label>

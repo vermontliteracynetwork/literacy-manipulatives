@@ -60,6 +60,13 @@ const TOOLS: Tool[] = [
     tags: ['Teacher tool', 'Assessment'],
   },
   {
+    title: 'Silly Stories',
+    description: 'Mad Libs style silly stories. Pick which parts of speech students fill in and how many (3 adjectives, 2 verbs...), and the grammar engine finds those words in the story. Build a deck, share its code, and students fill in their words and read their silly stories.',
+    href: '/silly-stories',
+    image: '/dashboard/silly-stories.svg',
+    tags: ['Student-facing', 'Teacher tool', 'Parts of speech'],
+  },
+  {
     title: 'Story Maker',
     description: 'Build sentences from the formulas and grammar symbols, Mad Lib style, and watch a pixel video act out what the words mean. Add sentences to make a story, play it aloud and save it as a video.',
     href: '/story',

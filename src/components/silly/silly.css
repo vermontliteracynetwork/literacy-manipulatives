@@ -1,0 +1,17 @@
+/* Silly Stories (Mad Libs style) */
+.sl-n { margin: 0 6px 0 0; min-width: 18px; }
+.ln-mad { display: flex; flex-direction: column; gap: 14px; }
+.ln-mad-title { margin: 0; font-size: 1.5rem; }
+.ln-mad-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 10px 18px; counter-reset: mad; }
+.ln-mad-item { display: flex; align-items: center; gap: 10px; counter-increment: mad; }
+.ln-mad-item::before { content: counter(mad); flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; background: var(--brand-blue); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; }
+.ln-mad-label { display: flex; align-items: center; gap: 6px; flex: 0 0 170px; font-weight: 700; font-size: 1rem; }
+.ln-mad-item .ln-input { flex: 1; min-width: 0; }
+.ln-mad-story { padding: 16px 20px; border: 2px solid var(--ink); border-radius: 14px; background: #fff; font-size: 1.25rem; line-height: 1.7; }
+.ln-mad-story p { margin: 0 0 10px; }
+.ln-mad-word { background: var(--brand-cream); border-bottom: 3px solid var(--brand-blue); padding: 0 4px; border-radius: 4px; font-weight: 800; }
+.ln-count-table { border-collapse: collapse; }
+.ln-count-table th { text-align: left; padding: 4px 8px 4px 0; font-weight: 600; }
+.ln-count-table td { padding: 3px 6px; }
+.ln-count-table input { width: 64px; }
+.ln-blank-settings { gap: 6px; }
