@@ -13,6 +13,8 @@ import { addIdea, readIdeas, removeIdea, type FormulaIdea } from '../lib/writer/
 import { speak } from '../lib/word-explorer/speech';
 import { readPractice } from '../lib/writer/practice';
 import { PassageTab } from './FormulaPassage';
+import { SymbolicGrammarTab } from './SymbolicGrammarTab';
+import { PRIVATE_FLAG } from '../lib/corpus/store';
 
 // Formula Search (her request 2026-11-12): one search bar, like a web search home page. Type any sentence and the
 // formulas from her Formula Master List that match it appear. When none match, "Add suggested formula" logs the
@@ -40,8 +42,12 @@ export function FormulaSearch() {
   const [log, setLog] = useState<FormulaIdea[]>(readIdeas);
   const [showLog, setShowLog] = useState(false);
   // Two tabs: one sentence, or a whole passage marked up sentence by sentence (her request 2026-11-13).
-  const [tab, setTab] = useState<'sentence' | 'passage'>(() => (new URLSearchParams(window.location.search).get('tab') === 'passage' || window.location.pathname.startsWith('/passages') ? 'passage' : 'sentence'));
-  const pickTab = (t: 'sentence' | 'passage') => { setTab(t); window.history.replaceState(null, '', t === 'passage' ? '/formulas?tab=passage' : '/formulas'); setLog(readIdeas()); };
+  // A third, private tab (her request 2026-11-20): the Symbolic Grammar log. It shows only on a computer where it has
+  // been opened with /formulas?tab=sg, so students do not see it.
+  const startTab = new URLSearchParams(window.location.search).get('tab');
+  const [privateTab, setPrivateTab] = useState(() => { let on = false; try { on = startTab === 'sg' || localStorage.getItem(PRIVATE_FLAG) === '1'; if (startTab === 'sg') localStorage.setItem(PRIVATE_FLAG, '1'); } catch { on = startTab === 'sg'; } return on; });
+  const [tab, setTab] = useState<'sentence' | 'passage' | 'sg'>(() => (startTab === 'sg' ? 'sg' : startTab === 'passage' || window.location.pathname.startsWith('/passages') ? 'passage' : 'sentence'));
+  const pickTab = (t: 'sentence' | 'passage' | 'sg') => { setTab(t); window.history.replaceState(null, '', t === 'passage' ? '/formulas?tab=passage' : t === 'sg' ? '/formulas?tab=sg' : '/formulas'); setLog(readIdeas()); };
 
   useEffect(() => { document.title = 'Formula Search'; Promise.all([loadWords(), loadWordTypes()]).then(() => setReady(true)); }, []);
   const results = useMemo(() => (ready && query.trim() ? splitSentences(query).map((s) => readSentence(s.text)).filter((r): r is Reading => !!r) : []), [query, ready]);
@@ -54,13 +60,14 @@ export function FormulaSearch() {
   return (
     <div className="wx fs" data-theme="light">
       <div className="fs-top"><HomeButton className="wx-btn" /></div>
-      <main className={`fs-main${searched || tab === 'passage' ? ' searched' : ''}${tab === 'passage' ? ' wide' : ''}`}>
+      <main className={`fs-main${searched || tab !== 'sentence' ? ' searched' : ''}${tab !== 'sentence' ? ' wide' : ''}`}>
         <h1 className="fs-title"><a href="/formulas" onClick={(e) => { e.preventDefault(); setText(''); go(''); pickTab('sentence'); }}>Formula Search</a></h1>
         <div className="fs-tabs" role="tablist" aria-label="Search a sentence or a passage">
           <button type="button" role="tab" aria-selected={tab === 'sentence'} className={`wx-btn${tab === 'sentence' ? ' wx-btn-primary' : ''}`} onClick={() => pickTab('sentence')}>Search a sentence</button>
           <button type="button" role="tab" aria-selected={tab === 'passage'} className={`wx-btn${tab === 'passage' ? ' wx-btn-primary' : ''}`} onClick={() => pickTab('passage')}>Mark up a passage</button>
+          {privateTab && <button type="button" role="tab" aria-selected={tab === 'sg'} className={`wx-btn${tab === 'sg' ? ' wx-btn-primary' : ''}`} onClick={() => pickTab('sg')}>Symbolic Grammar (private)</button>}
         </div>
-        {tab === 'passage' ? <PassageTab /> : <>
+        {tab === 'sg' ? <SymbolicGrammarTab onHide={() => { setPrivateTab(false); pickTab('passage'); }} /> : tab === 'passage' ? <PassageTab /> : <>
         <form className="fs-bar" role="search" onSubmit={(e) => { e.preventDefault(); go(text); }}>
           <Icon name="search" size={24} />
           <label htmlFor="fs-q" className="wx-sr">Type a sentence</label>

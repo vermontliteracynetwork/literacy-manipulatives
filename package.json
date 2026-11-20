@@ -20,9 +20,10 @@
     "@fontsource/opendyslexic": "^5.3.0",
     "@fontsource/playwrite-us-trad": "^5.3.0",
     "@supabase/supabase-js": "^2.118.0",
+    "pdfjs-dist": "^5.7.284",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "symbolic-grammar-engine": "https://codeload.github.com/vermontliteracynetwork/symbolic-grammar-engine/tar.gz/66b8216aad57be7c3358f4a112aebaf330e2ecc4",
+    "symbolic-grammar-engine": "https://codeload.github.com/vermontliteracynetwork/symbolic-grammar-engine/tar.gz/98d9e33cb4ce17ffdf7ef33b568b4bb42eaa349e",
     "yjs": "^13.6.33"
   },
   "devDependencies": {

@@ -29,3 +29,23 @@
 .pb-acc { font-size: var(--text-body-lg); font-weight: 600; }
 .pb-fixes { display: flex; flex-direction: column; gap: 6px; padding-left: 1.2em; }
 .pb-engine { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 12px 0; }
+/* Structure first (2026-11-20): every line's type, source details, saving to the log. */
+.pb-details { align-items: flex-end; }
+.pb-details .wx-select-label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+.pb-small { width: 120px; }
+.pb-tag.type { background: var(--tint-lavender); }
+.pb-tag.t-sentence { background: var(--surface); }
+.pb-tag.t-fragment { background: var(--tint-blush); }
+.pb-about { margin: 0 0 8px; }
+.pb-save { width: 100%; align-items: center; }
+/* Private Symbolic Grammar tab (2026-11-20). */
+.sg { display: flex; flex-direction: column; gap: 16px; }
+.sg > .wx-card { margin-bottom: 0; }
+.sg-tabs { flex-wrap: wrap; justify-content: flex-start; }
+.sg-table-wrap { overflow-x: auto; }
+.sg-table td, .sg-table th { min-width: 72px; }
+.sg-ex { display: block; margin-bottom: 4px; }
+.sg-sym { display: inline-flex; align-items: center; gap: 6px; }
+.sg-sym img { object-fit: contain; }
+.sg-yn { min-width: 72px; }
+.sg-questions { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 16px; padding-left: 1.4em; }

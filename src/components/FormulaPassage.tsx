@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import { FormulaSymbols } from './SentenceFormulas';
 import { GRAMMAR_SYMBOL_INFO, type SymbolWordClass } from '../lib/grammarSymbols';
-import { checkSentence, splitSentences, tagEngine, tagForCheck, type SentenceSpan } from '../lib/writer/sentenceCheck';
+import { checkSentence, tagEngine, tagForCheck, type SentenceSpan } from '../lib/writer/sentenceCheck';
 import { readFormula, resetListed } from '../lib/writer/formulaLookup';
 import { addCorrection, accuracy, corrections, sharedCorrections, removeCorrection, replaceCorrections, type Correction } from '../lib/writer/corrections';
 import { addIdea, readIdeas, type FormulaIdea } from '../lib/writer/formulaBook';
@@ -14,6 +14,9 @@ import { isBlockedText } from '../lib/word-explorer/safety';
 import { speak } from '../lib/word-explorer/speech';
 import type { TaggedWord } from '../lib/writer/tagger';
 import { checkEngine, type EngineCheck } from '../lib/writer/engineCheck';
+import { readPassage, LINE_TYPE_INFO, type PassageItem } from 'symbolic-grammar-engine/src/writer/passage';
+import { pdfText } from '../lib/corpus/pdfText';
+import { LICENSES, TEXT_KINDS, saveSource, hasSource, type TextKind } from '../lib/corpus/store';
 
 // Formula Search, "Mark up a passage" tab (her requests 2026-11-13; a tab of Formula Search, not its own tool): paste any passage, student writing or public domain, and it is marked
 // up like Write mode, with her grammar symbols over every word, broken into sentences, each with its formula code in
@@ -27,7 +30,9 @@ const SAMPLE = 'The fox ran into the woods. A small bird sang in the old oak tre
 const today = () => new Date().toISOString().slice(0, 10);
 type Kind = 'student' | 'public';
 
-interface Row { span: SentenceSpan; words: TaggedWord[]; reading: ReturnType<typeof readFormula>; check?: ReturnType<typeof checkSentence>; blocked: boolean }
+// Every line of the passage, structure first (engine 1.7.0, her rule 2026-11-20): its line type, then, for sentences
+// only, its formula. Titles, headers, list items, labels, greetings, closings and source credits are kept and counted too.
+interface Row { item: PassageItem; span: SentenceSpan; words: TaggedWord[]; reading: ReturnType<typeof readFormula>; check?: ReturnType<typeof checkSentence>; blocked: boolean }
 
 export function PassageTab() {
   const [text, setText] = useState('');
@@ -40,23 +45,49 @@ export function PassageTab() {
   const [ideas, setIdeas] = useState<FormulaIdea[]>(readIdeas);
   const [practice, setPractice] = useState<Record<string, PracticeSentence[]>>(readPractice);
   const [message, setMessage] = useState('');
+  const [textKind, setTextKind] = useState<TextKind>('story');
+  const [license, setLicense] = useState(LICENSES[0]);
+  const [gradeBand, setGradeBand] = useState('');
+  const [year, setYear] = useState('');
+  const [saved, setSaved] = useState('');
+  const [reading, setReading] = useState('');
   const file = useRef<HTMLInputElement>(null);
+  const doc = useRef<HTMLInputElement>(null);
+  const pickKind = (k: Kind) => { setKind(k); if (k === 'student') { setTextKind('learner'); setLicense('Learner writing (private)'); } else if (textKind === 'learner') { setTextKind('story'); setLicense(LICENSES[0]); } };
+  // A PDF or a text file goes into the box; PDF page headers, footers and page numbers are left out.
+  const openDoc = async (f: File) => {
+    setReading(`Reading ${f.name}...`);
+    try {
+      if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
+        const r = await pdfText(f);
+        if (r.scanned) { setReading(`${f.name} has no text in it (it is a scanned picture of pages). It needs text recognition first; paste the text instead.`); return; }
+        setText(r.text); setPassage(r.text);
+        setReading(`${f.name}: ${r.pages} ${r.pages === 1 ? 'page' : 'pages'}${r.removed ? `, ${r.removed} page headers, footers and page numbers left out` : ''}. Check the text below.`);
+      } else { const t = await f.text(); setText(t); setPassage(t); setReading(`${f.name} added.`); }
+      if (!source.trim()) setSource(f.name.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' '));
+      setSaved(''); setFix(null);
+    } catch { setReading(`${f.name} could not be read. Try copying its text and pasting it.`); }
+  };
   useEffect(() => { Promise.all([loadWords(), loadWordTypes()]).then(() => setReady(true)); }, []);
 
   const rows = useMemo<Row[]>(() => {
     if (!ready || !passage.trim()) return [];
     void version;
-    return splitSentences(passage).map((span) => ({
-      span, words: tagForCheck(span.text), reading: readFormula(span.text),
-      check: kind === 'student' ? checkSentence(span) : undefined, blocked: isBlockedText(span.text),
-    }));
+    return readPassage(passage).map((item) => {
+      const span: SentenceSpan = { start: 0, end: item.text.length, text: item.text, ended: /[.!?]["'”’)]*$/.test(item.text) };
+      const sentenceLike = item.type === 'sentence' || item.type === 'fragment';
+      return {
+        item, span, words: tagForCheck(item.text), reading: item.type === 'sentence' ? readFormula(item.text) : null,
+        check: kind === 'student' && sentenceLike ? checkSentence(span) : undefined, blocked: isBlockedText(item.text),
+      };
+    });
   }, [passage, ready, version, kind]);
 
   // The formula base this passage adds to: each code once, how often it came up, and whether it is in her list.
   const base = useMemo(() => {
     const m = new Map<string, { code: string; inList: boolean; count: number; sentences: string[]; slots: string[] }>();
     for (const r of rows) {
-      if (!r.reading) continue;
+      if (!r.reading || r.item.type !== 'sentence') continue;
       const inList = r.reading.exact.length > 0;
       const code = inList ? r.reading.exact[0].code.replace(/\*$/, '') : r.reading.code;
       const cur = m.get(code) ?? { code, inList, count: 0, sentences: [], slots: r.reading.slots };
@@ -80,6 +111,22 @@ export function PassageTab() {
     a.download = `formula-base-${today()}.json`;
     a.click();
   };
+  // Save every line to the private Symbolic Grammar log (her request 2026-11-20), with where the passage is from.
+  const saveToLog = async () => {
+    const title = source.trim() || (kind === 'student' ? 'Learner writing' : 'Untitled passage');
+    if (await hasSource(title, rows[0]?.item.text ?? '')) { setSaved('This passage is already in your Symbolic Grammar log.'); return; }
+    const items = rows.map((r, n) => {
+      const inList = !!r.reading?.exact.length;
+      return {
+        n: n + 1, line: r.item.line, type: r.item.type, text: r.item.text, job: r.item.job, code: r.item.code ?? '',
+        listed: inList ? r.reading!.exact[0].code.replace(/\*$/, '') : '', inList, closest: r.reading?.close.map((c) => c.code) ?? [],
+        family: r.item.family ?? [], dialogue: r.item.dialogue, informal: r.item.informal, missing: r.item.missing ?? null,
+        words: r.words.map((w) => [w.word, w.wordClass] as [string, SymbolWordClass]),
+      };
+    });
+    await saveSource({ id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`, title, origin: kind, textKind: kind === 'student' ? 'learner' : textKind, license, gradeBand: gradeBand.trim(), year: year.trim(), addedAt: new Date().toISOString(), lines: items.length, sentences: items.filter((i) => i.type === 'sentence').length }, items);
+    setSaved(`Saved ${items.length} lines to your Symbolic Grammar log.`);
+  };
   const importBase = async (f: File) => {
     try {
       const d = JSON.parse(await f.text()) as { corrections?: Correction[]; practice?: Record<string, PracticeSentence[]>; ideas?: FormulaIdea[] };
@@ -93,21 +140,48 @@ export function PassageTab() {
   return (
     <div className="pb">
         <section className="wx-card">
-          <form onSubmit={(e) => { e.preventDefault(); setPassage(text); setFix(null); }}>
+          <form onSubmit={(e) => { e.preventDefault(); setPassage(text); setFix(null); setSaved(''); }}>
             <label htmlFor="pb-text" className="wx-h2">Paste a passage</label>
-            <p className="wx-muted">Student writing or a public domain passage. Each sentence gets its symbols and its formula code.</p>
+            <p className="wx-muted">Student writing or a public domain passage, typed, pasted or from a PDF. Every line gets its structure first (title, header, list item, sentence...), then each sentence gets its symbols and its formula code.</p>
             <textarea id="pb-text" className="wx-input pb-text" rows={7} value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste or type a passage here" />
             <div className="pb-row">
               <div className="wx-choice-row" role="radiogroup" aria-label="Where the passage is from">
-                <button type="button" role="radio" aria-checked={kind === 'student'} className={`wx-btn${kind === 'student' ? ' wx-btn-primary' : ''}`} onClick={() => setKind('student')}>Student writing</button>
-                <button type="button" role="radio" aria-checked={kind === 'public'} className={`wx-btn${kind === 'public' ? ' wx-btn-primary' : ''}`} onClick={() => setKind('public')}>Public domain</button>
+                <button type="button" role="radio" aria-checked={kind === 'student'} className={`wx-btn${kind === 'student' ? ' wx-btn-primary' : ''}`} onClick={() => pickKind('student')}>Student writing</button>
+                <button type="button" role="radio" aria-checked={kind === 'public'} className={`wx-btn${kind === 'public' ? ' wx-btn-primary' : ''}`} onClick={() => pickKind('public')}>Public domain</button>
               </div>
-              <input className="wx-input pb-source" value={source} onChange={(e) => setSource(e.target.value)} placeholder={kind === 'student' ? 'Student or assignment (optional)' : 'Title and author (optional)'} aria-label="Source" />
+              <input className="wx-input pb-source" value={source} onChange={(e) => setSource(e.target.value)} placeholder={kind === 'student' ? 'Assignment (no student names)' : 'Title and author (optional)'} aria-label="Source" />
+            </div>
+            <div className="pb-row pb-details">
+              {kind === 'public' && (
+                <label className="wx-select-label">Kind of text
+                  <select className="wx-input" value={textKind} onChange={(e) => setTextKind(e.target.value as TextKind)}>
+                    {TEXT_KINDS.filter((k) => k.id !== 'learner').map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
+                  </select>
+                </label>
+              )}
+              {kind === 'public' && (
+                <label className="wx-select-label">License
+                  <select className="wx-input" value={license} onChange={(e) => setLicense(e.target.value)}>
+                    {LICENSES.filter((l) => l !== 'Learner writing (private)').map((l) => <option key={l}>{l}</option>)}
+                  </select>
+                </label>
+              )}
+              <label className="wx-select-label">Grade band
+                <input className="wx-input pb-small" value={gradeBand} onChange={(e) => setGradeBand(e.target.value)} placeholder="K-2, adult..." />
+              </label>
+              {kind === 'public' && (
+                <label className="wx-select-label">Year written
+                  <input className="wx-input pb-small" value={year} onChange={(e) => setYear(e.target.value)} placeholder="1902" inputMode="numeric" />
+                </label>
+              )}
             </div>
             <div className="wx-lm-actions">
               <button type="submit" className="wx-btn wx-btn-primary" disabled={!text.trim()}>Mark it up</button>
-              <button type="button" className="wx-btn" onClick={() => { setText(SAMPLE); setPassage(SAMPLE); setSource('Sample passage'); setKind('public'); }}>Try a sample</button>
+              <button type="button" className="wx-btn" onClick={() => doc.current?.click()}>Upload a PDF or text file</button>
+              <input ref={doc} type="file" accept=".pdf,.txt,application/pdf,text/plain" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void openDoc(f); e.target.value = ''; }} />
+              <button type="button" className="wx-btn" onClick={() => { setText(SAMPLE); setPassage(SAMPLE); setSource('Sample passage'); pickKind('public'); setSaved(''); }}>Try a sample</button>
             </div>
+            {reading && <p role="status" className="wx-muted">{reading}</p>}
           </form>
         </section>
 
@@ -115,10 +189,21 @@ export function PassageTab() {
         {rows.length > 0 && (
           <>
             <section className="wx-card pb-summary" aria-label="Summary">
-              <span className="wx-fact">{rows.length} sentences</span>
+              <span className="wx-fact">{rows.length} lines</span>
+              <span className="wx-fact">{rows.filter((r) => r.item.type === 'sentence').length} sentences</span>
+              {(['title', 'header', 'list item', 'label', 'greeting', 'closing', 'source credit', 'fragment'] as const).map((t) => {
+                const n = rows.filter((r) => r.item.type === t).length;
+                return n ? <span key={t} className="wx-fact">{n} {LINE_TYPE_INFO[t].name.toLowerCase()}{n === 1 ? '' : 's'}</span> : null;
+              })}
+              {rows.some((r) => r.item.dialogue) && <span className="wx-fact">{rows.filter((r) => r.item.dialogue).length} dialogue</span>}
+              {rows.some((r) => r.item.informal) && <span className="wx-fact">{rows.filter((r) => r.item.informal).length} informal speech</span>}
               <span className="wx-fact">{rows.filter((r) => r.reading?.exact.length).length} use a formula in the list</span>
               <span className="wx-fact">{rows.filter((r) => r.reading && !r.reading.exact.length).length} new patterns</span>
               <span className="wx-fact">{rows.filter((r) => r.words.some((w) => w.unsure)).length} with a word to check</span>
+              <div className="wx-lm-actions pb-save">
+                <button type="button" className="wx-btn wx-btn-primary" onClick={() => void saveToLog()}>Save to my Symbolic Grammar log</button>
+                {saved && <span role="status">{saved} <a href="/formulas?tab=sg">Open the log</a></span>}
+              </div>
             </section>
 
             <section className="pb-sentences" aria-label="Sentences">
@@ -132,7 +217,11 @@ export function PassageTab() {
                     <div className="pb-sentence-head">
                       <span className="pb-n">{k + 1}</span>
                       <button type="button" className="wx-speak" aria-label="Read this sentence" onClick={() => speak(r.span.text)}><Icon name="speaker" size={22} /></button>
-                      {inList ? <span className="pb-tag in">In the list: {code}</span> : <span className="pb-tag new">New formula: {code}</span>}
+                      <span className={`pb-tag type t-${r.item.type.replace(' ', '-')}`} title={LINE_TYPE_INFO[r.item.type].about}>{LINE_TYPE_INFO[r.item.type].name}</span>
+                      {r.item.dialogue && <span className="pb-tag type">Dialogue</span>}
+                      {r.item.informal && <span className="pb-tag type">Informal speech</span>}
+                      {r.reading && (inList ? <span className="pb-tag in">In the list: {code}</span> : <span className="pb-tag new">New formula: {code}</span>)}
+                      {r.item.type === 'fragment' && <span className="pb-tag warn">Missing {r.item.missing === 'who' ? 'a subject' : 'a verb'}{r.item.code ? ` (${r.item.code})` : ''}</span>}
                       {r.blocked && <span className="pb-tag warn">Has a word on the kid-safe list</span>}
                     </div>
                     <Marked words={r.words} text={r.span.text} onPick={(i) => setFix(fix && fix.row === k && fix.word === i ? null : { row: k, word: i })} picked={fix?.row === k ? fix.word : null} />
@@ -148,6 +237,7 @@ export function PassageTab() {
                         </div>
                       </div>
                     )}
+                    {!LINE_TYPE_INFO[r.item.type].formula && <p className="wx-muted pb-about">{LINE_TYPE_INFO[r.item.type].about}</p>}
                     {r.reading && (
                       <div className="pb-formula">
                         <FormulaSymbols slots={r.reading.slots} labels />
@@ -191,7 +281,7 @@ export function PassageTab() {
                 ))}</tbody>
               </table>
               {base.some((b) => !b.inList) && (
-                <button type="button" className="wx-btn wx-btn-primary" onClick={() => rows.forEach((r) => { if (r.reading && !r.reading.exact.length && !r.blocked) logNew(r.reading.code, r.span.text, r.reading.slots); })}>Add every new formula to the log</button>
+                <button type="button" className="wx-btn wx-btn-primary" onClick={() => rows.forEach((r) => { if (r.reading && r.item.type === 'sentence' && !r.reading.exact.length && !r.blocked) logNew(r.reading.code, r.span.text, r.reading.slots); })}>Add every new formula to the log</button>
               )}
             </section>
           </>
