@@ -22,7 +22,7 @@
     "@supabase/supabase-js": "^2.118.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "symbolic-grammar-engine": "https://codeload.github.com/vermontliteracynetwork/symbolic-grammar-engine/tar.gz/66b8216aad57be7c3358f4a112aebaf330e2ecc4",
+    "symbolic-grammar-engine": "https://codeload.github.com/vermontliteracynetwork/symbolic-grammar-engine/tar.gz/b43069511479e1648102cc4c66cf1c029a9e5e87",
     "yjs": "^13.6.33"
   },
   "devDependencies": {

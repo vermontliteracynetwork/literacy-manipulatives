@@ -23,3 +23,19 @@
 .pb-sub td { background: var(--ground); }
 .pb-found { margin: 0; padding-left: 1.6em; display: flex; flex-direction: column; gap: 6px; }
 .pb-found li .wx-btn { margin-left: 8px; }
+/* Formula and Example are the widest columns (her request 2026-11-20). */
+.pb-table { table-layout: fixed; min-width: 720px; }
+.pb-table th:nth-child(1) { width: 11%; }
+.pb-table th:nth-child(2) { width: 12%; }
+.pb-table th:nth-child(3) { width: 34%; }
+.pb-table th:nth-child(4) { width: 33%; }
+.pb-table th:nth-child(5) { width: 10%; text-align: right; }
+.pb-table td { vertical-align: middle; }
+.pb-table th:nth-child(1) { white-space: normal; }
+.pb-open { min-height: 0; }
+.pb-line td:nth-child(2) { padding-block: var(--s2); }
+.pb-book { width: auto; max-width: 100%; }
+.pb-found li { display: flex; flex-direction: column; gap: 2px; }
+.pb-found-s { font-weight: 600; }
+.pb-found-f { font-size: var(--text-small); }
+.pb-found li .wx-btn { align-self: flex-start; margin-left: 0; }
