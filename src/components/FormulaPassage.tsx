@@ -30,9 +30,9 @@ interface Row { code: string; inList: boolean; formula: string; example: string;
 
 function tableRows(research: Research | null, mine: Occurrence[], book: string): Row[] {
   const m = new Map<string, Row>();
-  const add = (text: string, classes: string[] | undefined, f: Omit<Found, 'formula' | 'sentence'>) => {
+  const add = (text: string, classes: string[] | undefined, f: Omit<Found, 'formula' | 'sentence'>, units?: [number, number][]) => {
     if (isBlockedText(text)) return;
-    const r = readResearch(text, classes);
+    const r = readResearch(text, classes, units);
     if (!r) return;
     let row = m.get(r.code);
     if (!row) { row = { code: r.code, inList: !!r.her, formula: r.her ? herWordByWord(r.her) : r.formula, example: r.her ? r.her.example : text, found: [] }; m.set(r.code, row); }
@@ -41,7 +41,7 @@ function tableRows(research: Research | null, mine: Occurrence[], book: string):
   for (const s of research?.sentences ?? []) {
     const b = research!.books[s.b];
     if (book !== 'all' && book !== b.id) continue;
-    add(s.t, s.c, { source: `${b.name}, ${s.s}`, reviewed: true });
+    add(s.t, s.c, { source: `${b.name}, ${s.s}`, reviewed: true }, s.u);
   }
   if (book === 'all' || book === 'mine') for (const o of mine) add(o.sentence, undefined, { source: o.source || (o.kind === 'student' ? 'Student writing' : 'Public domain'), reviewed: false, mine: o });
   return [...m.values()].sort((a, b) => b.found.length - a.found.length || a.code.localeCompare(b.code));
