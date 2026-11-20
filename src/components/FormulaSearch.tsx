@@ -39,7 +39,7 @@ export function FormulaSearch() {
   const [ready, setReady] = useState(false);
   const [log, setLog] = useState<FormulaIdea[]>(readIdeas);
   const [showLog, setShowLog] = useState(false);
-  // Two tabs: one sentence, or a whole passage marked up sentence by sentence (her request 2026-11-13).
+  // Two tabs: one sentence, or Log Formulas (a passage in, a table of every logged formula; her request 2026-11-20).
   const [tab, setTab] = useState<'sentence' | 'passage'>(() => (new URLSearchParams(window.location.search).get('tab') === 'passage' || window.location.pathname.startsWith('/passages') ? 'passage' : 'sentence'));
   const pickTab = (t: 'sentence' | 'passage') => { setTab(t); window.history.replaceState(null, '', t === 'passage' ? '/formulas?tab=passage' : '/formulas'); setLog(readIdeas()); };
 
@@ -56,9 +56,9 @@ export function FormulaSearch() {
       <div className="fs-top"><HomeButton className="wx-btn" /></div>
       <main className={`fs-main${searched || tab === 'passage' ? ' searched' : ''}${tab === 'passage' ? ' wide' : ''}`}>
         <h1 className="fs-title"><a href="/formulas" onClick={(e) => { e.preventDefault(); setText(''); go(''); pickTab('sentence'); }}>Formula Search</a></h1>
-        <div className="fs-tabs" role="tablist" aria-label="Search a sentence or a passage">
+        <div className="fs-tabs" role="tablist" aria-label="Search a sentence or log formulas">
           <button type="button" role="tab" aria-selected={tab === 'sentence'} className={`wx-btn${tab === 'sentence' ? ' wx-btn-primary' : ''}`} onClick={() => pickTab('sentence')}>Search a sentence</button>
-          <button type="button" role="tab" aria-selected={tab === 'passage'} className={`wx-btn${tab === 'passage' ? ' wx-btn-primary' : ''}`} onClick={() => pickTab('passage')}>Mark up a passage</button>
+          <button type="button" role="tab" aria-selected={tab === 'passage'} className={`wx-btn${tab === 'passage' ? ' wx-btn-primary' : ''}`} onClick={() => pickTab('passage')}>Log Formulas</button>
         </div>
         {tab === 'passage' ? <PassageTab /> : <>
         <form className="fs-bar" role="search" onSubmit={(e) => { e.preventDefault(); go(text); }}>
@@ -120,12 +120,7 @@ export function FormulaSearch() {
           </div>
         )}
         </>}
-        {tab === 'passage' && (
-          <div className="fs-home-links">
-            <button type="button" className="wx-btn" onClick={() => { setLog(readIdeas()); setShowLog((s) => !s); }} aria-expanded={showLog}>Formula log ({log.length})</button>
-          </div>
-        )}
-        {showLog && (
+        {showLog && tab === 'sentence' && (
           <section className="fs-log" aria-labelledby="fs-log-h">
             <h2 id="fs-log-h" className="wx-h2">Formula log</h2>
             <p className="wx-muted">Formulas added here that are not in her All Sentence Formulas list, newest last. Kept in this browser, along with the Write mode's formula ideas. Download it to keep a copy or share it.</p>

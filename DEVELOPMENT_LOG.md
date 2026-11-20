@@ -1328,3 +1328,10 @@ Her request: "MAIN SYMBOLIC GRAMMAR ENGINE: needs to fuel all literacy manipulat
 - Word Explorer's forms card (`regularForms` in `src/lib/word-explorer/data.ts`) uses the engine: teach shows taught, forgive shows forgave and forgiven, sting shows stung. WordNet's British -ed spellings (travelled) are not used.
 - An example sentence is past only when the engine says its verb is a past form (need and feed are not past). Same for Silly Stories' blank labels ("a verb in the past") and Story Maker's word book.
 - Silly Stories, Story Maker and the Daily Lesson word pickers use the engine's plurals and -ing forms (`src/lib/wordsByType.ts` no longer has its own).
+
+## 2026-11-20: Formula Search's passage tab is now "Log Formulas"
+
+Her request: "change the mark up a passage to 'Log Formulas' and have that section just for an input and table view (simple dahsboard like) of the data collected".
+- The tab is "Log Formulas" (`src/components/FormulaPassage.tsx`): one box to paste a passage (Student writing or Public domain, an optional source) and a Log formulas button. Every sentence is logged by its formula: one in her list becomes a practice sentence for that formula, a new pattern goes to the formula log. Sentences with a word on the kid-safe list are skipped.
+- Below: totals (formulas, in her list, new formulas, sentences) and one table of everything logged so far: formula, symbols, in her list or new, how many sentences, the latest sentence, sources, last added, Remove. Show All, In her list or New; Download (spreadsheet).
+- Removed from this tab: the sentence-by-sentence markup, tapping a word to fix its symbol, Check the engine, and the formula base download and upload. The data they made (fixes, practice sentences, formula log) is kept.

@@ -40,7 +40,7 @@ const TOOLS: Tool[] = [
   },
   {
     title: 'Formula Search',
-    description: 'Type any sentence to find its formulas, or mark up a whole passage (student writing or public domain) with the grammar symbols and a formula code for every sentence. New formulas go to the formula log.',
+    description: 'Type any sentence to find its formulas, or Log Formulas: paste a passage (student writing or public domain) and every sentence is logged by its formula in one table.',
     href: '/formulas',
     image: '/dashboard/formula-search.png',
     tags: ['Teacher tool', 'Formulas'],
