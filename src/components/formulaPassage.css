@@ -11,6 +11,15 @@
 .pb-table-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 8px; }
 .pb-table-head .wx-h2 { margin: 0; flex: 1 1 auto; }
 .pb-scroll { overflow-x: auto; }
-.pb-table td:nth-child(4), .pb-table td:last-child { white-space: nowrap; }
+
 .pb-tag { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; font-weight: 700; font-size: var(--text-small); border: 1px solid var(--line); }
 .pb-tag.new { background: var(--tint-honey); }
+.pb-note { margin: 0 0 8px; }
+.pb-line { cursor: pointer; }
+.pb-line:hover, .pb-line.on { background: var(--tint-lavender); }
+.pb-open { min-height: var(--target); padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.pb-check-cell { text-align: center !important; width: 1%; white-space: nowrap; }
+.pb-count { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right !important; }
+.pb-sub td { background: var(--ground); }
+.pb-found { margin: 0; padding-left: 1.6em; display: flex; flex-direction: column; gap: 6px; }
+.pb-found li .wx-btn { margin-left: 8px; }
