@@ -79,7 +79,7 @@ Everything from this chat about sentence formulas, gathered in one place to carr
   | PowerUp Fluency, Intermediate | 47 |
   | MCAS Grade 10 ELA 2012 | 4 of 6 (two were withheld for copyright) |
 
-  - That is 2,039 complete sentences, every word's symbol checked by hand. 498 naming-word pairs were decided by D-28.
+- That is 2,039 complete sentences, every word's symbol checked by hand. 498 naming-word pairs were decided by D-28.
 - **Symbolic Grammar Engine changes:**
   - **1.6.0:** a full irregular verb table, so no "-ed" is added where it doesn't belong.
   - **1.7.0:** formula sentences: speech tags and incomplete sentences are left out.
@@ -124,7 +124,7 @@ Everything from this chat about sentence formulas, gathered in one place to carr
   | Article + noun | 10% |
   | Compound subject | 5% |
 
-  - Your four Who formulas cover about 76 to 79%.
+- Your four Who formulas cover about 76 to 79%.
 - **Tense:** 50% past, 47% present, 3% future.
 - **Prepositional phrases:** in 64% of sentences, but they open only 3% of them. The most common prepositions are to, of, in, on, for, at, with and from.
 - **Joining words:** and, that, when, but, or, if, so, because.
